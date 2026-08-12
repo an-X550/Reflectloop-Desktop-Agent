@@ -14,7 +14,7 @@ export function App() {
   const data = useAppData();
   if (data.loading) return <div className="boot-state"><span className="spinner"/>正在读取本地数据…</div>;
   if (data.error) return <div className="boot-state"><EmptyState title="暂时无法读取本地数据" description={data.error} action={<Button variant="primary" onClick={() => void data.refresh()}>重试</Button>}/></div>;
-  return <AppShell view={view} onNavigate={setView} connectionReady={Boolean(data.settings?.hasApiKey)}>{view === 'today' ? <TodayPage journals={data.journals} projects={data.projects} reviews={data.reviews} onRefresh={data.refresh} onNavigate={setView}/> : view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')}/> : view === 'projects' ? <LegacyProjects projects={data.projects} onRefresh={data.refresh}/> : view === 'history' ? <HistoryPage journals={data.journals}/> : <SettingsPage/>}</AppShell>;
+  return <AppShell view={view} onNavigate={setView} connectionReady={Boolean(data.settings?.hasApiKey)}>{view === 'today' ? <TodayPage journals={data.journals} projects={data.projects} reviews={data.reviews} onRefresh={data.refresh} onNavigate={setView}/> : view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')} onNavigate={setView}/> : view === 'projects' ? <LegacyProjects projects={data.projects} onRefresh={data.refresh}/> : view === 'history' ? <HistoryPage journals={data.journals}/> : <SettingsPage/>}</AppShell>;
 }
 
 function LegacyProjects({ projects, onRefresh }: { projects: ReturnType<typeof useAppData>['projects']; onRefresh(): Promise<void> }) {

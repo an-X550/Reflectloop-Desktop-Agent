@@ -1,0 +1,2 @@
+import { Button } from '../../components/button';
+export function ReviewTypeCard({ badge, title, description, action, onSelect }: { badge: string; title: string; description: string; action: string; onSelect(): void }) { return <article className="card review-type-card"><span className="review-badge">{badge}</span><h3>{title}</h3><p>{description}</p><Button variant="secondary" onClick={onSelect}>{action}</Button></article>; }

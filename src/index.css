@@ -87,6 +87,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .recent-item { display: grid; grid-template-columns: 110px 1fr; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .recent-item time { color: var(--muted); }
 .project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.review-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.review-type-card { display: flex; flex-direction: column; align-items: flex-start; }
+.review-type-card p { flex: 1; color: var(--muted); }
+.review-type-card .btn { width: 100%; }
+.review-badge { display: inline-grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; background: var(--brand-soft); color: var(--brand); font-size: 16px; font-weight: 800; }
+.review-config, .material-preview { margin-top: 18px; }
+.date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.material-list { display: grid; gap: 10px; }
+.material-list article { display: grid; grid-template-columns: 110px 1fr; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.material-list p { margin: 0 0 3px; }.material-list small, .material-list time { color: var(--muted); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 980px) {
@@ -96,6 +106,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .navigation button { justify-content: center; }
   .page-view { padding-inline: 22px; }
   .today-grid { grid-template-columns: 1fr; }
+  .review-cards { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
