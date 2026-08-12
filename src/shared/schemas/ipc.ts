@@ -34,6 +34,11 @@ export const GenerateDailyReviewInputSchema = z.object({
   journalId: StableJournalId,
   regenerate: z.boolean().optional(),
 }).strict();
+export const PeriodicReviewInputSchema = z.object({
+  type: z.enum(['weekly', 'monthly', 'project']), start: IsoDate, end: IsoDate,
+  projectId: StableProjectId.optional(), previewToken: z.string().uuid().optional(),
+}).strict().refine((value) => value.start <= value.end, '开始日期不能晚于结束日期');
+export type PeriodicReviewInput = z.infer<typeof PeriodicReviewInputSchema>;
 
 export type SaveJournalInput = z.infer<typeof SaveJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;

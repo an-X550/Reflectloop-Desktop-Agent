@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, SaveJournalInputSchema, SaveProviderConfigInputSchema } from '../../shared/schemas/ipc';
+import { CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewInputSchema, SaveJournalInputSchema, SaveProviderConfigInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
 import type { SaveJournal } from '../application/save-journal';
@@ -7,8 +7,9 @@ import type { ConfigureAi } from '../application/configure-ai';
 import type { GenerateDailyReview } from '../application/generate-daily-review';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import type { ReviewTaskManager } from '../domain/review-task';
+import type { GeneratePeriodicReview } from '../application/generate-periodic-review';
 
-export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager }) {
+export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager }) {
   ipcMain.handle('journals:save', (_event, raw) => deps.saveJournal.execute(SaveJournalInputSchema.parse(raw)));
   ipcMain.handle('journals:list', async (_event, raw = {}) => {
     const query = JournalQuerySchema.parse(raw);
@@ -28,4 +29,6 @@ export function registerHandlers(deps: { saveJournal: SaveJournal; journals: Mar
   });
   ipcMain.handle('reviews:list', () => deps.reviews.list());
   ipcMain.handle('reviews:cancel', () => { const task = deps.reviewTasks.getCurrent(); if (task) deps.reviewTasks.cancel(task.taskId); });
+  ipcMain.handle('reviews:preview', async (_event, raw) => { const input = PeriodicReviewInputSchema.omit({ previewToken: true }).parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.preview({ ...input, model: config.model }); });
+  ipcMain.handle('reviews:generate-periodic', async (_event, raw) => { const input = PeriodicReviewInputSchema.required({ previewToken: true }).parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.execute({ ...input, previewToken: input.previewToken, model: config.model }); });
 }

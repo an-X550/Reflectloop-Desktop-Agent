@@ -1,0 +1,3 @@
+import { useEffect, useState } from 'react';
+import type { Journal, Review } from '../../shared/schemas/domain';
+export function HistoryPage({ journals }: { journals: Journal[] }) { const [reviews, setReviews] = useState<Review[]>([]); useEffect(() => { void window.zhiji.reviews.list().then(setReviews); }, []); return <><header><div><h2>历史</h2><p>内容来自本机 Markdown 文件。</p></div></header><section><h3>复盘</h3>{reviews.slice().reverse().map((r) => <article className="card" key={r.id}><b>{r.type} · {r.periodStart} 至 {r.periodEnd}</b><pre>{r.body}</pre><small>来源：{r.sourceIds.join('、')}</small></article>)}</section><section><h3>日志</h3>{journals.slice().reverse().map((j) => <article className="row" key={j.id}><b>{j.date}</b><span>{j.body}</span></article>)}</section></>; }

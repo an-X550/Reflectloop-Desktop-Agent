@@ -9,6 +9,7 @@ import { ConfigureAi } from './application/configure-ai';
 import { MarkdownReviewRepository } from './infrastructure/markdown/review-repository';
 import { ReviewTaskManager } from './domain/review-task';
 import { GenerateDailyReview } from './application/generate-daily-review';
+import { GeneratePeriodicReview } from './application/generate-periodic-review';
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
@@ -19,5 +20,6 @@ export function bootstrap() {
   const reviews = new MarkdownReviewRepository(dataRoot);
   const reviewTasks = new ReviewTaskManager();
   const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks);
-  registerHandlers({ journals, projects, reviews, reviewTasks, generateDailyReview, saveJournal: new SaveJournal(journals), configureAi });
+  const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks);
+  registerHandlers({ journals, projects, reviews, reviewTasks, generateDailyReview, generatePeriodicReview, saveJournal: new SaveJournal(journals), configureAi });
 }

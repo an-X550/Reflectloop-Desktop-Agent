@@ -21,6 +21,8 @@ const api: ZhijiDesktopApi = {
     generateDaily: (input) => ipcRenderer.invoke('reviews:generate-daily', input),
     list: () => ipcRenderer.invoke('reviews:list'),
     cancel: () => ipcRenderer.invoke('reviews:cancel'),
+    preview: (input) => ipcRenderer.invoke('reviews:preview', input),
+    generatePeriodic: (input) => ipcRenderer.invoke('reviews:generate-periodic', input),
   },
 };
 

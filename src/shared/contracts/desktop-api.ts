@@ -1,6 +1,6 @@
 import type { Journal, Project, Review } from '../schemas/domain';
 import type { CreateProjectInput, JournalQuery, SaveJournalInput } from '../schemas/ipc';
-import type { SaveProviderConfigInput } from '../schemas/ipc';
+import type { PeriodicReviewInput, SaveProviderConfigInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 
 export interface ZhijiDesktopApi {
@@ -23,5 +23,7 @@ export interface ZhijiDesktopApi {
     generateDaily(input: { journalId: string; regenerate?: boolean }): Promise<Review>;
     list(): Promise<Review[]>;
     cancel(): Promise<void>;
+    preview(input: Omit<PeriodicReviewInput, 'previewToken'>): Promise<{ token: string; type: string; start: string; end: string; sources: { id: string; date: string; excerpt: string }[] }>;
+    generatePeriodic(input: PeriodicReviewInput & { previewToken: string }): Promise<Review>;
   };
 }
