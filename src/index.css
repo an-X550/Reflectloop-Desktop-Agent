@@ -97,6 +97,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .material-list { display: grid; gap: 10px; }
 .material-list article { display: grid; grid-template-columns: 110px 1fr; gap: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .material-list p { margin: 0 0 3px; }.material-list small, .material-list time { color: var(--muted); }
+.project-layout { display: grid; grid-template-columns: 320px 1fr; gap: 18px; }
+.project-list { display: grid; align-content: start; gap: 9px; }
+.project-list button { display: grid; gap: 3px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); text-align: left; }
+.project-list button span { color: var(--muted); font-size: 12px; }.project-list button.is-active { border-color: var(--brand); background: var(--brand-soft); }
+.project-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0; }.project-metrics div { padding: 16px; border-radius: 12px; background: #f6f8f6; }.project-metrics strong, .project-metrics span { display: block; }.project-metrics strong { font-size: 20px; }.project-metrics span { color: var(--muted); }
+.archive-confirm { margin-top: 16px; padding: 14px; border-radius: 12px; background: var(--danger-soft); }.archive-confirm p { margin-top: 0; }.archive-confirm .btn { margin-right: 8px; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 24px; background: rgba(18, 31, 26, .45); }
+.modal { width: min(460px, 100%); padding: 22px; border-radius: 18px; background: #fff; box-shadow: var(--shadow); }.modal__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }.modal__header h2 { margin: 0; font-size: 20px; }.modal__header button { border: 0; background: transparent; color: var(--muted); font-size: 25px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 980px) {
@@ -107,6 +115,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .page-view { padding-inline: 22px; }
   .today-grid { grid-template-columns: 1fr; }
   .review-cards { grid-template-columns: 1fr; }
+  .project-layout { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
