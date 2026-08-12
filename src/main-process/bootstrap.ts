@@ -1,4 +1,4 @@
-import { app, safeStorage } from 'electron';
+import { app, dialog, safeStorage } from 'electron';
 import path from 'node:path';
 import { SaveJournal } from './application/save-journal';
 import { registerHandlers } from './ipc/register-handlers';
@@ -10,6 +10,7 @@ import { MarkdownReviewRepository } from './infrastructure/markdown/review-repos
 import { ReviewTaskManager } from './domain/review-task';
 import { GenerateDailyReview } from './application/generate-daily-review';
 import { GeneratePeriodicReview } from './application/generate-periodic-review';
+import { DataTransferService } from './infrastructure/transfer/data-transfer-service';
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
@@ -21,5 +22,6 @@ export function bootstrap() {
   const reviewTasks = new ReviewTaskManager();
   const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks);
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks);
-  registerHandlers({ journals, projects, reviews, reviewTasks, generateDailyReview, generatePeriodicReview, saveJournal: new SaveJournal(journals), configureAi });
+  const transfer = new DataTransferService(dataRoot, app.getVersion());
+  registerHandlers({ journals, projects, reviews, reviewTasks, generateDailyReview, generatePeriodicReview, saveJournal: new SaveJournal(journals), configureAi, transfer, dialog });
 }

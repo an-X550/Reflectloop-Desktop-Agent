@@ -17,6 +17,9 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'save' | 'test' | null>(null);
+  const [transferBusy, setTransferBusy] = useState<'export' | 'preview' | 'restore' | null>(null);
+  const [transferMessage, setTransferMessage] = useState('');
+  const [restorePreview, setRestorePreview] = useState<Awaited<ReturnType<Window['zhiji']['transfer']['previewRestore']>> | null>(null);
 
   useEffect(() => { void window.zhiji.settings.getPublicConfig().then(({ hasApiKey: saved, ...config }) => { setForm(config); setHasApiKey(saved); }); }, []);
   const updateProvider = (providerId: SaveProviderConfigInput['providerId']) => {
@@ -36,6 +39,9 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
     } catch (reason) { setError(reason instanceof Error ? reason.message : '请检查配置后重试'); }
     finally { setBusy(null); }
   };
+  const exportBackup = async () => { setTransferBusy('export'); setTransferMessage(''); try { const result = await window.zhiji.transfer.exportBackup(); if (!result.canceled) setTransferMessage(`备份已导出，共 ${result.fileCount} 个文件。`); } catch (reason) { setTransferMessage(`导出失败：${reason instanceof Error ? reason.message : '请重试'}`); } finally { setTransferBusy(null); } };
+  const previewBackup = async () => { setTransferBusy('preview'); setTransferMessage(''); try { const result = await window.zhiji.transfer.previewRestore(); if (!result.canceled) setRestorePreview(result); } catch (reason) { setTransferMessage(`校验失败：${reason instanceof Error ? reason.message : '备份不可用'}`); } finally { setTransferBusy(null); } };
+  const restoreBackup = async () => { if (!restorePreview?.previewId) return; setTransferBusy('restore'); try { const result = await window.zhiji.transfer.restore(restorePreview.previewId); setRestorePreview(null); setTransferMessage(`恢复完成，共写入 ${result.fileCount} 个文件。请重启知己读取数据。`); } catch (reason) { setTransferMessage(`恢复失败：${reason instanceof Error ? reason.message : '请重试'}`); } finally { setTransferBusy(null); } };
 
   return <div className="settings-page">
     <PageHeader title="AI 设置" description="使用你自己的 API Key；日志和复盘文件仍只保存在本机。"/>
@@ -50,6 +56,12 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
       {message && <StatusBanner tone="success">{message}</StatusBanner>}
       {error && <StatusBanner tone="error">操作失败：{error}</StatusBanner>}
       <div className="settings-actions"><Button loading={busy === 'test'} onClick={() => void run('test')}>测试连接</Button><Button variant="primary" loading={busy === 'save'} onClick={() => void run('save')}>保存设置</Button></div>
+    </section>
+    <section className="card transfer-panel">
+      <div className="section-heading"><div><h3>本地数据</h3><p>导出日志、复盘、项目与公开 AI 配置；API Key 和缓存不会进入备份。</p></div></div>
+      <div className="transfer-actions"><Button loading={transferBusy === 'export'} onClick={() => void exportBackup()}>导出可验证备份</Button><Button loading={transferBusy === 'preview'} onClick={() => void previewBackup()}>选择备份并校验</Button></div>
+      {restorePreview?.previewId && <div className="restore-preview"><strong>备份校验通过：{restorePreview.fileCount} 个文件</strong><p>{restorePreview.categories?.journals ?? 0} 篇日志 · {restorePreview.categories?.reviews ?? 0} 份复盘 · {restorePreview.categories?.projects ?? 0} 个项目</p><p className="muted">为避免覆盖，恢复只允许写入空数据目录。</p><Button variant="primary" loading={transferBusy === 'restore'} onClick={() => void restoreBackup()}>确认恢复</Button></div>}
+      {transferMessage && <StatusBanner tone={transferMessage.includes('失败') ? 'error' : 'success'}>{transferMessage}</StatusBanner>}
     </section>
   </div>;
 }

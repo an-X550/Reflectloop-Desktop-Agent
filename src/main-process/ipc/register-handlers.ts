@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron';
+import { ipcMain, type dialog as ElectronDialog } from 'electron';
+import { z } from 'zod';
 import { CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewInputSchema, SaveJournalInputSchema, SaveProviderConfigInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -8,8 +9,21 @@ import type { GenerateDailyReview } from '../application/generate-daily-review';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import type { ReviewTaskManager } from '../domain/review-task';
 import type { GeneratePeriodicReview } from '../application/generate-periodic-review';
+import type { DataTransferService } from '../infrastructure/transfer/data-transfer-service';
 
-export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager }) {
+export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
+  ipcMain.handle('transfer:export', async () => {
+    const result = await deps.dialog.showSaveDialog({ title: '导出知己备份', defaultPath: `知己备份-${new Date().toISOString().slice(0, 10)}.zhiji.zip`, filters: [{ name: '知己备份', extensions: ['zip'] }] });
+    if (result.canceled || !result.filePath) return { canceled: true };
+    const destination = result.filePath.endsWith('.zhiji.zip') ? result.filePath : `${result.filePath.replace(/\.zip$/i, '')}.zhiji.zip`;
+    return { canceled: false, ...await deps.transfer.exportTo(destination) };
+  });
+  ipcMain.handle('transfer:preview-restore', async () => {
+    const result = await deps.dialog.showOpenDialog({ title: '选择知己备份', properties: ['openFile'], filters: [{ name: '知己备份', extensions: ['zip'] }] });
+    if (result.canceled || !result.filePaths[0]) return { canceled: true };
+    return { canceled: false, ...await deps.transfer.preview(result.filePaths[0]) };
+  });
+  ipcMain.handle('transfer:restore', (_event, raw) => deps.transfer.restore(z.string().uuid().parse(raw)));
   ipcMain.handle('journals:save', (_event, raw) => deps.saveJournal.execute(SaveJournalInputSchema.parse(raw)));
   ipcMain.handle('journals:list', async (_event, raw = {}) => {
     const query = JournalQuerySchema.parse(raw);

@@ -5,6 +5,7 @@ import { App } from '../../src/renderer/app/app';
 
 function api() {
   return {
+    transfer: { exportBackup: vi.fn(), previewRestore: vi.fn(), restore: vi.fn() },
     journals: { list: vi.fn(async () => []), save: vi.fn(), get: vi.fn() },
     projects: { list: vi.fn(async () => []), create: vi.fn(), archive: vi.fn() },
     reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn() },

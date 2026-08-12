@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ZhijiDesktopApi } from './shared/contracts/desktop-api';
 
 const api: ZhijiDesktopApi = {
+  transfer: {
+    exportBackup: () => ipcRenderer.invoke('transfer:export'),
+    previewRestore: () => ipcRenderer.invoke('transfer:preview-restore'),
+    restore: (previewId) => ipcRenderer.invoke('transfer:restore', previewId),
+  },
   journals: {
     save: (input) => ipcRenderer.invoke('journals:save', input),
     list: (query = {}) => ipcRenderer.invoke('journals:list', query),

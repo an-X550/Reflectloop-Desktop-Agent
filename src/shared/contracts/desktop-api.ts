@@ -4,6 +4,11 @@ import type { PeriodicReviewInput, SaveProviderConfigInput } from '../schemas/ip
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 
 export interface ZhijiDesktopApi {
+  transfer: {
+    exportBackup(): Promise<{ canceled: boolean; path?: string; fileCount?: number; totalBytes?: number }>;
+    previewRestore(): Promise<{ canceled: boolean; previewId?: string; archivePath?: string; exportedAt?: string; appVersion?: string; fileCount?: number; totalBytes?: number; categories?: { journals: number; reviews: number; projects: number; settings: number } }>;
+    restore(previewId: string): Promise<{ fileCount: number }>;
+  };
   journals: {
     save(input: SaveJournalInput): Promise<Journal>;
     list(query?: JournalQuery): Promise<Journal[]>;

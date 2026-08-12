@@ -5,6 +5,7 @@ import { SettingsPage } from '../../src/renderer/pages/settings-page';
 
 beforeEach(() => {
   window.zhiji = {
+    transfer: { exportBackup: vi.fn(async () => ({ canceled: true })), previewRestore: vi.fn(async () => ({ canceled: true })), restore: vi.fn(async () => ({ fileCount: 0 })) },
     settings: {
       getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
       save: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
@@ -43,5 +44,15 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: '保存设置' })).toBeEnabled();
     finishTest();
     await waitFor(() => expect(screen.getByText('连接成功')).toBeInTheDocument());
+  });
+
+  it('requires a verified preview before restoring local data', async () => {
+    vi.mocked(window.zhiji.transfer.previewRestore).mockResolvedValueOnce({ canceled: false, previewId: 'preview-id', archivePath: 'backup.zhiji.zip', exportedAt: '2026-08-13T00:00:00.000Z', appVersion: '1.0.0', fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, settings: 0 } });
+    render(<SettingsPage/>);
+    expect(screen.queryByRole('button', { name: '确认恢复' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '选择备份并校验' }));
+    expect(await screen.findByText('备份校验通过：6 个文件')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认恢复' }));
+    await waitFor(() => expect(window.zhiji.transfer.restore).toHaveBeenCalledWith('preview-id'));
   });
 });
