@@ -23,6 +23,14 @@ export const CreateProjectInputSchema = z.object({
 
 export const IdSchema = z.string().regex(/^(journal|project)_[a-z0-9]+$/);
 
+export const SaveProviderConfigInputSchema = z.object({
+  providerId: z.enum(['openai', 'deepseek', 'custom']),
+  baseUrl: z.string().trim().min(1).max(2048),
+  model: z.string().trim().min(1).max(160),
+  apiKey: z.string().trim().min(1).max(4096).optional(),
+}).strict();
+
 export type SaveJournalInput = z.infer<typeof SaveJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
+export type SaveProviderConfigInput = z.infer<typeof SaveProviderConfigInputSchema>;

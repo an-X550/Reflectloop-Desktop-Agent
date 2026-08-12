@@ -12,6 +12,11 @@ const api: ZhijiDesktopApi = {
     list: () => ipcRenderer.invoke('projects:list'),
     archive: (id) => ipcRenderer.invoke('projects:archive', id),
   },
+  settings: {
+    getPublicConfig: () => ipcRenderer.invoke('settings:get'),
+    save: (input) => ipcRenderer.invoke('settings:save', input),
+    testConnection: (input) => ipcRenderer.invoke('settings:test', input),
+  },
 };
 
 contextBridge.exposeInMainWorld('zhiji', api);
