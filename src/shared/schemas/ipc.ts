@@ -30,6 +30,11 @@ export const SaveProviderConfigInputSchema = z.object({
   apiKey: z.string().trim().min(1).max(4096).optional(),
 }).strict();
 
+export const GenerateDailyReviewInputSchema = z.object({
+  journalId: StableJournalId,
+  regenerate: z.boolean().optional(),
+}).strict();
+
 export type SaveJournalInput = z.infer<typeof SaveJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;

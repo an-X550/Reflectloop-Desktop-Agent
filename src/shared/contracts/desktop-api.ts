@@ -1,4 +1,4 @@
-import type { Journal, Project } from '../schemas/domain';
+import type { Journal, Project, Review } from '../schemas/domain';
 import type { CreateProjectInput, JournalQuery, SaveJournalInput } from '../schemas/ipc';
 import type { SaveProviderConfigInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
@@ -18,5 +18,10 @@ export interface ZhijiDesktopApi {
     getPublicConfig(): Promise<PublicProviderConfig>;
     save(input: SaveProviderConfigInput): Promise<PublicProviderConfig>;
     testConnection(input: SaveProviderConfigInput): Promise<void>;
+  };
+  reviews: {
+    generateDaily(input: { journalId: string; regenerate?: boolean }): Promise<Review>;
+    list(): Promise<Review[]>;
+    cancel(): Promise<void>;
   };
 }

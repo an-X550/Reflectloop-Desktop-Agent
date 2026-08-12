@@ -17,6 +17,11 @@ const api: ZhijiDesktopApi = {
     save: (input) => ipcRenderer.invoke('settings:save', input),
     testConnection: (input) => ipcRenderer.invoke('settings:test', input),
   },
+  reviews: {
+    generateDaily: (input) => ipcRenderer.invoke('reviews:generate-daily', input),
+    list: () => ipcRenderer.invoke('reviews:list'),
+    cancel: () => ipcRenderer.invoke('reviews:cancel'),
+  },
 };
 
 contextBridge.exposeInMainWorld('zhiji', api);
