@@ -1,0 +1,1 @@
+export function StatusBanner({ tone = 'info', children }: { tone?: 'info' | 'success' | 'error' | 'warm'; children: React.ReactNode }) { return <div className={`status-banner status-banner--${tone}`} role="status" aria-live="polite">{children}</div>; }
