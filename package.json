@@ -47,6 +47,7 @@
     "@hookform/resolvers": "^5.7.1",
     "@tanstack/react-query": "^5.101.4",
     "adm-zip": "^0.6.0",
+    "electron-squirrel-startup": "^1.0.1",
     "gray-matter": "^4.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

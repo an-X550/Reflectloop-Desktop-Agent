@@ -1,2 +1,17 @@
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+import { contextBridge, ipcRenderer } from 'electron';
+import type { ZhijiDesktopApi } from './shared/contracts/desktop-api';
+
+const api: ZhijiDesktopApi = {
+  journals: {
+    save: (input) => ipcRenderer.invoke('journals:save', input),
+    list: (query = {}) => ipcRenderer.invoke('journals:list', query),
+    get: (id) => ipcRenderer.invoke('journals:get', id),
+  },
+  projects: {
+    create: (input) => ipcRenderer.invoke('projects:create', input),
+    list: () => ipcRenderer.invoke('projects:list'),
+    archive: (id) => ipcRenderer.invoke('projects:archive', id),
+  },
+};
+
+contextBridge.exposeInMainWorld('zhiji', api);
