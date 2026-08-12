@@ -1,0 +1,35 @@
+// @vitest-environment jsdom
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from '../../src/renderer/app/app';
+
+function api() {
+  return {
+    journals: { list: vi.fn(async () => []), save: vi.fn(), get: vi.fn() },
+    projects: { list: vi.fn(async () => []), create: vi.fn(), archive: vi.fn() },
+    reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn() },
+    settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
+  } as unknown as Window['zhiji'];
+}
+
+beforeEach(() => { window.zhiji = api(); });
+
+describe('App', () => {
+  it('navigates across all five product pages', async () => {
+    render(<App/>);
+    await screen.findByRole('heading', { name: '写下今天发生的事' });
+    for (const [nav, heading] of [['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与材料'], ['历史', '历史记录'], ['设置', 'AI 设置']] as const) {
+      fireEvent.click(screen.getByRole('button', { name: nav }));
+      expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
+    }
+  });
+
+  it('recovers from an initial load failure with Retry', async () => {
+    vi.mocked(window.zhiji.journals.list).mockRejectedValueOnce(new Error('磁盘暂不可用')).mockResolvedValueOnce([]);
+    render(<App/>);
+    expect(await screen.findByText('磁盘暂不可用')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    await waitFor(() => expect(screen.getByRole('heading', { name: '写下今天发生的事' })).toBeInTheDocument());
+    expect(window.zhiji.journals.list).toHaveBeenCalledTimes(2);
+  });
+});
