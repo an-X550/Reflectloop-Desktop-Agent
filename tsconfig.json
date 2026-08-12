@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "noImplicitAny": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "outDir": "dist",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": ["src", "tests", "vite.*.config.ts", "forge.config.ts", "forge.env.d.ts"]
+}
