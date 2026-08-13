@@ -28,6 +28,10 @@ test('a non-CLI user completes the local journal loop', async () => {
 
     await page.getByRole('button', { name: '开始', exact: true }).click();
     await expect(page.getByRole('heading', { name: '生成今日反馈' })).toBeVisible();
+    await page.getByRole('button', { name: '复盘', exact: true }).click();
+    await page.getByRole('button', { name: '预览本周材料' }).click();
+    await page.getByRole('button', { name: '预览材料' }).click();
+    await expect(page.getByText('这是一条由桌面端自动化验收写入的本地日志。')).toBeVisible();
     await page.getByRole('button', { name: '日志', exact: true }).click();
     await page.getByRole('button', { name: '过去日志' }).click();
     await expect(page.locator('pre')).toContainText(/桌面端自动化验收|第二条日志/);
