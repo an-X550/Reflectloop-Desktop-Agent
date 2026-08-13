@@ -1,9 +1,10 @@
 import crypto from 'node:crypto';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import type { Journal, Review } from '../../shared/schemas/domain';
+import { appError } from '../../shared/errors/app-error';
 import { buildDailyContext } from '../domain/daily-context';
 import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
-import { DAILY_REVIEW_SYSTEM_PROMPT, parseDailyReviewOutput, renderDailyReview } from '../prompts/daily-review-v1';
+import { DAILY_REVIEW_SYSTEM_PROMPT, parseDailyReviewOutput, renderDailyReview, type DailyReviewOutput } from '../prompts/daily-review-v1';
 import { buildDailyEvidence, type DailyEvidence, type DailyEvidenceGrade } from './daily-evidence';
 
 export interface ProviderPort {
@@ -11,7 +12,7 @@ export interface ProviderPort {
 }
 
 export type DailyRuntimeResult =
-  | { kind: 'review'; body: string; grade: Exclude<DailyEvidenceGrade, 'D'> }
+  | { kind: 'review'; body: string; grade: Exclude<DailyEvidenceGrade, 'D'>; output: DailyReviewOutput }
   | { kind: 'clarification'; question: string; grade: 'D' };
 
 interface RuntimeInput {
@@ -53,11 +54,13 @@ async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState
     { role: 'system', content: `${DAILY_REVIEW_SYSTEM_PROMPT}\n\n${gradeInstruction(evidence.grade)}` },
     { role: 'user', content: JSON.stringify({ context, evidence, ...(state.input.profile ? { profile: state.input.profile } : {}) }) },
   ], state.input.signal, { jsonObject: true });
-  const output = parseDailyReviewOutput(raw);
+  let output: DailyReviewOutput;
+  try { output = parseDailyReviewOutput(raw); }
+  catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的日反馈格式无效。' }); }
   const normalized = evidence.grade === 'C' ? { ...output, patternConnection: null } : output;
   const date = state.input.journals[0]?.date;
   if (!date) throw new Error('日反馈工作流缺少日志日期。');
-  return { result: { kind: 'review', grade: evidence.grade, body: renderDailyReview(normalized, date) } };
+  return { result: { kind: 'review', grade: evidence.grade, body: renderDailyReview(normalized, date), output: normalized } };
 }
 
 export async function runDailyFeedback(input: RuntimeInput): Promise<DailyRuntimeResult> {

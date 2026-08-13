@@ -19,7 +19,7 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
   const [editing, setEditing] = useState<Journal | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
-  const [reviewState, setReviewState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [reviewState, setReviewState] = useState<'idle' | 'loading' | 'success' | 'error' | 'info'>('idle');
   const [reviewMessage, setReviewMessage] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
@@ -57,7 +57,8 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
       const reviewDate = journal?.date ?? (journals.some((item) => item.date === today) ? today : null);
       if (!reviewDate) { setReviewState('error'); setReviewMessage('请先写下并保存今日日志'); return; }
       const result = await window.zhiji.reviews.generateDaily({ date: reviewDate });
-      await onRefresh(); setReviewState('success'); setReviewMessage(result.body);
+      if (result.kind === 'clarification') { setReviewState('info'); setReviewMessage(result.question); return; }
+      await onRefresh(); setReviewState('success'); setReviewMessage(result.review.body);
     } catch (reason) { setReviewState('error'); setReviewMessage(`生成失败：${reason instanceof Error ? reason.message : '请检查 AI 设置'}`); }
   };
   const generateForDate = async (reviewDate: string) => {
@@ -65,7 +66,8 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
     setReviewState('loading'); setReviewMessage(`正在根据 ${reviewDate} 的日志生成反馈…`);
     try {
       const result = await window.zhiji.reviews.generateDaily({ date: reviewDate });
-      await onRefresh(); setReviewState('success'); setReviewMessage(result.body);
+      if (result.kind === 'clarification') { setReviewState('info'); setReviewMessage(result.question); return; }
+      await onRefresh(); setReviewState('success'); setReviewMessage(result.review.body);
     } catch (reason) { setReviewState('error'); setReviewMessage(`生成失败：${reason instanceof Error ? reason.message : '请检查 AI 设置'}`); }
   };
   const removeJournal = async () => {

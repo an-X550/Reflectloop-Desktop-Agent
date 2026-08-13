@@ -14,6 +14,7 @@ import { DataTransferService } from './infrastructure/transfer/data-transfer-ser
 import { DataDirectoryService } from './infrastructure/data-directory/data-directory-service';
 import { MarkdownProfileRepository } from './infrastructure/markdown/profile-repository';
 import { GenerateInsightReview } from './application/generate-insight-review';
+import { DailyAuditRecorder } from './skill-runtime/daily-audit-recorder';
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
@@ -25,7 +26,7 @@ export function bootstrap() {
   const reviews = new MarkdownReviewRepository(dataRoot, trashItem);
   const reviewTasks = new ReviewTaskManager();
   const profile = new MarkdownProfileRepository(dataRoot);
-  const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
+  const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks, undefined, profile, new DailyAuditRecorder(dataRoot));
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const transfer = new DataTransferService(dataRoot, app.getVersion());

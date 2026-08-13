@@ -51,7 +51,7 @@ describe('TodayPage', () => {
 
   it('shows the generated daily review without forcing a history jump', async () => {
     const review: Review = { schemaVersion: 1, id: 'review_a1', type: 'daily', periodStart: date, periodEnd: date, sourceIds: [journal.id], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'daily-review-v1', createdAt: `${date}T01:00:00.000Z`, body: '今天最重要的反馈' };
-    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce(review);
+    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce({ kind: 'review', review });
     render(<TodayPage journals={[journal]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     fireEvent.change(screen.getByRole('textbox', { name: '日志内容' }), { target: { value: '新内容' } });
     fireEvent.click(screen.getByRole('button', { name: '保存并生成今日反馈' }));
@@ -75,7 +75,7 @@ describe('TodayPage', () => {
   it('generates a daily review directly from a historical journal', async () => {
     const pastJournal = { ...journal, id: 'journal_past', date: '2026-08-01', body: '过去的一篇日志' };
     const review: Review = { schemaVersion: 1, id: 'review_past', type: 'daily', periodStart: pastJournal.date, periodEnd: pastJournal.date, sourceIds: [pastJournal.id], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'daily-review-v1', createdAt: `${date}T01:00:00.000Z`, body: '过去这一天的反馈' };
-    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce(review);
+    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce({ kind: 'review', review });
     render(<TodayPage journals={[pastJournal]} projects={[]} reviews={[]} intent={{ type: 'records.journals' }} hasApiKey onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     fireEvent.click(screen.getByRole('button', { name: '生成这一天的反馈' }));
     expect(await screen.findByText('过去这一天的反馈')).toBeInTheDocument();
@@ -101,7 +101,7 @@ describe('TodayPage', () => {
 
   it('generates feedback from an existing journal without creating a duplicate', async () => {
     const review: Review = { schemaVersion: 1, id: 'review_a1', type: 'daily', periodStart: date, periodEnd: date, sourceIds: [journal.id], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'daily-review-v1', createdAt: `${date}T01:00:00.000Z`, body: '已有日志的反馈' };
-    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce(review);
+    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce({ kind: 'review', review });
     render(<TodayPage journals={[journal]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     fireEvent.click(screen.getByRole('button', { name: '生成今日反馈' }));
     expect(await screen.findByText('已有日志的反馈')).toBeInTheDocument();

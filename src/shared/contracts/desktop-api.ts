@@ -1,4 +1,4 @@
-import type { Journal, Profile, Project, Review } from '../schemas/domain';
+import type { DailyGenerationResult, Journal, Profile, Project, Review } from '../schemas/domain';
 import type { CreateJournalInput, CreateProjectInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, UpdateJournalInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
@@ -33,7 +33,7 @@ export interface ZhijiDesktopApi {
     clearApiKey(): Promise<PublicProviderConfig>;
   };
   reviews: {
-    generateDaily(input: { date: string; regenerate?: boolean }): Promise<Review>;
+    generateDaily(input: { date: string; regenerate?: boolean }): Promise<DailyGenerationResult>;
     list(): Promise<Review[]>;
     cancel(): Promise<void>;
     preview(input: PeriodicReviewPreviewInput): Promise<{ token: string; type: string; start: string; end: string; sources: { id: string; date: string; excerpt: string }[] }>;
