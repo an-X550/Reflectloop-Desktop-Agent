@@ -7,7 +7,7 @@ import { HistoryReader } from '../features/history/history-reader';
 
 const labels: Record<HistoryItem['kind'], string> = { journal: '日志', daily: '日反馈', weekly: '周报', monthly: '月报', project: '项目复盘' };
 
-export function RecordBrowser({ journals, reviews = [], projects = [], allowedKinds, onEditJournal, onGenerateDaily }: { journals: Journal[]; reviews?: Review[]; projects?: Project[]; allowedKinds: HistoryItem['kind'][]; onEditJournal?(id: string): void; onGenerateDaily?(date: string): void }) {
+export function RecordBrowser({ journals, reviews = [], projects = [], allowedKinds, onEditJournal, onGenerateDaily, onDelete }: { journals: Journal[]; reviews?: Review[]; projects?: Project[]; allowedKinds: HistoryItem['kind'][]; onEditJournal?(id: string): void; onGenerateDaily?(date: string): void; onDelete?(item: HistoryItem): void }) {
   const items = useMemo(() => buildHistoryItems(journals, reviews, projects).filter((item) => allowedKinds.includes(item.kind)), [journals, reviews, projects, allowedKinds]);
   const [type, setType] = useState('all');
   const [text, setText] = useState('');
@@ -17,6 +17,6 @@ export function RecordBrowser({ journals, reviews = [], projects = [], allowedKi
   const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0];
   return <>
     <HistoryFilter type={type} text={text} projectId={projectId} projects={projects} allowedKinds={allowedKinds} onType={setType} onText={setText} onProject={setProjectId}/>
-    {filtered.length ? <div className="history-layout"><section className="history-list">{filtered.map((item) => <button key={item.id} className={item.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(item.id)} aria-label={`${item.title} ${labels[item.kind]}`}><time>{item.date}</time><div><strong>{item.title}</strong><span>{labels[item.kind]}</span></div></button>)}</section>{selected && <HistoryReader item={selected} onEdit={onEditJournal} onGenerateDaily={onGenerateDaily}/>}</div> : <EmptyState title="没有符合筛选条件的记录" description="尝试清空搜索词或调整筛选条件。"/>}
+    {filtered.length ? <div className="history-layout"><section className="history-list">{filtered.map((item) => <button key={item.id} className={item.id === selected?.id ? 'is-active' : ''} onClick={() => setSelectedId(item.id)} aria-label={`${item.title} ${labels[item.kind]}`}><time>{item.date}</time><div><strong>{item.title}</strong><span>{labels[item.kind]}</span></div></button>)}</section>{selected && <HistoryReader item={selected} onEdit={onEditJournal} onGenerateDaily={onGenerateDaily} onDelete={onDelete}/>}</div> : <EmptyState title="没有符合筛选条件的记录" description="尝试清空搜索词或调整筛选条件。"/>}
   </>;
 }

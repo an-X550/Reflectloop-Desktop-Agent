@@ -16,11 +16,12 @@ import { MarkdownProfileRepository } from './infrastructure/markdown/profile-rep
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
-  const journals = new MarkdownJournalRepository(dataRoot);
-  const projects = new JsonProjectRepository(dataRoot);
+  const trashItem = (target: string) => shell.trashItem(target);
+  const journals = new MarkdownJournalRepository(dataRoot, trashItem);
+  const projects = new JsonProjectRepository(dataRoot, trashItem);
   const credentials = new CredentialStore(app.getPath('userData'), safeStorage);
   const configureAi = new ConfigureAi(dataRoot, credentials, !app.isPackaged);
-  const reviews = new MarkdownReviewRepository(dataRoot);
+  const reviews = new MarkdownReviewRepository(dataRoot, trashItem);
   const reviewTasks = new ReviewTaskManager();
   const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks);
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks);

@@ -41,6 +41,12 @@ export class ConfigureAi {
     await new OpenAiCompatibleProvider({ ...config, apiKey: key }).testConnection();
   }
 
+  async clearApiKey(): Promise<PublicProviderConfig> {
+    const config = await this.readConfig();
+    await this.credentials.delete(config.providerId);
+    return { ...config, hasApiKey: false };
+  }
+
   async collect(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
     const config = await this.readConfig();
     const apiKey = await this.credentials.read(config.providerId);

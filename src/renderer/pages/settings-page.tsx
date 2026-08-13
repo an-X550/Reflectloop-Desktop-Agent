@@ -41,9 +41,16 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
         setHasApiKey(result.hasApiKey);
         await onSaved?.();
       }
-      setForm(({ apiKey: _discard, ...rest }) => rest);
+      setForm((current) => ({ providerId: current.providerId, baseUrl: current.baseUrl, model: current.model }));
       setMessage(kind === 'save' ? '设置已安全保存' : '连接成功，设置已安全保存');
     } catch (reason) { setError(reason instanceof Error ? reason.message : '请检查配置后重试'); }
+    finally { setBusy(null); }
+  };
+  const clearApiKey = async () => {
+    if (!window.confirm('移除当前服务商保存的 API Key？')) return;
+    setBusy('save'); setMessage(''); setError('');
+    try { const result = await window.zhiji.settings.clearApiKey(); setHasApiKey(result.hasApiKey); await onSaved?.(); setMessage('已移除当前服务商的 API Key'); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '移除失败'); }
     finally { setBusy(null); }
   };
   const exportBackup = async () => { setTransferBusy('export'); setTransferMessage(''); try { const result = await window.zhiji.transfer.exportBackup(); if (!result.canceled) setTransferMessage(`备份已导出，共 ${result.fileCount} 个文件。`); } catch (reason) { setTransferMessage(`导出失败：${reason instanceof Error ? reason.message : '请重试'}`); } finally { setTransferBusy(null); } };
@@ -62,7 +69,7 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
       </div>
       {message && <StatusBanner tone="success">{message}</StatusBanner>}
       {error && <StatusBanner tone="error">操作失败：{error}</StatusBanner>}
-      <div className="settings-actions"><Button loading={busy === 'test'} onClick={() => void run('test')}>测试连接</Button><Button variant="primary" loading={busy === 'save'} onClick={() => void run('save')}>保存设置</Button></div>
+      <div className="settings-actions">{hasApiKey && <Button variant="danger" onClick={() => void clearApiKey()}>移除已保存 Key</Button>}<Button loading={busy === 'test'} onClick={() => void run('test')}>测试连接</Button><Button variant="primary" loading={busy === 'save'} onClick={() => void run('save')}>保存设置</Button></div>
     </section>
     <section className="card transfer-panel">
       <div className="section-heading"><div><h3>本地数据</h3><p>导出日志、复盘、项目与公开 AI 配置；API Key 和缓存不会进入备份。</p></div></div>

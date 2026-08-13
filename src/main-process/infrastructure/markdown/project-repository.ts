@@ -6,9 +6,15 @@ import { atomicWriteUtf8 } from './atomic-write';
 import { resolveInsideRoot } from './path-policy';
 
 export class JsonProjectRepository {
-  constructor(private readonly root: string) {}
+  constructor(private readonly root: string, private readonly trashItem?: (target: string) => Promise<void>) {}
+
+  private nameKey(name: string) { return name.trim().toLocaleLowerCase(); }
+  private async assertUnique(name: string, exceptId?: string) {
+    if ((await this.list()).some((item) => item.id !== exceptId && this.nameKey(item.name) === this.nameKey(name))) throw appError({ code: 'INVALID_INPUT', message: '项目名称已存在。' });
+  }
 
   async create(name: string): Promise<Project> {
+    await this.assertUnique(name);
     const now = new Date().toISOString();
     const project = ProjectSchema.parse({ schemaVersion: 1, id: `project_${crypto.randomUUID().replaceAll('-', '')}`, name, status: 'active', createdAt: now, archivedAt: null });
     return this.save(project);
@@ -37,5 +43,25 @@ export class JsonProjectRepository {
     const project = (await this.list()).find((item) => item.id === id);
     if (!project) throw appError({ code: 'NOT_FOUND', entity: id });
     return this.save({ ...project, status: 'archived', archivedAt: new Date().toISOString() });
+  }
+
+  async rename(id: string, name: string): Promise<Project> {
+    const project = (await this.list()).find((item) => item.id === id);
+    if (!project) throw appError({ code: 'NOT_FOUND', entity: id });
+    await this.assertUnique(name, id);
+    return this.save({ ...project, name: name.trim() });
+  }
+
+  async restore(id: string): Promise<Project> {
+    const project = (await this.list()).find((item) => item.id === id);
+    if (!project) throw appError({ code: 'NOT_FOUND', entity: id });
+    return this.save({ ...project, status: 'active', archivedAt: null });
+  }
+
+  async delete(id: string): Promise<void> {
+    const project = (await this.list()).find((item) => item.id === id);
+    if (!project) throw appError({ code: 'NOT_FOUND', entity: id });
+    if (!this.trashItem) throw appError({ code: 'UNKNOWN', message: '系统回收站当前不可用。' });
+    await this.trashItem(await resolveInsideRoot(this.root, 'projects', `${id}.json`));
   }
 }

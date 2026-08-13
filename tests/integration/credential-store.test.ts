@@ -23,4 +23,13 @@ describe('CredentialStore', () => {
     const store = new CredentialStore(root, { isEncryptionAvailable: () => false, encryptString: () => Buffer.alloc(0), decryptString: () => '' });
     await expect(store.save('openai', 'secret')).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
+  it('deletes only the selected provider credential', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'zhiji-key-'));
+    const crypto = { isEncryptionAvailable: () => true, encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
+    const store = new CredentialStore(root, crypto);
+    await store.save('openai', 'openai-key'); await store.save('deepseek', 'deepseek-key');
+    await store.delete('deepseek');
+    await expect(store.read('deepseek')).resolves.toBeNull();
+    await expect(store.read('openai')).resolves.toBe('openai-key');
+  });
 });

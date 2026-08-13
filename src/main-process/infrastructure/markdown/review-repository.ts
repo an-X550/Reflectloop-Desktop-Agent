@@ -1,5 +1,4 @@
 import { readFile, readdir } from 'node:fs/promises';
-import path from 'node:path';
 import matter from 'gray-matter';
 import { ReviewSchema, type Review } from '../../../shared/schemas/domain';
 import { appError } from '../../../shared/errors/app-error';
@@ -10,7 +9,7 @@ function serialize(review: Review) { const { body, ...data } = review; return ma
 function parse(value: string): Review { const { data, content } = matter(value); return ReviewSchema.parse({ ...data, body: content.trim() }); }
 
 export class MarkdownReviewRepository {
-  constructor(private readonly root: string) {}
+  constructor(private readonly root: string, private readonly trashItem?: (target: string) => Promise<void>) {}
   async save(input: Review) {
     const review = ReviewSchema.parse(input);
     const target = await resolveInsideRoot(this.root, 'reviews', review.type, review.periodStart.slice(0, 4), `${review.periodStart}-${review.id}.md`);
@@ -33,5 +32,11 @@ export class MarkdownReviewRepository {
     const result = (await this.list()).find((review) => review.id === id);
     if (!result) throw appError({ code: 'NOT_FOUND', entity: id });
     return result;
+  }
+  async delete(id: string): Promise<void> {
+    const review = await this.get(id);
+    const target = await resolveInsideRoot(this.root, 'reviews', review.type, review.periodStart.slice(0, 4), `${review.periodStart}-${review.id}.md`);
+    if (!this.trashItem) throw appError({ code: 'UNKNOWN', message: '系统回收站当前不可用。' });
+    await this.trashItem(target);
   }
 }

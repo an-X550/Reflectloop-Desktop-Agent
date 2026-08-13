@@ -31,7 +31,7 @@ function parse(markdown: string): Journal {
 
 export class MarkdownJournalRepository {
   private updateQueue = Promise.resolve();
-  constructor(private readonly root: string) {}
+  constructor(private readonly root: string, private readonly trashItem?: (target: string) => Promise<void>) {}
 
   private async entries(): Promise<Array<{ journal: Journal; filePath: string }>> {
     const entries: Array<{ journal: Journal; filePath: string }> = [];
@@ -108,5 +108,12 @@ export class MarkdownJournalRepository {
   async list(): Promise<Journal[]> {
     return (await this.entries()).map((entry) => entry.journal)
       .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async delete(id: string): Promise<void> {
+    const match = (await this.entries()).find((entry) => entry.journal.id === id);
+    if (!match) throw appError({ code: 'NOT_FOUND', entity: id });
+    if (!this.trashItem) throw appError({ code: 'UNKNOWN', message: '系统回收站当前不可用。' });
+    await this.trashItem(match.filePath);
   }
 }

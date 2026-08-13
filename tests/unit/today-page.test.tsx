@@ -9,7 +9,7 @@ const journal: Journal = { schemaVersion: 1, id: 'journal_today', date, createdA
 
 beforeEach(() => {
   window.zhiji = {
-    journals: { create: vi.fn(async (input) => ({ ...journal, ...input })), update: vi.fn(), list: vi.fn(), get: vi.fn() },
+    journals: { create: vi.fn(async (input) => ({ ...journal, ...input })), update: vi.fn(), delete: vi.fn(async () => undefined), list: vi.fn(), get: vi.fn() },
     reviews: { generateDaily: vi.fn(async () => ({}) as never), list: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn() },
   } as unknown as Window['zhiji'];
 });
@@ -79,6 +79,23 @@ describe('TodayPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '生成这一天的反馈' }));
     expect(await screen.findByText('过去这一天的反馈')).toBeInTheDocument();
     expect(window.zhiji.reviews.generateDaily).toHaveBeenCalledWith({ date: pastJournal.date });
+  });
+  it('moves a historical journal to the recycle bin after confirmation', async () => {
+    const refresh = vi.fn();
+    render(<TodayPage journals={[journal]} projects={[]} reviews={[]} intent={{ type: 'records.journals' }} onRefresh={refresh} onNavigate={vi.fn()}/>);
+    fireEvent.click(screen.getByRole('button', { name: '移到回收站' }));
+    expect(screen.getByText('已有复盘不会同步删除。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认移除' }));
+    await waitFor(() => expect(window.zhiji.journals.delete).toHaveBeenCalledWith(journal.id));
+    expect(refresh).toHaveBeenCalled();
+  });
+  it('keeps the journal visible when the recycle bin operation fails', async () => {
+    vi.mocked(window.zhiji.journals.delete).mockRejectedValueOnce(new Error('回收站不可用'));
+    render(<TodayPage journals={[journal]} projects={[]} reviews={[]} intent={{ type: 'records.journals' }} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    fireEvent.click(screen.getByRole('button', { name: '移到回收站' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认移除' }));
+    expect(await screen.findByText('移除失败：回收站不可用')).toBeInTheDocument();
+    expect(screen.getByText('原来的日志', { selector: 'pre' })).toBeInTheDocument();
   });
 
   it('generates feedback from an existing journal without creating a duplicate', async () => {

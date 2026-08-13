@@ -1,6 +1,6 @@
 import { ipcMain, type dialog as ElectronDialog } from 'electron';
 import { z } from 'zod';
-import { CreateJournalInputSchema, CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, UpdateJournalInputSchema } from '../../shared/schemas/ipc';
+import { CreateJournalInputSchema, CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, UpdateJournalInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -36,18 +36,24 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
     return (await deps.journals.list()).filter((item) => (!query.start || item.date >= query.start) && (!query.end || item.date <= query.end) && (!query.projectId || item.projectIds.includes(query.projectId)));
   });
   ipcMain.handle('journals:get', (_event, raw) => deps.journals.get(IdSchema.parse(raw)));
+  ipcMain.handle('journals:delete', (_event, raw) => deps.journals.delete(IdSchema.refine((id) => id.startsWith('journal_')).parse(raw)));
   ipcMain.handle('projects:create', (_event, raw) => deps.projects.create(CreateProjectInputSchema.parse(raw).name));
   ipcMain.handle('projects:list', () => deps.projects.list());
   ipcMain.handle('projects:archive', (_event, raw) => deps.projects.archive(IdSchema.refine((id) => id.startsWith('project_')).parse(raw)));
+  ipcMain.handle('projects:rename', (_event, raw) => { const input = RenameProjectInputSchema.parse(raw); return deps.projects.rename(input.id, input.name); });
+  ipcMain.handle('projects:restore', (_event, raw) => deps.projects.restore(IdSchema.refine((id) => id.startsWith('project_')).parse(raw)));
+  ipcMain.handle('projects:delete', async (_event, raw) => { const id = IdSchema.refine((value) => value.startsWith('project_')).parse(raw); if ((await deps.journals.list()).some((journal) => journal.projectIds.includes(id))) throw new Error('有关联日志，不能删除项目。'); await deps.projects.delete(id); });
   ipcMain.handle('settings:get', () => deps.configureAi.getPublicConfig());
   ipcMain.handle('settings:save', (_event, raw) => deps.configureAi.save(SaveProviderConfigInputSchema.parse(raw)));
   ipcMain.handle('settings:test', (_event, raw) => deps.configureAi.testConnection(SaveProviderConfigInputSchema.parse(raw)));
+  ipcMain.handle('settings:clear-api-key', () => deps.configureAi.clearApiKey());
   ipcMain.handle('reviews:generate-daily', async (_event, raw) => {
     const input = GenerateDailyReviewInputSchema.parse(raw);
     const config = await deps.configureAi.getPublicConfig();
     return deps.generateDailyReview.execute({ ...input, model: config.model });
   });
   ipcMain.handle('reviews:list', () => deps.reviews.list());
+  ipcMain.handle('reviews:delete', (_event, raw) => deps.reviews.delete(z.string().regex(/^review_[a-z0-9]+$/).parse(raw)));
   ipcMain.handle('reviews:cancel', () => { const task = deps.reviewTasks.getCurrent(); if (task) deps.reviewTasks.cancel(task.taskId); });
   ipcMain.handle('reviews:preview', async (_event, raw) => { const input = PeriodicReviewPreviewInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.preview({ ...input, model: config.model }); });
   ipcMain.handle('reviews:generate-periodic', async (_event, raw) => { const input = PeriodicReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.execute({ ...input, model: config.model }); });

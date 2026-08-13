@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MarkdownJournalRepository } from '../../src/main-process/infrastructure/markdown/journal-repository';
+import { MarkdownReviewRepository } from '../../src/main-process/infrastructure/markdown/review-repository';
 
 describe('MarkdownJournalRepository', () => {
   it('creates two same-day journals without overwriting either entry', async () => {
@@ -83,5 +84,27 @@ describe('MarkdownJournalRepository', () => {
     const root = await mkdtemp(path.join(tmpdir(), 'zhiji-journal-'));
     const repository = new MarkdownJournalRepository(root);
     await expect(repository.get('../outside')).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('moves only the selected journal file to the operating system trash', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'zhiji-journal-'));
+    const trashItem = vi.fn(async () => undefined);
+    const repository = new MarkdownJournalRepository(root, trashItem);
+    const journal = { schemaVersion: 1 as const, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: [], body: '待删除日志' };
+    await repository.create(journal);
+    await repository.delete(journal.id);
+    expect(trashItem).toHaveBeenCalledWith(path.join(root, 'journals/2026/2026-08-13--journal_a1.md'));
+  });
+});
+
+describe('MarkdownReviewRepository', () => {
+  it('moves only the selected review file to the operating system trash', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'zhiji-review-'));
+    const trashItem = vi.fn(async () => undefined);
+    const repository = new MarkdownReviewRepository(root, trashItem);
+    const review = { schemaVersion: 1 as const, id: 'review_a1', type: 'weekly' as const, periodStart: '2026-08-10', periodEnd: '2026-08-16', sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible' as const, model: 'test', promptVersion: 'weekly-v1', createdAt: '2026-08-16T08:00:00.000Z', body: '复盘' };
+    await repository.save(review);
+    await repository.delete(review.id);
+    expect(trashItem).toHaveBeenCalledWith(path.join(root, 'reviews/weekly/2026/2026-08-10-review_a1.md'));
   });
 });

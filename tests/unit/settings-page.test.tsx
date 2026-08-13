@@ -11,6 +11,7 @@ beforeEach(() => {
     settings: {
       getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
       save: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
+      clearApiKey: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })),
       testConnection: vi.fn(async () => undefined),
     },
   } as unknown as Window['zhiji'];
@@ -68,6 +69,16 @@ describe('SettingsPage', () => {
     expect(window.zhiji.settings.save).toHaveBeenCalledWith(expected);
     expect(onSaved).toHaveBeenCalled();
     expect(screen.getByText('连接成功，设置已安全保存')).toBeInTheDocument();
+  });
+  it('removes the saved key after explicit confirmation and refreshes global AI state', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
+    const onSaved = vi.fn();
+    render(<SettingsPage onSaved={onSaved}/>);
+    await screen.findByText(/已安全保存/);
+    fireEvent.click(screen.getByRole('button', { name: '移除已保存 Key' }));
+    await waitFor(() => expect(window.zhiji.settings.clearApiKey).toHaveBeenCalled());
+    expect(onSaved).toHaveBeenCalled();
+    expect(screen.getByText('已移除当前服务商的 API Key')).toBeInTheDocument();
   });
 
   it('requires a verified preview before restoring local data', async () => {

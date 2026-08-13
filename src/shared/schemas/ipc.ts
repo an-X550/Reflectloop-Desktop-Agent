@@ -48,6 +48,7 @@ const PeriodicReviewBaseSchema = z.object({
   type: z.enum(['weekly', 'monthly', 'project']), start: IsoDate, end: IsoDate,
   projectId: StableProjectId.optional(),
 }).strict();
+export const RenameProjectInputSchema = z.object({ id: StableProjectId, name: z.string().trim().min(1).max(80) }).strict();
 const validPeriodicRange = (value: { start: string; end: string }) => value.start <= value.end;
 export const PeriodicReviewPreviewInputSchema = PeriodicReviewBaseSchema
   .refine(validPeriodicRange, '开始日期不能晚于结束日期');
@@ -60,4 +61,5 @@ export type CreateJournalInput = z.infer<typeof CreateJournalInputSchema>;
 export type UpdateJournalInput = z.infer<typeof UpdateJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
+export type RenameProjectInput = z.infer<typeof RenameProjectInputSchema>;
 export type SaveProviderConfigInput = z.infer<typeof SaveProviderConfigInputSchema>;

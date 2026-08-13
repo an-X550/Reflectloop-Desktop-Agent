@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CreateJournalInputSchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, UpdateJournalInputSchema } from '../../src/shared/schemas/ipc';
+import { CreateJournalInputSchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, RenameProjectInputSchema, UpdateJournalInputSchema } from '../../src/shared/schemas/ipc';
 
 describe('journal input schemas', () => {
   it('rejects ambiguous dates before repository access', () => {
@@ -14,6 +14,13 @@ describe('journal input schemas', () => {
 
   it('rejects impossible calendar dates', () => {
     expect(() => CreateJournalInputSchema.parse({ date: '2026-02-30', body: 'x', projectIds: [] })).toThrow();
+  });
+});
+
+describe('project input schemas', () => {
+  it('trims and validates project rename input', () => {
+    expect(RenameProjectInputSchema.parse({ id: 'project_a1', name: '  新名称  ' })).toEqual({ id: 'project_a1', name: '新名称' });
+    expect(() => RenameProjectInputSchema.parse({ id: '../project', name: '新名称' })).toThrow();
   });
 });
 
