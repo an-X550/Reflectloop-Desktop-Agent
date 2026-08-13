@@ -35,9 +35,14 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
         const result = await window.zhiji.settings.save(form);
         setHasApiKey(result.hasApiKey);
         await onSaved?.();
-      } else await window.zhiji.settings.testConnection(form);
+      } else {
+        await window.zhiji.settings.testConnection(form);
+        const result = await window.zhiji.settings.save(form);
+        setHasApiKey(result.hasApiKey);
+        await onSaved?.();
+      }
       setForm(({ apiKey: _discard, ...rest }) => rest);
-      setMessage(kind === 'save' ? '设置已安全保存' : '连接成功');
+      setMessage(kind === 'save' ? '设置已安全保存' : '连接成功，设置已安全保存');
     } catch (reason) { setError(reason instanceof Error ? reason.message : '请检查配置后重试'); }
     finally { setBusy(null); }
   };

@@ -52,7 +52,22 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('button', { name: '请稍候…' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '保存设置' })).toBeEnabled();
     finishTest();
-    await waitFor(() => expect(screen.getByText('连接成功')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/连接成功/)).toBeInTheDocument());
+  });
+
+  it('persists a working provider configuration after a successful connection test', async () => {
+    const onSaved = vi.fn();
+    render(<SettingsPage onSaved={onSaved}/>);
+    await screen.findByText(/已安全保存/);
+    fireEvent.click(screen.getByRole('button', { name: /^D DeepSeek/ }));
+    fireEvent.change(screen.getByLabelText('模型'), { target: { value: 'deepseek-chat' } });
+    fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'sk-deepseek' } });
+    fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
+    const expected = { providerId: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', apiKey: 'sk-deepseek' };
+    await waitFor(() => expect(window.zhiji.settings.testConnection).toHaveBeenCalledWith(expected));
+    expect(window.zhiji.settings.save).toHaveBeenCalledWith(expected);
+    expect(onSaved).toHaveBeenCalled();
+    expect(screen.getByText('连接成功，设置已安全保存')).toBeInTheDocument();
   });
 
   it('requires a verified preview before restoring local data', async () => {
