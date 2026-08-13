@@ -5,6 +5,7 @@ import { Button } from '../components/button';
 import { Field } from '../components/field';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
+import { MarkdownDocument } from '../components/markdown-document';
 import { MaterialPreview } from '../features/reviews/material-preview';
 import { ReviewTypeCard } from '../features/reviews/review-type-card';
 import { InsightTools } from '../features/reviews/insight-tools';
@@ -60,7 +61,7 @@ export function ReviewsPage({ projects, reviews = [], intent, onRefresh = () => 
       <div className="insight-disclosure"><Button variant="ghost" onClick={() => setShowInsights((value) => !value)}>{showInsights ? '收起更多洞察' : '更多洞察'}</Button><span>低频工具，需要时再打开</span></div>
       {showInsights && <InsightTools onSelect={chooseInsight}/>}
       {type && <section className="card review-config"><h3>{type === 'weekly' ? '本周复盘' : type === 'monthly' ? '本月复盘' : type === 'project' ? '项目复盘' : type === 'coach' ? '日志质量检查' : type === 'yearly' ? '年度回顾' : '方向校准'}设置</h3>{type === 'project' && <Field label="项目（可选）"><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setPreview(null); }}><option value="">仅使用日期范围</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>}{type === 'life-design' && <Field label="想校准的问题（可选）"><input value={topic} maxLength={120} onChange={(event) => { setTopic(event.target.value); setPreview(null); }}/></Field>}{!showDates && <Button variant="ghost" onClick={() => setShowDates(true)}>调整日期</Button>}{showDates && <div className="date-row"><Field label="开始日期"><input aria-label="开始日期" type="date" value={range.start} onChange={(event) => changeRange('start', event.target.value)}/></Field><Field label="结束日期"><input aria-label="结束日期" type="date" value={range.end} onChange={(event) => changeRange('end', event.target.value)}/></Field></div>}{message && <StatusBanner tone={state === 'error' ? 'error' : state === 'success' ? 'success' : 'info'}>{message}</StatusBanner>}<div className="button-row"><Button variant="ghost" loading={state === 'loading' && !preview} onClick={() => void loadPreview()}>预览材料</Button><Button variant="primary" loading={state === 'loading' && Boolean(preview)} disabled={!preview || state === 'success'} onClick={() => void generate()}>确认并生成</Button>{state === 'success' && <Button variant="secondary" onClick={() => setSection('history')}>查看历史复盘</Button>}</div></section>}
-      {preview && <MaterialPreview sources={preview.sources}/>} {result && <article className="card inline-review"><h3>复盘结果</h3><pre>{result.body}</pre></article>}
+      {preview && <MaterialPreview sources={preview.sources}/>} {result && <article className="card inline-review"><h3>复盘结果</h3><MarkdownDocument>{result.body}</MarkdownDocument></article>}
     </>}
   </>;
 }

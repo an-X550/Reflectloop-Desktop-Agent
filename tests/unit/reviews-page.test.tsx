@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReviewsPage } from '../../src/renderer/pages/reviews-page';
 import type { Project, Review } from '../../src/shared/schemas/domain';
@@ -29,7 +29,7 @@ describe('ReviewsPage', () => {
   it('shows a history action after successful generation', async () => {
     render(<ReviewsPage projects={[]}/>); fireEvent.click(screen.getByRole('button', { name: '预览本周材料' })); fireEvent.click(screen.getByRole('button', { name: '预览材料' })); await screen.findByText('真实材料'); fireEvent.click(screen.getByRole('button', { name: '确认并生成' }));
     await waitFor(() => expect(screen.getByRole('button', { name: '查看历史复盘' })).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: '查看历史复盘' })); expect(screen.getByRole('heading', { name: '历史复盘' })).toBeInTheDocument();
-    expect(screen.getByText('本周有效行动', { selector: 'pre' })).toBeInTheDocument();
+    expect(within(document.querySelector('.history-reader .markdown-document') as HTMLElement).getByText('本周有效行动')).toBeInTheDocument();
   });
 
   it('applies weekly and project navigation intents and keeps review history in this page', () => {
@@ -38,7 +38,7 @@ describe('ReviewsPage', () => {
     rerender(<ReviewsPage projects={[project]} reviews={[historicalReview]} intent={{ type: 'review.project', projectId: project.id }}/>);
     expect(screen.getByLabelText('项目（可选）')).toHaveValue(project.id);
     fireEvent.click(screen.getByRole('button', { name: '历史复盘' }));
-    expect(screen.getByText('七月复盘正文', { selector: 'pre' })).toBeInTheDocument();
+    expect(within(document.querySelector('.history-reader .markdown-document') as HTMLElement).getByText('七月复盘正文')).toBeInTheDocument();
   });
   it('uses the previous period carried by monthly and yearly suggestions', () => {
     const { rerender } = render(<ReviewsPage projects={[]} intent={{ type: 'review.monthly', month: '2026-07' }}/>);
@@ -67,7 +67,7 @@ describe('ReviewsPage', () => {
     expect(await screen.findByText('深度材料')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '确认并生成' }));
     await waitFor(() => expect(window.zhiji.reviews.generateInsight).toHaveBeenCalled());
-    expect(await screen.findByText('深度洞察', { selector: 'pre' })).toBeInTheDocument();
+    expect(await screen.findByText('深度洞察')).toBeInTheDocument();
   });
   it('moves a historical review to the recycle bin without deleting source journals', async () => {
     const refresh = vi.fn();
@@ -86,6 +86,6 @@ describe('ReviewsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '移到回收站' }));
     fireEvent.click(screen.getByRole('button', { name: '确认移除' }));
     expect(await screen.findByText('移除失败：回收站不可用')).toBeInTheDocument();
-    expect(screen.getByText('七月复盘正文', { selector: 'pre' })).toBeInTheDocument();
+    expect(within(document.querySelector('.history-reader .markdown-document') as HTMLElement).getByText('七月复盘正文')).toBeInTheDocument();
   });
 });

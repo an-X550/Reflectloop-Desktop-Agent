@@ -1,21 +1,33 @@
 import { z } from 'zod';
 
-export const DAILY_REVIEW_PROMPT_VERSION = 'daily-review-v1';
-export const DAILY_REVIEW_SYSTEM_PROMPT = `你是本地个人复盘助手。只依据给定日志和用户明确允许使用的个人背景，不得编造事实。先检查前次反馈中的行动是否在本次日志中得到验证；没有足够证据时必须标记 insufficient。只给出一个带原文引用的洞见、一个五分钟内可启动的行动、一个可观察预测和一行次日追踪问题。
+export const DAILY_REVIEW_PROMPT_VERSION = 'daily-review-v2';
+export const DAILY_REVIEW_SYSTEM_PROMPT = `你是知己 Skill 的日反馈分析器。只依据给定日志、前次反馈和用户明确允许使用的个人背景，不得编造事实。内部执行 D0-D6：闭环昨日行动；引用当天原文；只指出一个最关键盲点；只有可靠证据且能改变行动时才连接历史模式；明天只能有一个动作，必须在五分钟内可启动且无需再次拆解；预测必须是 24 小时内可观察的真实行为或结果。
+
+自由叙事不因缺少固定栏目降级。不得做确定性心理归因，不得把单一事件拔高为价值观。没有记录昨日行动结果时只能标记 insufficient，不能推断未做。patternConnection 没有可靠证据时返回 null。所有文字合计应能排版在 320 个中文字符内。
 
 只返回一个 JSON 对象，不要 Markdown、代码块或额外说明。字段必须严格符合：
 {
-  "priorAction": null | { "status": "done" | "not_done" | "insufficient", "evidence": "字符串" },
-  "insight": { "quote": "日志原文中的短引用", "text": "洞见" },
-  "action": { "step": "五分钟内可启动的行动", "prediction": "可观察预测" },
-  "trackingLine": "次日追踪问题"
+  "priorAction": null | { "action": "上一条反馈中的行动", "prediction": "上一条反馈中的预测", "status": "done" | "not_done" | "insufficient", "evidence": "今天日志的证据", "insightStatus": "上一条新认知本次被支持、未执行或证据不足的一句话" },
+  "insight": { "quote": "日志原文中的短引用", "text": "一个盲点洞见" },
+  "patternConnection": null | "一条有证据且会影响行动的历史连接",
+  "action": { "step": "五分钟内可启动的行动", "prediction": "24小时内可观察的行为或结果" },
+  "newInsight": "本次关键发现"
 }`;
+
 export const DailyReviewOutputSchema = z.object({
-  priorAction: z.object({ status: z.enum(['done', 'not_done', 'insufficient']), evidence: z.string().max(2000) }).nullable(),
-  insight: z.object({ quote: z.string().min(1).max(2000), text: z.string().min(1).max(4000) }),
-  action: z.object({ step: z.string().min(1).max(1000), prediction: z.string().min(1).max(1000) }),
-  trackingLine: z.string().min(1).max(1000),
+  priorAction: z.object({
+    action: z.string().min(1).max(500),
+    prediction: z.string().min(1).max(500),
+    status: z.enum(['done', 'not_done', 'insufficient']),
+    evidence: z.string().min(1).max(1000),
+    insightStatus: z.string().min(1).max(500),
+  }).strict().nullable(),
+  insight: z.object({ quote: z.string().min(1).max(2000), text: z.string().min(1).max(4000) }).strict(),
+  patternConnection: z.string().min(1).max(1000).nullable(),
+  action: z.object({ step: z.string().min(1).max(1000), prediction: z.string().min(1).max(1000) }).strict(),
+  newInsight: z.string().min(1).max(1000),
 }).strict();
+
 export type DailyReviewOutput = z.infer<typeof DailyReviewOutputSchema>;
 
 export function parseDailyReviewOutput(raw: string): DailyReviewOutput {
@@ -24,7 +36,15 @@ export function parseDailyReviewOutput(raw: string): DailyReviewOutput {
   return DailyReviewOutputSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
 }
 
-export function renderDailyReview(output: DailyReviewOutput): string {
-  const status = { done: '已完成', not_done: '未完成', insufficient: '证据不足' } as const;
-  return [output.priorAction ? `## 上一行动\n\n- 状态：${status[output.priorAction.status]}\n- 证据：${output.priorAction.evidence}` : null, `## 今日洞见`, `> ${output.insight.quote}`, output.insight.text, `## 下一步`, `- ${output.action.step}`, `- 预期：${output.action.prediction}`, `## 次日追踪`, output.trackingLine].filter(Boolean).join('\n\n');
+export function renderDailyReview(output: DailyReviewOutput, date: string): string {
+  const [, month, day] = date.split('-').map(Number);
+  const status = { done: '✅ 做到了', not_done: '❌ 没做', insufficient: '⚠️ 证据不足' } as const;
+  return [
+    `📋 ${month}月${day}日 日志反馈`,
+    output.priorAction ? `⏮️ 昨天你答应自己\n${output.priorAction.action}；预测：${output.priorAction.prediction}\n${status[output.priorAction.status]} → ${output.priorAction.evidence}；${output.priorAction.insightStatus}` : null,
+    `🔍 你没注意到的\n「${output.insight.quote}」${output.insight.text}`,
+    output.patternConnection ? `🔗 和之前有关\n${output.patternConnection}` : null,
+    `⚡ 明天试试\n行动：${output.action.step}\n预测：${output.action.prediction}`,
+    `💊 新认知：${output.newInsight} | 行动：${output.action.step} | 验证：待明天`,
+  ].filter(Boolean).join('\n\n');
 }

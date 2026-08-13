@@ -4,13 +4,14 @@ import type { Review } from '../../shared/schemas/domain';
 import type { InsightReviewPreviewInput } from '../../shared/schemas/ipc';
 import { selectInsightMaterials } from '../domain/insight-materials';
 import type { ReviewTaskManager } from '../domain/review-task';
-import type { ChatMessage } from '../infrastructure/ai/openai-compatible-provider';
+import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import { INSIGHT_PROMPTS } from '../prompts/insight-review-prompts';
+import { JOURNAL_COACH_PROMPT_VERSION, JOURNAL_COACH_SYSTEM_PROMPT, parseJournalCoachOutput, renderJournalCoach } from '../prompts/journal-coach-v2';
 
-interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal): Promise<string> }
+interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> }
 type Input = InsightReviewPreviewInput & { model: string };
 
 export class GenerateInsightReview {
@@ -38,9 +39,12 @@ export class GenerateInsightReview {
       const profile = await this.profiles?.get();
       const prompt = INSIGHT_PROMPTS[input.type];
       const payload = { materials: materials.map((item) => ({ id: item.id, date: 'date' in item ? item.date : item.periodStart, body: item.body })), ...('topic' in input && input.topic ? { topic: input.topic } : {}), ...(profile?.enabledForAi ? { profile: profile.body } : {}) };
-      const body = (await this.provider.collect([{ role: 'system', content: prompt.system }, { role: 'user', content: JSON.stringify(payload) }], task.controller.signal)).trim();
+      const raw = await this.provider.collect([{ role: 'system', content: input.type === 'coach' ? JOURNAL_COACH_SYSTEM_PROMPT : prompt.system }, { role: 'user', content: JSON.stringify(payload) }], task.controller.signal, input.type === 'coach' ? { jsonObject: true } : undefined);
+      let body: string;
+      try { body = input.type === 'coach' ? renderJournalCoach(parseJournalCoachOutput(raw), input.start, input.end) : raw.trim(); }
+      catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的日志质量报告格式不完整，请重试。' }); }
       if (!body) throw appError({ code: 'INVALID_MODEL_OUTPUT' });
-      const review: Review = { schemaVersion: 1, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: input.type, periodStart: input.start, periodEnd: input.end, sourceIds: materials.map((item) => item.id), projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: prompt.version, createdAt: this.now(), body };
+      const review: Review = { schemaVersion: 1, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: input.type, periodStart: input.start, periodEnd: input.end, sourceIds: materials.map((item) => item.id), projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: input.type === 'coach' ? JOURNAL_COACH_PROMPT_VERSION : prompt.version, createdAt: this.now(), body };
       this.tasks.transition(task.taskId, 'saving');
       await this.reviews.save(review);
       this.tasks.transition(task.taskId, 'completed');

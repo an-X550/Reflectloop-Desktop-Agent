@@ -2,9 +2,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TodayPage } from '../../src/renderer/pages/today-page';
+import { toLocalDateString } from '../../src/renderer/utils/local-date';
 import type { Journal, Review } from '../../src/shared/schemas/domain';
 
-const date = new Date().toISOString().slice(0, 10);
+const date = toLocalDateString();
 const journal: Journal = { schemaVersion: 1, id: 'journal_today', date, createdAt: `${date}T01:00:00.000Z`, updatedAt: `${date}T01:00:00.000Z`, projectIds: [], body: '原来的日志' };
 
 beforeEach(() => {
@@ -66,7 +67,7 @@ describe('TodayPage', () => {
   it('opens past journals from a records intent and focuses writing from a compose intent', async () => {
     const { rerender } = render(<TodayPage journals={[journal]} projects={[]} reviews={[]} intent={{ type: 'records.journals' }} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     expect(screen.getByRole('heading', { name: '过去日志' })).toBeInTheDocument();
-    expect(screen.getByText('原来的日志', { selector: 'pre' })).toBeInTheDocument();
+    expect(document.querySelector('.history-reader .markdown-document')).toHaveTextContent('原来的日志');
     rerender(<TodayPage journals={[journal]} projects={[]} reviews={[]} intent={{ type: 'journal.compose' }} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     await waitFor(() => expect(screen.getByRole('textbox', { name: '日志内容' })).toHaveFocus());
   });
@@ -95,7 +96,7 @@ describe('TodayPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '移到回收站' }));
     fireEvent.click(screen.getByRole('button', { name: '确认移除' }));
     expect(await screen.findByText('移除失败：回收站不可用')).toBeInTheDocument();
-    expect(screen.getByText('原来的日志', { selector: 'pre' })).toBeInTheDocument();
+    expect(document.querySelector('.history-reader .markdown-document')).toHaveTextContent('原来的日志');
   });
 
   it('generates feedback from an existing journal without creating a duplicate', async () => {

@@ -30,7 +30,7 @@ export class GenerateDailyReview {
       let output;
       try { output = parseDailyReviewOutput(raw); } catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的反馈格式不完整，请重试；若持续失败，请确认模型支持 JSON 输出。' }); }
       const createdAt = this.now();
-      const review: Review = { schemaVersion: 2, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: 'daily', periodStart: input.date, periodEnd: input.date, sourceIds: journals.map((journal) => journal.id), sourceVersions, projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: DAILY_REVIEW_PROMPT_VERSION, createdAt, body: renderDailyReview(output) };
+      const review: Review = { schemaVersion: 2, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: 'daily', periodStart: input.date, periodEnd: input.date, sourceIds: journals.map((journal) => journal.id), sourceVersions, projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: DAILY_REVIEW_PROMPT_VERSION, createdAt, body: renderDailyReview(output, input.date) };
       this.tasks.transition(task.taskId, 'saving');
       await this.reviews.save(review);
       this.tasks.transition(task.taskId, 'completed');

@@ -10,7 +10,7 @@ const inReviewRange = (item: Review, start: string, end: string) => item.periodS
 export function selectInsightMaterials(input: InsightReviewPreviewInput, journals: Journal[], reviews: Review[]): InsightMaterial[] {
   if (input.type === 'coach') {
     const selected = journals.filter((item) => inJournalRange(item, input.start, input.end)).sort((a, b) => a.date.localeCompare(b.date));
-    if (selected.length < 3) throw appError({ code: 'INVALID_INPUT', message: '日志质量检查至少需要 3 篇日志。' });
+    if (selected.length < 3) throw appError({ code: 'INVALID_INPUT', message: `范围内仅找到 ${selected.length} 篇日志条目。至少需要3篇才能做有意义的教练分析。` });
     return selected.slice(-40);
   }
 

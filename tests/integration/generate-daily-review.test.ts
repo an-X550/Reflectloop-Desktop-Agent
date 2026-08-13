@@ -10,10 +10,16 @@ import { renderDailyReview } from '../../src/main-process/prompts/daily-review-v
 
 describe('GenerateDailyReview', () => {
   it('renders prior action closure when the model finds one', () => {
-    const body = renderDailyReview({ priorAction: { status: 'done', evidence: '日志写明已连续执行。' }, insight: { quote: '完成了', text: '执行有效。' }, action: { step: '继续五分钟', prediction: '明早能直接开始' }, trackingLine: '明天检查。' });
-    expect(body).toContain('上一行动');
-    expect(body).toContain('已完成');
+    const body = renderDailyReview({ priorAction: { action: '先写第一行', prediction: '晚上会更早开始', status: 'done', evidence: '日志写明已连续执行。', insightStatus: '获得支持' }, insight: { quote: '完成了', text: '执行有效。' }, patternConnection: null, action: { step: '继续五分钟', prediction: '明早能直接开始' }, newInsight: '先启动比等待状态更有效' }, '2026-08-13');
+    expect(body).toContain('📋 8月13日 日志反馈');
+    expect(body).toContain('⏮️ 昨天你答应自己');
+    expect(body).toContain('✅ 做到了');
     expect(body).toContain('日志写明已连续执行。');
+    expect(body).toContain('🔍 你没注意到的');
+    expect(body).toContain('「完成了」');
+    expect(body).toContain('⚡ 明天试试\n行动：继续五分钟\n预测：明早能直接开始');
+    expect(body).toContain('💊 新认知：先启动比等待状态更有效 | 行动：继续五分钟 | 验证：待明天');
+    expect(body).not.toContain('##');
   });
 
   it('injects personal background only when the user enables it', async () => {
@@ -22,7 +28,7 @@ describe('GenerateDailyReview', () => {
     const reviews = new MarkdownReviewRepository(root);
     await journals.create({ schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: [], body: '日志' });
     const payloads: string[] = [];
-    const provider = { collect: async (messages: { content: string }[]) => { payloads.push(messages.at(-1)?.content ?? ''); return JSON.stringify({ priorAction: null, insight: { quote: '日志', text: '洞见' }, action: { step: '先做五分钟', prediction: '可以开始' }, trackingLine: '检查' }); } };
+    const provider = { collect: async (messages: { content: string }[]) => { payloads.push(messages.at(-1)?.content ?? ''); return JSON.stringify({ priorAction: null, insight: { quote: '日志', text: '洞见' }, patternConnection: null, action: { step: '先做五分钟', prediction: '可以开始' }, newInsight: '启动比等待更有效' }); } };
     let enabled = true;
     const profiles = { get: async () => ({ body: '我是转型中的前端开发者', enabledForAi: enabled }) } as never;
     const useCase = new GenerateDailyReview(journals, reviews, provider, new ReviewTaskManager(), () => new Date().toISOString(), profiles);
@@ -37,7 +43,7 @@ describe('GenerateDailyReview', () => {
     const journals = new MarkdownJournalRepository(root);
     const reviews = new MarkdownReviewRepository(root);
     const journal = await journals.create({ schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: [], body: '完成了关键模块。' });
-    const provider = { collect: async () => JSON.stringify({ priorAction: null, insight: { quote: '完成了关键模块', text: '聚焦带来了进展' }, action: { step: '列出明天第一步', prediction: '明早能直接开始' }, trackingLine: '明天检查是否直接开始' }) };
+    const provider = { collect: async () => JSON.stringify({ priorAction: null, insight: { quote: '完成了关键模块', text: '聚焦带来了进展' }, patternConnection: null, action: { step: '列出明天第一步', prediction: '明早能直接开始' }, newInsight: '聚焦带来进展' }) };
     const useCase = new GenerateDailyReview(journals, reviews, provider, new ReviewTaskManager(), () => '2026-08-13T10:00:00.000Z');
     const result = await useCase.execute({ date: journal.date, model: 'fake' });
     expect(result.type).toBe('daily');
@@ -51,13 +57,15 @@ describe('GenerateDailyReview', () => {
     await journals.create({ schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: [], body: '完成了关键模块。' });
     let options: { jsonObject?: boolean } | undefined;
     let systemPrompt = '';
-    const output = { priorAction: null, insight: { quote: '完成了关键模块', text: '聚焦带来了进展' }, action: { step: '列出明天第一步', prediction: '明早能直接开始' }, trackingLine: '明天检查是否直接开始' };
+    const output = { priorAction: null, insight: { quote: '完成了关键模块', text: '聚焦带来了进展' }, patternConnection: null, action: { step: '列出明天第一步', prediction: '明早能直接开始' }, newInsight: '聚焦带来进展' };
     const provider = { collect: async (messages: { content: string }[], _signal: unknown, nextOptions?: { jsonObject?: boolean }) => { systemPrompt = messages[0].content; options = nextOptions; return `\`\`\`json\n${JSON.stringify(output)}\n\`\`\``; } };
     const result = await new GenerateDailyReview(journals, reviews, provider, new ReviewTaskManager()).execute({ date: '2026-08-13', model: 'deepseek-chat' });
     expect(result.body).toContain('完成了关键模块');
     expect(options).toEqual({ jsonObject: true });
     expect(systemPrompt).toContain('"priorAction"');
     expect(systemPrompt).toContain('"done" | "not_done" | "insufficient"');
+    expect(systemPrompt).toContain('D0-D6');
+    expect(systemPrompt).toContain('只能有一个动作');
   });
 
   it('does not save invalid model output', async () => {
@@ -78,7 +86,7 @@ describe('GenerateDailyReview', () => {
     await journals.create({ ...base, id: 'journal_a1', body: '第一条' });
     await journals.create({ ...base, id: 'journal_b2', createdAt: '2026-08-13T09:00:00.000Z', updatedAt: '2026-08-13T09:00:00.000Z', body: '第二条' });
     let calls = 0;
-    const provider = { collect: async () => { calls += 1; return JSON.stringify({ priorAction: null, insight: { quote: '第一条', text: '有进展' }, action: { step: '继续', prediction: '可完成' }, trackingLine: '检查' }); } };
+    const provider = { collect: async () => { calls += 1; return JSON.stringify({ priorAction: null, insight: { quote: '第一条', text: '有进展' }, patternConnection: null, action: { step: '继续', prediction: '可完成' }, newInsight: '记录有助于验证' }); } };
     const useCase = new GenerateDailyReview(journals, reviews, provider, new ReviewTaskManager(), () => `2026-08-13T1${calls}:00:00.000Z`);
     const first = await useCase.execute({ date: '2026-08-13', model: 'fake' });
     expect(first.sourceIds).toEqual(['journal_a1', 'journal_b2']);
