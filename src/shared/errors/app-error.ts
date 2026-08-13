@@ -5,7 +5,7 @@ export type AppError =
   | { code: 'MODEL_NOT_FOUND'; model: string }
   | { code: 'RATE_LIMITED'; retryAfter?: number }
   | { code: 'NETWORK_TIMEOUT' }
-  | { code: 'INVALID_MODEL_OUTPUT' }
+  | { code: 'INVALID_MODEL_OUTPUT'; message?: string }
   | { code: 'FILE_CONFLICT'; path: string }
   | { code: 'DATA_CORRUPTED'; path: string }
   | { code: 'IMPORT_REJECTED'; reason: string }
@@ -13,5 +13,5 @@ export type AppError =
   | { code: 'UNKNOWN'; message: string };
 
 export function appError(error: AppError): AppError & Error {
-  return Object.assign(new Error(error.code), error);
+  return Object.assign(new Error('message' in error && error.message ? error.message : error.code), error);
 }

@@ -5,11 +5,11 @@ import { buildDailyContext } from '../domain/daily-context';
 import type { ReviewTaskManager } from '../domain/review-task';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
-import { DAILY_REVIEW_PROMPT_VERSION, DAILY_REVIEW_SYSTEM_PROMPT, DailyReviewOutputSchema, renderDailyReview } from '../prompts/daily-review-v1';
-import type { ChatMessage } from '../infrastructure/ai/openai-compatible-provider';
+import { DAILY_REVIEW_PROMPT_VERSION, DAILY_REVIEW_SYSTEM_PROMPT, parseDailyReviewOutput, renderDailyReview } from '../prompts/daily-review-v1';
+import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 
-interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal): Promise<string> }
+interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> }
 
 export class GenerateDailyReview {
   constructor(private readonly journals: MarkdownJournalRepository, private readonly reviews: MarkdownReviewRepository, private readonly provider: ProviderPort, private readonly tasks: ReviewTaskManager, private readonly now = () => new Date().toISOString(), private readonly profiles?: Pick<MarkdownProfileRepository, 'get'>) {}
@@ -25,10 +25,10 @@ export class GenerateDailyReview {
       const context = buildDailyContext(journals, await this.reviews.list());
       this.tasks.transition(task.taskId, 'generating');
       const profile = await this.profiles?.get();
-      const raw = await this.provider.collect([{ role: 'system', content: DAILY_REVIEW_SYSTEM_PROMPT }, { role: 'user', content: JSON.stringify({ context, ...(profile?.enabledForAi ? { profile: profile.body } : {}) }) }], task.controller.signal);
+      const raw = await this.provider.collect([{ role: 'system', content: DAILY_REVIEW_SYSTEM_PROMPT }, { role: 'user', content: JSON.stringify({ context, ...(profile?.enabledForAi ? { profile: profile.body } : {}) }) }], task.controller.signal, { jsonObject: true });
       this.tasks.transition(task.taskId, 'validating');
       let output;
-      try { output = DailyReviewOutputSchema.parse(JSON.parse(raw)); } catch { throw appError({ code: 'INVALID_MODEL_OUTPUT' }); }
+      try { output = parseDailyReviewOutput(raw); } catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的反馈格式不完整，请重试；若持续失败，请确认模型支持 JSON 输出。' }); }
       const createdAt = this.now();
       const review: Review = { schemaVersion: 2, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: 'daily', periodStart: input.date, periodEnd: input.date, sourceIds: journals.map((journal) => journal.id), sourceVersions, projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: DAILY_REVIEW_PROMPT_VERSION, createdAt, body: renderDailyReview(output) };
       this.tasks.transition(task.taskId, 'saving');

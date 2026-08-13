@@ -44,13 +44,29 @@ describe('GenerateDailyReview', () => {
     expect(await reviews.get(result.id)).toEqual(result);
   });
 
+  it('accepts valid JSON wrapped in a markdown fence and requests structured output', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'zhiji-review-'));
+    const journals = new MarkdownJournalRepository(root);
+    const reviews = new MarkdownReviewRepository(root);
+    await journals.create({ schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: [], body: '完成了关键模块。' });
+    let options: { jsonObject?: boolean } | undefined;
+    let systemPrompt = '';
+    const output = { priorAction: null, insight: { quote: '完成了关键模块', text: '聚焦带来了进展' }, action: { step: '列出明天第一步', prediction: '明早能直接开始' }, trackingLine: '明天检查是否直接开始' };
+    const provider = { collect: async (messages: { content: string }[], _signal: unknown, nextOptions?: { jsonObject?: boolean }) => { systemPrompt = messages[0].content; options = nextOptions; return `\`\`\`json\n${JSON.stringify(output)}\n\`\`\``; } };
+    const result = await new GenerateDailyReview(journals, reviews, provider, new ReviewTaskManager()).execute({ date: '2026-08-13', model: 'deepseek-chat' });
+    expect(result.body).toContain('完成了关键模块');
+    expect(options).toEqual({ jsonObject: true });
+    expect(systemPrompt).toContain('"priorAction"');
+    expect(systemPrompt).toContain('"done" | "not_done" | "insufficient"');
+  });
+
   it('does not save invalid model output', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'zhiji-review-'));
     const journals = new MarkdownJournalRepository(root);
     const reviews = new MarkdownReviewRepository(root);
     await journals.create({ schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: [], body: '日志' });
     const useCase = new GenerateDailyReview(journals, reviews, { collect: async () => '{bad json' }, new ReviewTaskManager());
-    await expect(useCase.execute({ date: '2026-08-13', model: 'fake' })).rejects.toMatchObject({ code: 'INVALID_MODEL_OUTPUT' });
+    await expect(useCase.execute({ date: '2026-08-13', model: 'fake' })).rejects.toMatchObject({ code: 'INVALID_MODEL_OUTPUT', message: expect.stringContaining('AI 返回') });
     expect(await reviews.list()).toEqual([]);
   });
 

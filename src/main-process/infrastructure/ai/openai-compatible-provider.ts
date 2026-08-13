@@ -1,17 +1,18 @@
 import { appError } from '../../../shared/errors/app-error';
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+export interface CollectOptions { jsonObject?: boolean }
 
 export class OpenAiCompatibleProvider {
   constructor(private readonly config: { baseUrl: string; model: string; apiKey: string }) {}
 
-  async *stream(messages: ChatMessage[], signal?: AbortSignal): AsyncGenerator<string> {
+  async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {
     let response: Response;
     try {
       response = await fetch(`${this.config.baseUrl}/chat/completions`, {
         method: 'POST', signal,
         headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ model: this.config.model, messages, stream: true }),
+        body: JSON.stringify({ model: this.config.model, messages, stream: true, ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}) }),
       });
     } catch (error) {
       if (signal?.aborted) throw appError({ code: 'NETWORK_TIMEOUT' });
@@ -45,9 +46,9 @@ export class OpenAiCompatibleProvider {
     }
   }
 
-  async collect(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+  async collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> {
     let output = '';
-    for await (const delta of this.stream(messages, signal)) output += delta;
+    for await (const delta of this.stream(messages, signal, options)) output += delta;
     return output;
   }
 
