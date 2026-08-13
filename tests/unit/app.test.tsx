@@ -5,6 +5,7 @@ import { App } from '../../src/renderer/app/app';
 
 function api() {
   return {
+    dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 0, totalBytes: 0, categories: { journals: 0, reviews: 0, projects: 0, profile: 0, settings: 0 } })), open: vi.fn() },
     transfer: { exportBackup: vi.fn(), previewRestore: vi.fn(), restore: vi.fn() },
     journals: { list: vi.fn(async () => []), save: vi.fn(), get: vi.fn() },
     projects: { list: vi.fn(async () => []), create: vi.fn(), archive: vi.fn() },

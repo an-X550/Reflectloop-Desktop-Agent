@@ -5,6 +5,7 @@ import { SettingsPage } from '../../src/renderer/pages/settings-page';
 
 beforeEach(() => {
   window.zhiji = {
+    dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, profile: 0, settings: 0 } })), open: vi.fn(async () => undefined) },
     transfer: { exportBackup: vi.fn(async () => ({ canceled: true })), previewRestore: vi.fn(async () => ({ canceled: true })), restore: vi.fn(async () => ({ fileCount: 0 })) },
     settings: {
       getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
@@ -54,5 +55,13 @@ describe('SettingsPage', () => {
     expect(await screen.findByText('备份校验通过：6 个文件')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '确认恢复' }));
     await waitFor(() => expect(window.zhiji.transfer.restore).toHaveBeenCalledWith('preview-id'));
+  });
+
+  it('shows and opens the actual local data directory', async () => {
+    render(<SettingsPage/>);
+    expect(await screen.findByText('D:\\知己')).toBeInTheDocument();
+    expect(screen.getByText(/6 个文件/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '打开数据文件夹' }));
+    await waitFor(() => expect(window.zhiji.dataDirectory.open).toHaveBeenCalled());
   });
 });

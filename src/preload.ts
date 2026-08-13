@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ZhijiDesktopApi } from './shared/contracts/desktop-api';
 
 const api: ZhijiDesktopApi = {
+  dataDirectory: { getInfo: () => ipcRenderer.invoke('data-directory:get-info'), open: () => ipcRenderer.invoke('data-directory:open') },
   transfer: {
     exportBackup: () => ipcRenderer.invoke('transfer:export'),
     previewRestore: () => ipcRenderer.invoke('transfer:preview-restore'),

@@ -20,8 +20,9 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const [transferBusy, setTransferBusy] = useState<'export' | 'preview' | 'restore' | null>(null);
   const [transferMessage, setTransferMessage] = useState('');
   const [restorePreview, setRestorePreview] = useState<Awaited<ReturnType<Window['zhiji']['transfer']['previewRestore']>> | null>(null);
+  const [dataInfo, setDataInfo] = useState<Awaited<ReturnType<Window['zhiji']['dataDirectory']['getInfo']>> | null>(null);
 
-  useEffect(() => { void window.zhiji.settings.getPublicConfig().then(({ hasApiKey: saved, ...config }) => { setForm(config); setHasApiKey(saved); }); }, []);
+  useEffect(() => { void Promise.all([window.zhiji.settings.getPublicConfig(), window.zhiji.dataDirectory.getInfo()]).then(([{ hasApiKey: saved, ...config }, info]) => { setForm(config); setHasApiKey(saved); setDataInfo(info); }); }, []);
   const updateProvider = (providerId: SaveProviderConfigInput['providerId']) => {
     setMessage(''); setError('');
     setForm((old) => ({ ...old, providerId, ...(providerId === 'custom' ? {} : presets[providerId]) }));
@@ -59,6 +60,7 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
     </section>
     <section className="card transfer-panel">
       <div className="section-heading"><div><h3>本地数据</h3><p>导出日志、复盘、项目与公开 AI 配置；API Key 和缓存不会进入备份。</p></div></div>
+      {dataInfo && <div className="data-location"><strong>{dataInfo.path}</strong><span>{dataInfo.writable ? '可写入' : '当前不可写'} · {dataInfo.fileCount} 个文件</span><Button onClick={() => void window.zhiji.dataDirectory.open()}>打开数据文件夹</Button></div>}
       <div className="transfer-actions"><Button loading={transferBusy === 'export'} onClick={() => void exportBackup()}>导出可验证备份</Button><Button loading={transferBusy === 'preview'} onClick={() => void previewBackup()}>选择备份并校验</Button></div>
       {restorePreview?.previewId && <div className="restore-preview"><strong>备份校验通过：{restorePreview.fileCount} 个文件</strong><p>{restorePreview.categories?.journals ?? 0} 篇日志 · {restorePreview.categories?.reviews ?? 0} 份复盘 · {restorePreview.categories?.projects ?? 0} 个项目</p><p className="muted">为避免覆盖，恢复只允许写入空数据目录。</p><Button variant="primary" loading={transferBusy === 'restore'} onClick={() => void restoreBackup()}>确认恢复</Button></div>}
       {transferMessage && <StatusBanner tone={transferMessage.includes('失败') ? 'error' : 'success'}>{transferMessage}</StatusBanner>}
