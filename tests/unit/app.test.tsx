@@ -20,8 +20,8 @@ beforeEach(() => { window.zhiji = api(); });
 describe('App', () => {
   it('navigates across all five product pages', async () => {
     render(<App/>);
-    await screen.findByRole('heading', { name: '写下今天发生的事' });
-    for (const [nav, heading] of [['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与材料'], ['历史', '历史记录'], ['设置', 'AI 设置']] as const) {
+    await screen.findByRole('heading', { name: '写下今天的经历' });
+    for (const [nav, heading] of [['日志', '写下今天发生的事'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与材料'], ['设置', 'AI 设置']] as const) {
       fireEvent.click(screen.getByRole('button', { name: nav }));
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
     }
@@ -32,7 +32,7 @@ describe('App', () => {
     render(<App/>);
     expect(await screen.findByText('磁盘暂不可用')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
-    await waitFor(() => expect(screen.getByRole('heading', { name: '写下今天发生的事' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('heading', { name: '写下今天的经历' })).toBeInTheDocument());
     expect(window.zhiji.journals.list).toHaveBeenCalledTimes(2);
   });
 });

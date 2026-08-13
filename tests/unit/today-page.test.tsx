@@ -51,6 +51,6 @@ describe('TodayPage', () => {
   it('keeps saving available while pointing an unconfigured user to AI settings', () => {
     const onNavigate = vi.fn(); render(<TodayPage journals={[]} projects={[]} reviews={[]} hasApiKey={false} onRefresh={vi.fn()} onNavigate={onNavigate}/>);
     expect(screen.getByText('先保存日志也可以')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith('settings');
+    fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
   });
 });

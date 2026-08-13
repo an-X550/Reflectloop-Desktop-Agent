@@ -24,7 +24,7 @@ describe('ReviewsPage', () => {
 
   it('shows a history action after successful generation', async () => {
     const onNavigate = vi.fn(); render(<ReviewsPage projects={[]} onNavigate={onNavigate}/>); fireEvent.click(screen.getByRole('button', { name: '预览本周材料' })); fireEvent.click(screen.getByRole('button', { name: '预览材料' })); await screen.findByText('真实材料'); fireEvent.click(screen.getByRole('button', { name: '确认并生成' }));
-    await waitFor(() => expect(screen.getByRole('button', { name: '去历史查看' })).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: '去历史查看' })); expect(onNavigate).toHaveBeenCalledWith('history');
+    await waitFor(() => expect(screen.getByRole('button', { name: '查看历史复盘' })).toBeInTheDocument()); fireEvent.click(screen.getByRole('button', { name: '查看历史复盘' })); expect(onNavigate).toHaveBeenCalledWith({ view: 'reviews' });
     expect(screen.getByText('本周有效行动')).toBeInTheDocument();
   });
 });
