@@ -2,8 +2,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TodayPage } from '../../src/renderer/pages/today-page';
-import type { Journal } from '../../src/shared/schemas/domain';
-import type { Review } from '../../src/shared/schemas/domain';
+import type { Journal, Review } from '../../src/shared/schemas/domain';
 
 const date = new Date().toISOString().slice(0, 10);
 const journal: Journal = { schemaVersion: 1, id: 'journal_today', date, createdAt: `${date}T01:00:00.000Z`, updatedAt: `${date}T01:00:00.000Z`, projectIds: [], body: '原来的日志' };
@@ -47,5 +46,11 @@ describe('TodayPage', () => {
     render(<TodayPage journals={[journal]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     fireEvent.click(screen.getByRole('button', { name: '生成今日反馈' }));
     expect(await screen.findByText('今天最重要的反馈')).toBeInTheDocument();
+  });
+
+  it('keeps saving available while pointing an unconfigured user to AI settings', () => {
+    const onNavigate = vi.fn(); render(<TodayPage journals={[]} projects={[]} reviews={[]} hasApiKey={false} onRefresh={vi.fn()} onNavigate={onNavigate}/>);
+    expect(screen.getByText('先保存日志也可以')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith('settings');
   });
 });

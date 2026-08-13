@@ -2,10 +2,11 @@ import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import electronPath from 'electron';
 
 test('a non-CLI user completes the local journal loop', async () => {
   const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-'));
-  const executablePath = require('electron') as string;
+  const executablePath = electronPath as unknown as string;
   const app = await electron.launch({ executablePath, args: ['.'], cwd: process.cwd(), env: { ...process.env, ZHIJI_DATA_ROOT: dataRoot } });
   try {
     const page = await app.firstWindow();

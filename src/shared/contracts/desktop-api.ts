@@ -1,6 +1,5 @@
 import type { Journal, Profile, Project, Review } from '../schemas/domain';
-import type { CreateProjectInput, JournalQuery, SaveJournalInput } from '../schemas/ipc';
-import type { PeriodicReviewInput, SaveProfileInput, SaveProviderConfigInput } from '../schemas/ipc';
+import type { CreateProjectInput, JournalQuery, PeriodicReviewInput, SaveJournalInput, SaveProfileInput, SaveProviderConfigInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
 

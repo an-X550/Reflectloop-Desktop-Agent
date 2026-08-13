@@ -1,10 +1,9 @@
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import AdmZip from 'adm-zip';
 import { afterEach, describe, expect, it } from 'vitest';
-import { rm } from 'node:fs/promises';
 import { DataTransferService } from '../../src/main-process/infrastructure/transfer/data-transfer-service';
 
 const roots: string[] = [];
