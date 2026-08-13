@@ -1,4 +1,4 @@
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, readdir, rename, rm } from 'node:fs/promises';
 import matter from 'gray-matter';
 import { JournalSchema, type Journal } from '../../../shared/schemas/domain';
 import { appError } from '../../../shared/errors/app-error';
@@ -78,11 +78,21 @@ export class MarkdownJournalRepository {
     if (existing.journal.updatedAt !== expectedUpdatedAt) {
       throw appError({ code: 'FILE_CONFLICT', path: existing.filePath });
     }
-    const target = existing.journal.date === journal.date
-      ? existing.filePath
-      : await resolveInsideRoot(this.root, 'journals', journal.date.slice(0, 4), `${journal.date}--${journal.id}.md`);
-    await atomicWriteUtf8(target, serialize(journal), (value) => parse(value));
-    if (target !== existing.filePath) await rm(existing.filePath, { force: true });
+    if (existing.journal.date === journal.date) {
+      await atomicWriteUtf8(existing.filePath, serialize(journal), (value) => parse(value));
+      return journal;
+    }
+    const target = await resolveInsideRoot(this.root, 'journals', journal.date.slice(0, 4), `${journal.date}--${journal.id}.md`);
+    const moving = `${existing.filePath}.moving`;
+    await rename(existing.filePath, moving);
+    try {
+      await atomicWriteUtf8(target, serialize(journal), (value) => parse(value));
+      await rm(moving, { force: true });
+    } catch (error) {
+      await rm(target, { force: true });
+      await rename(moving, existing.filePath);
+      throw error;
+    }
     return journal;
   }
 

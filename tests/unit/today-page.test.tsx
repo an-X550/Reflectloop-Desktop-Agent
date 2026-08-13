@@ -89,4 +89,12 @@ describe('TodayPage', () => {
     await waitFor(() => expect(window.zhiji.journals.create).toHaveBeenCalledWith({ date: '2026-08-01', body: '补写内容', projectIds: [] }));
     expect(window.zhiji.reviews.generateDaily).not.toHaveBeenCalled();
   });
+
+  it('keeps an unsaved draft when the user cancels opening history', () => {
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
+    render(<TodayPage journals={[journal]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    fireEvent.change(screen.getByRole('textbox', { name: '日志内容' }), { target: { value: '未保存草稿' } });
+    fireEvent.click(screen.getByRole('button', { name: '过去日志' }));
+    expect(screen.getByRole('textbox', { name: '日志内容' })).toHaveValue('未保存草稿');
+  });
 });
