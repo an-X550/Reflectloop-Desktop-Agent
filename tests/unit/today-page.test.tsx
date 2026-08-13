@@ -53,4 +53,12 @@ describe('TodayPage', () => {
     expect(screen.getByText('先保存日志也可以')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
   });
+
+  it('opens past journals from a records intent and focuses writing from a compose intent', async () => {
+    const { rerender } = render(<TodayPage journals={[journal]} projects={[]} reviews={[]} intent={{ type: 'records.journals' }} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    expect(screen.getByRole('heading', { name: '过去日志' })).toBeInTheDocument();
+    expect(screen.getByText('原来的日志', { selector: 'pre' })).toBeInTheDocument();
+    rerender(<TodayPage journals={[journal]} projects={[]} reviews={[]} intent={{ type: 'journal.compose' }} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    await waitFor(() => expect(screen.getByRole('textbox', { name: '今日日志' })).toHaveFocus());
+  });
 });

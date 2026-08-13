@@ -1,2 +1,14 @@
-import type { Project } from '../../../shared/schemas/domain';
-export function HistoryFilter({ type, text, projectId, projects, onType, onText, onProject }: { type: string; text: string; projectId: string; projects: Project[]; onType(value: string): void; onText(value: string): void; onProject(value: string): void }) { return <div className="history-filters"><label>记录类型<select aria-label="记录类型" value={type} onChange={(event) => onType(event.target.value)}><option value="all">全部</option><option value="journal">日志</option><option value="daily">日反馈</option><option value="weekly">周报</option><option value="monthly">月报</option><option value="project">项目复盘</option></select></label><label>搜索<input aria-label="搜索历史" value={text} onChange={(event) => onText(event.target.value)} placeholder="搜索正文"/></label><label>项目<select aria-label="项目筛选" value={projectId} onChange={(event) => onProject(event.target.value)}><option value="">全部项目</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label></div>; }
+import type { Project, Review } from '../../../shared/schemas/domain';
+import type { HistoryItem } from '../../domain/history-items';
+
+const labels: Record<HistoryItem['kind'], string> = { journal: '日志', daily: '日反馈', weekly: '周报', monthly: '月报', project: '项目复盘' };
+
+export function HistoryFilter({ type, text, projectId, projects, allowedKinds, onType, onText, onProject }: { type: string; text: string; projectId: string; projects: Project[]; allowedKinds: HistoryItem['kind'][]; onType(value: string): void; onText(value: string): void; onProject(value: string): void }) {
+  return <div className="history-filters">
+    {allowedKinds.length > 1 && <label>记录类型<select aria-label="记录类型" value={type} onChange={(event) => onType(event.target.value)}><option value="all">全部</option>{allowedKinds.map((kind) => <option key={kind} value={kind}>{labels[kind]}</option>)}</select></label>}
+    <label>搜索<input aria-label="搜索历史" value={text} onChange={(event) => onText(event.target.value)} placeholder="搜索正文"/></label>
+    <label>项目<select aria-label="项目筛选" value={projectId} onChange={(event) => onProject(event.target.value)}><option value="">全部项目</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+  </div>;
+}
+
+export type ReviewKind = Review['type'];

@@ -1,15 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Project, Review } from '../../shared/schemas/domain';
-import type { NavigationTarget } from '../app/navigation';
-import { Button } from '../components/button'; import { Field } from '../components/field'; import { PageHeader } from '../components/page-header'; import { StatusBanner } from '../components/status-banner';
-import { MaterialPreview } from '../features/reviews/material-preview'; import { ReviewTypeCard } from '../features/reviews/review-type-card'; import { getDefaultReviewRange } from '../utils/date-defaults';
-const today = new Date().toISOString().slice(0, 10); type Type = 'weekly' | 'monthly' | 'project';
-export function ReviewsPage({ projects, onNavigate = () => undefined }: { projects: Project[]; onNavigate?(target: NavigationTarget): void }) {
-  const [type, setType] = useState<Type | null>(null); const [range, setRange] = useState({ start: today, end: today }); const [projectId, setProjectId] = useState(''); const [showDates, setShowDates] = useState(false); const [preview, setPreview] = useState<Awaited<ReturnType<typeof window.zhiji.reviews.preview>> | null>(null); const [result, setResult] = useState<Review | null>(null); const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle'); const [message, setMessage] = useState('');
-  const choose = (next: Type) => { setType(next); setRange(getDefaultReviewRange(next, today)); setShowDates(next === 'project'); setPreview(null); setResult(null); setState('idle'); setMessage(''); };
+import type { NavigationIntent, NavigationTarget } from '../app/navigation';
+import { Button } from '../components/button';
+import { Field } from '../components/field';
+import { PageHeader } from '../components/page-header';
+import { StatusBanner } from '../components/status-banner';
+import { MaterialPreview } from '../features/reviews/material-preview';
+import { ReviewTypeCard } from '../features/reviews/review-type-card';
+import { getDefaultReviewRange } from '../utils/date-defaults';
+import { RecordBrowser } from './history-page';
+
+const today = new Date().toISOString().slice(0, 10);
+type Type = 'weekly' | 'monthly' | 'project';
+
+export function ReviewsPage({ projects, reviews = [], intent, onNavigate = () => undefined }: { projects: Project[]; reviews?: Review[]; intent?: NavigationIntent; onNavigate?(target: NavigationTarget): void }) {
+  const initialType: Type | null = intent?.type === 'review.weekly' ? 'weekly' : intent?.type === 'review.project' ? 'project' : null;
+  const [section, setSection] = useState<'create' | 'history'>('create');
+  const [type, setType] = useState<Type | null>(initialType);
+  const [range, setRange] = useState(initialType ? getDefaultReviewRange(initialType, today) : { start: today, end: today });
+  const [projectId, setProjectId] = useState(intent?.type === 'review.project' ? intent.projectId : '');
+  const [showDates, setShowDates] = useState(initialType === 'project');
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof window.zhiji.reviews.preview>> | null>(null);
+  const [result, setResult] = useState<Review | null>(null);
+  const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [message, setMessage] = useState('');
+
+  const choose = (next: Type) => { setSection('create'); setType(next); setRange(getDefaultReviewRange(next, today)); setShowDates(next === 'project'); setPreview(null); setResult(null); setState('idle'); setMessage(''); };
+  useEffect(() => {
+    if (intent?.type === 'review.weekly') choose('weekly');
+    if (intent?.type === 'review.project') { choose('project'); setProjectId(intent.projectId); }
+  }, [intent]);
   const changeRange = (key: 'start' | 'end', value: string) => { setRange((old) => ({ ...old, [key]: value })); setPreview(null); setResult(null); setState('idle'); };
   const input = type ? { type, ...range, ...(type === 'project' && projectId ? { projectId } : {}) } : null;
   const loadPreview = async () => { if (!input) return; setState('loading'); setMessage('正在读取本地材料…'); try { const next = await window.zhiji.reviews.preview(input); setPreview(next); setState('idle'); setMessage(`已找到 ${next.sources.length} 条材料，请确认后生成`); } catch (reason) { setState('error'); setMessage(`无法预览：${reason instanceof Error ? reason.message : '所选范围内没有材料'}`); } };
   const generate = async () => { if (!input || !preview) return; setState('loading'); setMessage('正在生成复盘…'); try { const next = await window.zhiji.reviews.generatePeriodic({ ...input, previewToken: preview.token }); setResult(next); setState('success'); setMessage('复盘已保存到本机'); } catch (reason) { setState('error'); setMessage(`生成失败：${reason instanceof Error ? reason.message : '请检查设置'}`); } };
-  return <><PageHeader title="把一段时间的经历放在一起看" description="先预览材料，再生成复盘；不会自动覆盖已有结果。"/><div className="review-cards"><ReviewTypeCard badge="周" title="本周复盘" description="读取本周日志与日反馈，找出有效行动、反例和下一步。" action="预览本周材料" onSelect={() => choose('weekly')}/><ReviewTypeCard badge="月" title="本月复盘" description="综合日志、日反馈和周复盘，检查跨周模式。" action="预览本月材料" onSelect={() => choose('monthly')}/><ReviewTypeCard badge="项" title="项目复盘" description="使用项目关联日志，也可以补选一段日期范围。" action="选择项目与范围" onSelect={() => choose('project')}/></div>{type && <section className="card review-config"><h3>{type === 'weekly' ? '本周复盘' : type === 'monthly' ? '本月复盘' : '项目复盘'}设置</h3>{type === 'project' && <Field label="项目（可选）"><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setPreview(null); }}><option value="">仅使用日期范围</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>}{!showDates && <Button variant="ghost" onClick={() => setShowDates(true)}>调整日期</Button>}{showDates && <div className="date-row"><Field label="开始日期"><input aria-label="开始日期" type="date" value={range.start} onChange={(event) => changeRange('start', event.target.value)}/></Field><Field label="结束日期"><input aria-label="结束日期" type="date" value={range.end} onChange={(event) => changeRange('end', event.target.value)}/></Field></div>}{message && <StatusBanner tone={state === 'error' ? 'error' : state === 'success' ? 'success' : 'info'}>{message}</StatusBanner>}<div className="button-row"><Button variant="ghost" loading={state === 'loading' && !preview} onClick={() => void loadPreview()}>预览材料</Button><Button variant="primary" loading={state === 'loading' && Boolean(preview)} disabled={!preview || state === 'success'} onClick={() => void generate()}>确认并生成</Button>{state === 'success' && <Button variant="secondary" onClick={() => onNavigate({ view: 'reviews' })}>查看历史复盘</Button>}</div></section>}{preview && <MaterialPreview sources={preview.sources}/>} {result && <article className="card inline-review"><h3>复盘结果</h3><pre>{result.body}</pre></article>}</>;
+
+  return <>
+    <PageHeader title={section === 'create' ? '把一段时间的经历放在一起看' : '历史复盘'} description={section === 'create' ? '先预览材料，再生成复盘；不会自动覆盖已有结果。' : '查看日反馈、周报、月报和项目复盘。'} action={<div className="page-tabs"><button className={section === 'create' ? 'is-active' : ''} onClick={() => setSection('create')}>生成复盘</button><button className={section === 'history' ? 'is-active' : ''} onClick={() => setSection('history')}>历史复盘</button></div>}/>
+    {section === 'history' ? <RecordBrowser journals={[]} reviews={result && !reviews.some((item) => item.id === result.id) ? [result, ...reviews] : reviews} projects={projects} allowedKinds={['daily', 'weekly', 'monthly', 'project']}/> : <>
+      <div className="review-cards"><ReviewTypeCard badge="周" title="本周复盘" description="读取本周日志与日反馈，找出有效行动、反例和下一步。" action="预览本周材料" onSelect={() => choose('weekly')}/><ReviewTypeCard badge="月" title="本月复盘" description="综合日志、日反馈和周复盘，检查跨周模式。" action="预览本月材料" onSelect={() => choose('monthly')}/><ReviewTypeCard badge="项" title="项目复盘" description="使用项目关联日志，也可以补选一段日期范围。" action="选择项目与范围" onSelect={() => choose('project')}/></div>
+      {type && <section className="card review-config"><h3>{type === 'weekly' ? '本周复盘' : type === 'monthly' ? '本月复盘' : '项目复盘'}设置</h3>{type === 'project' && <Field label="项目（可选）"><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setPreview(null); }}><option value="">仅使用日期范围</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>}{!showDates && <Button variant="ghost" onClick={() => setShowDates(true)}>调整日期</Button>}{showDates && <div className="date-row"><Field label="开始日期"><input aria-label="开始日期" type="date" value={range.start} onChange={(event) => changeRange('start', event.target.value)}/></Field><Field label="结束日期"><input aria-label="结束日期" type="date" value={range.end} onChange={(event) => changeRange('end', event.target.value)}/></Field></div>}{message && <StatusBanner tone={state === 'error' ? 'error' : state === 'success' ? 'success' : 'info'}>{message}</StatusBanner>}<div className="button-row"><Button variant="ghost" loading={state === 'loading' && !preview} onClick={() => void loadPreview()}>预览材料</Button><Button variant="primary" loading={state === 'loading' && Boolean(preview)} disabled={!preview || state === 'success'} onClick={() => void generate()}>确认并生成</Button>{state === 'success' && <Button variant="secondary" onClick={() => setSection('history')}>查看历史复盘</Button>}</div></section>}
+      {preview && <MaterialPreview sources={preview.sources}/>} {result && <article className="card inline-review"><h3>复盘结果</h3><pre>{result.body}</pre></article>}
+    </>}
+  </>;
 }
