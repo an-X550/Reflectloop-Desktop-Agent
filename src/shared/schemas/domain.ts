@@ -23,8 +23,7 @@ export const ProjectSchema = z.object({
   archivedAt: IsoDateTime.nullable(),
 });
 
-export const ReviewSchema = z.object({
-  schemaVersion: z.literal(1),
+const ReviewBaseSchema = z.object({
   id: StableId.refine((id) => id.startsWith('review_')),
   type: z.enum(['daily', 'weekly', 'monthly', 'project']),
   periodStart: IsoDate,
@@ -37,6 +36,13 @@ export const ReviewSchema = z.object({
   createdAt: IsoDateTime,
   body: z.string().min(1),
 });
+export const ReviewSchema = z.union([
+  ReviewBaseSchema.extend({ schemaVersion: z.literal(1) }),
+  ReviewBaseSchema.extend({
+    schemaVersion: z.literal(2),
+    sourceVersions: z.array(z.object({ id: StableId, updatedAt: IsoDateTime })).min(1),
+  }),
+]);
 export const ProfileSchema = z.object({ schemaVersion: z.literal(1), body: z.string().max(100_000), enabledForAi: z.boolean(), createdAt: IsoDateTime, updatedAt: IsoDateTime });
 
 export type Journal = z.infer<typeof JournalSchema>;

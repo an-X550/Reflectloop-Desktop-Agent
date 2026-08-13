@@ -10,7 +10,8 @@ const api: ZhijiDesktopApi = {
     restore: (previewId) => ipcRenderer.invoke('transfer:restore', previewId),
   },
   journals: {
-    save: (input) => ipcRenderer.invoke('journals:save', input),
+    create: (input) => ipcRenderer.invoke('journals:create', input),
+    update: (input) => ipcRenderer.invoke('journals:update', input),
     list: (query = {}) => ipcRenderer.invoke('journals:list', query),
     get: (id) => ipcRenderer.invoke('journals:get', id),
   },

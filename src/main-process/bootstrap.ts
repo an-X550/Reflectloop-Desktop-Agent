@@ -1,6 +1,6 @@
 import { app, dialog, safeStorage, shell } from 'electron';
 import path from 'node:path';
-import { SaveJournal } from './application/save-journal';
+import { CreateJournal, UpdateJournal } from './application/save-journal';
 import { registerHandlers } from './ipc/register-handlers';
 import { MarkdownJournalRepository } from './infrastructure/markdown/journal-repository';
 import { JsonProjectRepository } from './infrastructure/markdown/project-repository';
@@ -26,5 +26,5 @@ export function bootstrap() {
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks);
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, profile: new MarkdownProfileRepository(dataRoot), reviewTasks, generateDailyReview, generatePeriodicReview, saveJournal: new SaveJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  registerHandlers({ journals, projects, reviews, profile: new MarkdownProfileRepository(dataRoot), reviewTasks, generateDailyReview, generatePeriodicReview, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
 }

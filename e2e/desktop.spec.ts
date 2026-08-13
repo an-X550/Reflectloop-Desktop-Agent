@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron } from '@playwright/test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import electronPath from 'electron';
@@ -20,16 +20,23 @@ test('a non-CLI user completes the local journal loop', async () => {
     await page.getByRole('button', { name: '开始', exact: true }).click();
     await page.getByRole('button', { name: '开始记录' }).click();
     await page.getByLabel('关联项目（可选）').selectOption({ label: '桌面端验收' });
-    await page.getByRole('textbox', { name: '今日日志' }).fill('这是一条由桌面端自动化验收写入的本地日志。');
+    await page.getByRole('textbox', { name: '日志内容' }).fill('这是一条由桌面端自动化验收写入的本地日志。');
     await page.getByRole('button', { name: '保存日志' }).click();
     await expect(page.getByText('已保存到本机')).toBeVisible();
+    await page.getByRole('textbox', { name: '日志内容' }).fill('这是同一天的第二条日志，不应覆盖第一条。');
+    await page.getByRole('button', { name: '保存日志' }).click();
 
     await page.getByRole('button', { name: '开始', exact: true }).click();
     await expect(page.getByRole('heading', { name: '生成今日反馈' })).toBeVisible();
     await page.getByRole('button', { name: '日志', exact: true }).click();
     await page.getByRole('button', { name: '过去日志' }).click();
-    await expect(page.locator('pre')).toHaveText('这是一条由桌面端自动化验收写入的本地日志。');
-    expect(await readFile(path.join(dataRoot, 'journals', new Date().getFullYear().toString(), `${new Date().toISOString().slice(0, 10)}.md`), 'utf8')).toContain('桌面端自动化验收');
+    await expect(page.locator('pre')).toContainText(/桌面端自动化验收|第二条日志/);
+    const yearRoot = path.join(dataRoot, 'journals', new Date().getFullYear().toString());
+    const files = (await readdir(yearRoot)).filter((file) => file.endsWith('.md'));
+    expect(files).toHaveLength(2);
+    const contents = await Promise.all(files.map((file) => readFile(path.join(yearRoot, file), 'utf8')));
+    expect(contents.join('\n')).toContain('桌面端自动化验收');
+    expect(contents.join('\n')).toContain('第二条日志');
   } finally {
     await app.close();
     await rm(dataRoot, { recursive: true, force: true });

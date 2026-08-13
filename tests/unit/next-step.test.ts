@@ -12,9 +12,10 @@ const journal = (id: string, date: string): Journal => ({
   projectIds: [],
   body: `${date} 日志`,
 });
-const review = (input: Partial<Review> & Pick<Review, 'id' | 'type' | 'periodStart' | 'periodEnd'>): Review => ({
-  schemaVersion: 1,
+const review = (input: Pick<Review, 'id' | 'type' | 'periodStart' | 'periodEnd'> & { sourceIds?: string[]; sourceVersions?: { id: string; updatedAt: string }[] }): Review => ({
+  schemaVersion: 2,
   sourceIds: [],
+  sourceVersions: [],
   projectId: null,
   provider: 'openai-compatible',
   model: 'test',
@@ -41,7 +42,7 @@ describe('resolveNextStep', () => {
 
   it('recommends a weekly review on the weekend with three journals and daily feedback', () => {
     const journals = [journal('journal_1', '2026-08-10'), journal('journal_2', '2026-08-13'), journal('journal_today', today)];
-    const reviews = [review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceIds: ['journal_today'] })];
+    const reviews = [review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceIds: ['journal_today'], sourceVersions: [{ id: 'journal_today', updatedAt: `${today}T01:00:00.000Z` }] })];
     expect(resolveNextStep({ today, dayOfWeek: 6, journals, reviews })).toMatchObject({
       kind: 'weekly-review',
       target: { view: 'reviews', intent: { type: 'review.weekly' } },
@@ -51,7 +52,7 @@ describe('resolveNextStep', () => {
   it('does not repeat a weekly recommendation when the current week is covered', () => {
     const journals = [journal('journal_1', '2026-08-10'), journal('journal_2', '2026-08-13'), journal('journal_today', today)];
     const reviews = [
-      review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceIds: ['journal_today'] }),
+      review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceIds: ['journal_today'], sourceVersions: [{ id: 'journal_today', updatedAt: `${today}T01:00:00.000Z` }] }),
       review({ id: 'weekly_current', type: 'weekly', periodStart: '2026-08-10', periodEnd: '2026-08-16' }),
     ];
     expect(resolveNextStep({ today, dayOfWeek: 6, journals, reviews })).toMatchObject({ kind: 'recent-records' });
@@ -59,7 +60,7 @@ describe('resolveNextStep', () => {
 
   it('falls back to recent records on an ordinary weekday', () => {
     const journals = [journal('journal_today', today)];
-    const reviews = [review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceIds: ['journal_today'] })];
+    const reviews = [review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceIds: ['journal_today'], sourceVersions: [{ id: 'journal_today', updatedAt: `${today}T01:00:00.000Z` }] })];
     expect(resolveNextStep({ today, dayOfWeek: 3, journals, reviews })).toMatchObject({
       kind: 'recent-records',
       target: { view: 'journal', intent: { type: 'records.journals' } },

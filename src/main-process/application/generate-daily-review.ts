@@ -12,21 +12,23 @@ interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal):
 
 export class GenerateDailyReview {
   constructor(private readonly journals: MarkdownJournalRepository, private readonly reviews: MarkdownReviewRepository, private readonly provider: ProviderPort, private readonly tasks: ReviewTaskManager, private readonly now = () => new Date().toISOString()) {}
-  async execute(input: { journalId: string; model: string; regenerate?: boolean }): Promise<Review> {
-    const existing = (await this.reviews.list()).filter((review) => review.type === 'daily' && review.sourceIds.includes(input.journalId)).at(-1);
-    if (existing && !input.regenerate) return existing;
+  async execute(input: { date: string; model: string; regenerate?: boolean }): Promise<Review> {
+    const journals = (await this.journals.list()).filter((journal) => journal.date === input.date);
+    if (!journals.length) throw appError({ code: 'NOT_FOUND', entity: input.date });
+    const sourceVersions = journals.map(({ id, updatedAt }) => ({ id, updatedAt })).sort((a, b) => a.id.localeCompare(b.id));
+    const existing = (await this.reviews.list()).filter((review) => review.type === 'daily' && review.periodStart === input.date).at(-1);
+    if (existing?.schemaVersion === 2 && JSON.stringify(existing.sourceVersions.slice().sort((a, b) => a.id.localeCompare(b.id))) === JSON.stringify(sourceVersions) && !input.regenerate) return existing;
     const task = this.tasks.start();
     try {
       this.tasks.transition(task.taskId, 'building_context');
-      const journal = await this.journals.get(input.journalId);
-      const context = buildDailyContext(journal, await this.journals.list(), await this.reviews.list());
+      const context = buildDailyContext(journals, await this.reviews.list());
       this.tasks.transition(task.taskId, 'generating');
       const raw = await this.provider.collect([{ role: 'system', content: DAILY_REVIEW_SYSTEM_PROMPT }, { role: 'user', content: JSON.stringify(context) }], task.controller.signal);
       this.tasks.transition(task.taskId, 'validating');
       let output;
       try { output = DailyReviewOutputSchema.parse(JSON.parse(raw)); } catch { throw appError({ code: 'INVALID_MODEL_OUTPUT' }); }
       const createdAt = this.now();
-      const review: Review = { schemaVersion: 1, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: 'daily', periodStart: journal.date, periodEnd: journal.date, sourceIds: [journal.id], projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: DAILY_REVIEW_PROMPT_VERSION, createdAt, body: renderDailyReview(output) };
+      const review: Review = { schemaVersion: 2, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: 'daily', periodStart: input.date, periodEnd: input.date, sourceIds: journals.map((journal) => journal.id), sourceVersions, projectId: null, provider: 'openai-compatible', model: input.model, promptVersion: DAILY_REVIEW_PROMPT_VERSION, createdAt, body: renderDailyReview(output) };
       this.tasks.transition(task.taskId, 'saving');
       await this.reviews.save(review);
       this.tasks.transition(task.taskId, 'completed');

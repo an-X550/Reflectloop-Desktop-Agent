@@ -7,9 +7,8 @@ const review = (id: string, date: string): Review => ({ schemaVersion: 1, id, ty
 
 describe('buildDailyContext', () => {
   it('uses the selected day and latest prior daily review only', () => {
-    const result = buildDailyContext(journal('journal_a2', '2026-08-13'), [journal('journal_future', '2026-08-14')], [review('review_old', '2026-08-10'), review('review_latest', '2026-08-12')]);
-    expect(result.journal.id).toBe('journal_a2');
+    const result = buildDailyContext([journal('journal_a2', '2026-08-13'), journal('journal_a3', '2026-08-13')], [review('review_old', '2026-08-10'), review('review_latest', '2026-08-12')]);
+    expect(result.journals.map((item) => item.id)).toEqual(['journal_a2', 'journal_a3']);
     expect(result.previousReview?.id).toBe('review_latest');
-    expect(JSON.stringify(result)).not.toContain('journal_future');
   });
 });

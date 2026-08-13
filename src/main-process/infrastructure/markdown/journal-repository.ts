@@ -1,5 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises';
-import path from 'node:path';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import matter from 'gray-matter';
 import { JournalSchema, type Journal } from '../../../shared/schemas/domain';
 import { appError } from '../../../shared/errors/app-error';
@@ -31,13 +30,59 @@ function parse(markdown: string): Journal {
 }
 
 export class MarkdownJournalRepository {
+  private updateQueue = Promise.resolve();
   constructor(private readonly root: string) {}
 
-  async save(input: Journal): Promise<Journal> {
+  private async entries(): Promise<Array<{ journal: Journal; filePath: string }>> {
+    const entries: Array<{ journal: Journal; filePath: string }> = [];
+    const ids = new Set<string>();
+    const journalsRoot = await resolveInsideRoot(this.root, 'journals');
+    try {
+      for (const year of await readdir(journalsRoot)) {
+        const yearRoot = await resolveInsideRoot(journalsRoot, year);
+        for (const file of await readdir(yearRoot)) {
+          if (!file.endsWith('.md')) continue;
+          const filePath = await resolveInsideRoot(yearRoot, file);
+          const journal = parse(await readFile(filePath, 'utf8'));
+          if (ids.has(journal.id)) throw appError({ code: 'FILE_CONFLICT', path: filePath });
+          ids.add(journal.id);
+          entries.push({ journal, filePath });
+        }
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    return entries;
+  }
+
+  async create(input: Journal): Promise<Journal> {
     const journal = JournalSchema.parse(input);
-    const target = await resolveInsideRoot(this.root, 'journals', journal.date.slice(0, 4), `${journal.date}.md`);
+    const existing = (await this.entries()).find((entry) => entry.journal.id === journal.id);
+    const target = await resolveInsideRoot(this.root, 'journals', journal.date.slice(0, 4), `${journal.date}--${journal.id}.md`);
+    if (existing) throw appError({ code: 'FILE_CONFLICT', path: existing.filePath });
     const markdown = serialize(journal);
     await atomicWriteUtf8(target, markdown, (value) => parse(value));
+    return journal;
+  }
+
+  async update(input: Journal, expectedUpdatedAt: string): Promise<Journal> {
+    const operation = this.updateQueue.then(() => this.updateUnlocked(input, expectedUpdatedAt));
+    this.updateQueue = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async updateUnlocked(input: Journal, expectedUpdatedAt: string): Promise<Journal> {
+    const journal = JournalSchema.parse(input);
+    const existing = (await this.entries()).find((entry) => entry.journal.id === journal.id);
+    if (!existing) throw appError({ code: 'NOT_FOUND', entity: journal.id });
+    if (existing.journal.updatedAt !== expectedUpdatedAt) {
+      throw appError({ code: 'FILE_CONFLICT', path: existing.filePath });
+    }
+    const target = existing.journal.date === journal.date
+      ? existing.filePath
+      : await resolveInsideRoot(this.root, 'journals', journal.date.slice(0, 4), `${journal.date}--${journal.id}.md`);
+    await atomicWriteUtf8(target, serialize(journal), (value) => parse(value));
+    if (target !== existing.filePath) await rm(existing.filePath, { force: true });
     return journal;
   }
 
@@ -45,35 +90,13 @@ export class MarkdownJournalRepository {
     if (!/^journal_[a-z0-9]+$/.test(id)) {
       throw appError({ code: 'INVALID_INPUT', message: 'Invalid journal id.' });
     }
-    const journalsRoot = await resolveInsideRoot(this.root, 'journals');
-    try {
-      for (const year of await readdir(journalsRoot)) {
-        const yearRoot = await resolveInsideRoot(journalsRoot, year);
-        for (const file of await readdir(yearRoot)) {
-          if (!file.endsWith('.md')) continue;
-          const journal = parse(await readFile(await resolveInsideRoot(yearRoot, file), 'utf8'));
-          if (journal.id === id) return journal;
-        }
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
+    const match = (await this.entries()).find((entry) => entry.journal.id === id);
+    if (match) return match.journal;
     throw appError({ code: 'NOT_FOUND', entity: id });
   }
 
   async list(): Promise<Journal[]> {
-    const journals: Journal[] = [];
-    const journalsRoot = await resolveInsideRoot(this.root, 'journals');
-    try {
-      for (const year of await readdir(journalsRoot)) {
-        const yearRoot = await resolveInsideRoot(journalsRoot, year);
-        for (const file of await readdir(yearRoot)) {
-          if (file.endsWith('.md')) journals.push(parse(await readFile(await resolveInsideRoot(yearRoot, file), 'utf8')));
-        }
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    }
-    return journals.sort((a, b) => a.date.localeCompare(b.date));
+    return (await this.entries()).map((entry) => entry.journal)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
   }
 }

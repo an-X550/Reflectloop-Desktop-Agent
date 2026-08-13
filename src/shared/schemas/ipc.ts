@@ -2,13 +2,21 @@ import { z } from 'zod';
 
 const StableJournalId = z.string().regex(/^journal_[a-z0-9]+$/);
 const StableProjectId = z.string().regex(/^project_[a-z0-9]+$/);
-const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day;
+}, '无效日期');
 
-export const SaveJournalInputSchema = z.object({
-  id: StableJournalId.optional(),
+export const CreateJournalInputSchema = z.object({
   date: IsoDate,
   body: z.string().trim().min(1).max(100_000),
   projectIds: z.array(StableProjectId).max(20).default([]),
+}).strict();
+
+export const UpdateJournalInputSchema = CreateJournalInputSchema.extend({
+  id: StableJournalId,
+  expectedUpdatedAt: z.iso.datetime({ offset: true }),
 }).strict();
 
 export const JournalQuerySchema = z.object({
@@ -33,7 +41,7 @@ export const SaveProfileInputSchema = z.object({ body: z.string().trim().min(1).
 export type SaveProfileInput = z.infer<typeof SaveProfileInputSchema>;
 
 export const GenerateDailyReviewInputSchema = z.object({
-  journalId: StableJournalId,
+  date: IsoDate,
   regenerate: z.boolean().optional(),
 }).strict();
 export const PeriodicReviewInputSchema = z.object({
@@ -42,7 +50,8 @@ export const PeriodicReviewInputSchema = z.object({
 }).strict().refine((value) => value.start <= value.end, '开始日期不能晚于结束日期');
 export type PeriodicReviewInput = z.infer<typeof PeriodicReviewInputSchema>;
 
-export type SaveJournalInput = z.infer<typeof SaveJournalInputSchema>;
+export type CreateJournalInput = z.infer<typeof CreateJournalInputSchema>;
+export type UpdateJournalInput = z.infer<typeof UpdateJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
 export type SaveProviderConfigInput = z.infer<typeof SaveProviderConfigInputSchema>;

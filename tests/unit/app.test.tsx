@@ -8,7 +8,7 @@ function api() {
     dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 0, totalBytes: 0, categories: { journals: 0, reviews: 0, projects: 0, profile: 0, settings: 0 } })), open: vi.fn() },
     profile: { get: vi.fn(async () => null), save: vi.fn(), clear: vi.fn() },
     transfer: { exportBackup: vi.fn(), previewRestore: vi.fn(), restore: vi.fn() },
-    journals: { list: vi.fn(async () => []), save: vi.fn(), get: vi.fn() },
+    journals: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), get: vi.fn() },
     projects: { list: vi.fn(async () => []), create: vi.fn(), archive: vi.fn() },
     reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn() },
     settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
@@ -21,7 +21,7 @@ describe('App', () => {
   it('navigates across all five product pages', async () => {
     render(<App/>);
     await screen.findByRole('heading', { name: '写下今天的经历' });
-    for (const [nav, heading] of [['日志', '写下今天发生的事'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与关联日志'], ['设置', '设置']] as const) {
+    for (const [nav, heading] of [['日志', '写一条日志'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与关联日志'], ['设置', '设置']] as const) {
       fireEvent.click(screen.getByRole('button', { name: nav }));
       expect(screen.getByRole('heading', { name: heading, level: 2 })).toBeInTheDocument();
     }

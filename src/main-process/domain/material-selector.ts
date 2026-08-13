@@ -6,7 +6,7 @@ export interface MaterialSelection { type: Review['type']; start: string; end: s
 export function selectMaterials(input: MaterialSelection, journals: Journal[], reviews: Review[]): Material[] {
   const journalMaterials = journals.filter((journal) => {
     const inRange = journal.date >= input.start && journal.date <= input.end;
-    return input.type === 'project' ? inRange || Boolean(input.projectId && journal.projectIds.includes(input.projectId)) : inRange;
+    return input.type === 'project' && input.projectId ? inRange && journal.projectIds.includes(input.projectId) : inRange;
   });
   const reviewMaterials = input.type === 'weekly'
     ? reviews.filter((review) => review.type === 'daily' && review.periodStart >= input.start && review.periodEnd <= input.end)

@@ -72,4 +72,12 @@ describe('DataTransferService', () => {
     const archive = path.join(await temp('zhiji-profile-destination-'), 'backup.zhiji.zip'); await new DataTransferService(source, '1.0.0').exportTo(archive);
     const names = new AdmZip(archive).getEntries().map((entry) => entry.entryName); expect(names).toContain('profile/about-me.md'); expect(names.join('\n')).not.toMatch(/credential|api.?key/i);
   });
+
+  it('rejects a backup containing duplicate journal ids', async () => {
+    const source = await temp('zhiji-duplicate-source-'); await mkdir(path.join(source, 'journals', '2026'), { recursive: true });
+    const content = `---\nschema_version: 1\nid: journal_same\ndate: '2026-08-13'\ncreated_at: '2026-08-13T00:00:00.000Z'\nupdated_at: '2026-08-13T00:00:00.000Z'\nproject_ids: []\n---\njournal\n`;
+    await writeFile(path.join(source, 'journals', '2026', '2026-08-13--journal_same.md'), content); await writeFile(path.join(source, 'journals', '2026', '2026-08-13.md'), content);
+    const archive = path.join(await temp('zhiji-duplicate-archive-'), 'duplicate.zhiji.zip');
+    await expect(new DataTransferService(source, '1.0.0').exportTo(archive)).rejects.toThrow(/业务数据无效/);
+  });
 });

@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { SaveJournalInputSchema } from '../../src/shared/schemas/ipc';
+import { CreateJournalInputSchema, UpdateJournalInputSchema } from '../../src/shared/schemas/ipc';
 
-describe('SaveJournalInputSchema', () => {
+describe('journal input schemas', () => {
   it('rejects ambiguous dates before repository access', () => {
-    expect(() => SaveJournalInputSchema.parse({ date: 'today', body: 'x', projectIds: [] })).toThrow();
+    expect(CreateJournalInputSchema).toBeDefined();
+    expect(() => CreateJournalInputSchema.parse({ date: 'today', body: 'x', projectIds: [] })).toThrow();
+  });
+
+  it('requires an optimistic concurrency version for updates', () => {
+    expect(UpdateJournalInputSchema).toBeDefined();
+    expect(() => UpdateJournalInputSchema.parse({ id: 'journal_a1', date: '2026-08-13', body: 'x', projectIds: [] })).toThrow();
+  });
+
+  it('rejects impossible calendar dates', () => {
+    expect(() => CreateJournalInputSchema.parse({ date: '2026-02-30', body: 'x', projectIds: [] })).toThrow();
   });
 });

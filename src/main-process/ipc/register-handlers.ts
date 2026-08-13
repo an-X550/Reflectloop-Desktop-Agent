@@ -1,10 +1,10 @@
 import { ipcMain, type dialog as ElectronDialog } from 'electron';
 import { z } from 'zod';
-import { CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewInputSchema, SaveJournalInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema } from '../../shared/schemas/ipc';
+import { CreateJournalInputSchema, CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, UpdateJournalInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
-import type { SaveJournal } from '../application/save-journal';
+import type { CreateJournal, UpdateJournal } from '../application/save-journal';
 import type { ConfigureAi } from '../application/configure-ai';
 import type { GenerateDailyReview } from '../application/generate-daily-review';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
@@ -13,7 +13,7 @@ import type { GeneratePeriodicReview } from '../application/generate-periodic-re
 import type { DataTransferService } from '../infrastructure/transfer/data-transfer-service';
 import type { DataDirectoryService } from '../infrastructure/data-directory/data-directory-service';
 
-export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
+export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
   ipcMain.handle('data-directory:get-info', () => deps.dataDirectory.getInfo());
   ipcMain.handle('data-directory:open', () => deps.dataDirectory.open());
   ipcMain.handle('profile:get', () => deps.profile.get()); ipcMain.handle('profile:save', (_event, raw) => deps.profile.save(SaveProfileInputSchema.parse(raw))); ipcMain.handle('profile:clear', () => deps.profile.clear());
@@ -29,7 +29,8 @@ export function registerHandlers(deps: { saveJournal: SaveJournal; journals: Mar
     return { canceled: false, ...await deps.transfer.preview(result.filePaths[0]) };
   });
   ipcMain.handle('transfer:restore', (_event, raw) => deps.transfer.restore(z.string().uuid().parse(raw)));
-  ipcMain.handle('journals:save', (_event, raw) => deps.saveJournal.execute(SaveJournalInputSchema.parse(raw)));
+  ipcMain.handle('journals:create', (_event, raw) => deps.createJournal.execute(CreateJournalInputSchema.parse(raw)));
+  ipcMain.handle('journals:update', (_event, raw) => deps.updateJournal.execute(UpdateJournalInputSchema.parse(raw)));
   ipcMain.handle('journals:list', async (_event, raw = {}) => {
     const query = JournalQuerySchema.parse(raw);
     return (await deps.journals.list()).filter((item) => (!query.start || item.date >= query.start) && (!query.end || item.date <= query.end) && (!query.projectId || item.projectIds.includes(query.projectId)));

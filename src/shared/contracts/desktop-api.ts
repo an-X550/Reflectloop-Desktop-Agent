@@ -1,5 +1,5 @@
 import type { Journal, Profile, Project, Review } from '../schemas/domain';
-import type { CreateProjectInput, JournalQuery, PeriodicReviewInput, SaveJournalInput, SaveProfileInput, SaveProviderConfigInput } from '../schemas/ipc';
+import type { CreateJournalInput, CreateProjectInput, JournalQuery, PeriodicReviewInput, SaveProfileInput, SaveProviderConfigInput, UpdateJournalInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
 
@@ -12,7 +12,8 @@ export interface ZhijiDesktopApi {
     restore(previewId: string): Promise<{ fileCount: number }>;
   };
   journals: {
-    save(input: SaveJournalInput): Promise<Journal>;
+    create(input: CreateJournalInput): Promise<Journal>;
+    update(input: UpdateJournalInput): Promise<Journal>;
     list(query?: JournalQuery): Promise<Journal[]>;
     get(id: string): Promise<Journal>;
   };
@@ -27,7 +28,7 @@ export interface ZhijiDesktopApi {
     testConnection(input: SaveProviderConfigInput): Promise<void>;
   };
   reviews: {
-    generateDaily(input: { journalId: string; regenerate?: boolean }): Promise<Review>;
+    generateDaily(input: { date: string; regenerate?: boolean }): Promise<Review>;
     list(): Promise<Review[]>;
     cancel(): Promise<void>;
     preview(input: Omit<PeriodicReviewInput, 'previewToken'>): Promise<{ token: string; type: string; start: string; end: string; sources: { id: string; date: string; excerpt: string }[] }>;
