@@ -1,3 +1,6 @@
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { DAILY_FEEDBACK_COMPATIBILITY } from '../../src/main-process/skill-runtime/compatibility/daily-feedback-v1';
 import { runDailyFeedback } from '../../src/main-process/skill-runtime/daily-runtime';
@@ -13,6 +16,16 @@ const journal = (body: string): Journal => ({
   body,
 });
 
+async function runtimeSources(folder = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src/main-process/skill-runtime')): Promise<string[]> {
+  const entries = await readdir(folder, { withFileTypes: true });
+  const sources = await Promise.all(entries.map(async (entry) => {
+    const target = path.join(folder, entry.name);
+    if (entry.isDirectory()) return runtimeSources(target);
+    return entry.name.endsWith('.ts') ? [await readFile(target, 'utf8')] : [];
+  }));
+  return sources.flat();
+}
+
 describe('desktop daily feedback runtime', () => {
   it('uses a frozen desktop compatibility snapshot without reading .claude', () => {
     expect(DAILY_FEEDBACK_COMPATIBILITY.id).toBe('desktop-daily-feedback-v1');
@@ -22,6 +35,12 @@ describe('desktop daily feedback runtime', () => {
       'verified-patterns',
     ]);
     expect(DAILY_FEEDBACK_COMPATIBILITY.runtimeReadsClaudeDirectory).toBe(false);
+  });
+
+  it('keeps the desktop runtime independent from the Codex Skill directory', async () => {
+    const sources = await runtimeSources();
+    expect(sources.length).toBeGreaterThan(0);
+    expect(sources).not.toContainEqual(expect.stringContaining('.claude'));
   });
 
   it('stops D-grade input with one clarification before calling the model', async () => {
