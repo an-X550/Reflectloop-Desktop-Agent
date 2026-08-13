@@ -4,9 +4,10 @@ export const ArchiveFileSchema = z.object({ path: z.string().min(1).max(512), sh
 export const ArchiveManifestSchema = z.object({ formatVersion: z.literal(1), exportedAt: z.string().datetime(), appVersion: z.string().min(1).max(64), files: z.array(ArchiveFileSchema).max(100_000) }).strict();
 export type ArchiveManifest = z.infer<typeof ArchiveManifestSchema>;
 
-const roots = ['journals/', 'reviews/', 'projects/'];
+const roots = ['journals/', 'reviews/', 'projects/', 'profile/'];
 export function isPortablePath(value: string): boolean {
   if (value === 'settings.json') return true;
+  if (value.startsWith('profile/')) return value === 'profile/about-me.md';
   return roots.some((root) => value.startsWith(root)) && !value.includes('\\') && !value.split('/').includes('..') && !value.startsWith('/');
 }
 

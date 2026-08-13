@@ -21,8 +21,9 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const [transferMessage, setTransferMessage] = useState('');
   const [restorePreview, setRestorePreview] = useState<Awaited<ReturnType<Window['zhiji']['transfer']['previewRestore']>> | null>(null);
   const [dataInfo, setDataInfo] = useState<Awaited<ReturnType<Window['zhiji']['dataDirectory']['getInfo']>> | null>(null);
+  const [profile, setProfile] = useState({ body: '', enabledForAi: false }); const [profileMessage, setProfileMessage] = useState('');
 
-  useEffect(() => { void Promise.all([window.zhiji.settings.getPublicConfig(), window.zhiji.dataDirectory.getInfo()]).then(([{ hasApiKey: saved, ...config }, info]) => { setForm(config); setHasApiKey(saved); setDataInfo(info); }); }, []);
+  useEffect(() => { void Promise.all([window.zhiji.settings.getPublicConfig(), window.zhiji.dataDirectory.getInfo(), window.zhiji.profile.get()]).then(([{ hasApiKey: saved, ...config }, info, savedProfile]) => { setForm(config); setHasApiKey(saved); setDataInfo(info); if (savedProfile) setProfile({ body: savedProfile.body, enabledForAi: savedProfile.enabledForAi }); }); }, []);
   const updateProvider = (providerId: SaveProviderConfigInput['providerId']) => {
     setMessage(''); setError('');
     setForm((old) => ({ ...old, providerId, ...(providerId === 'custom' ? {} : presets[providerId]) }));
@@ -64,6 +65,13 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
       <div className="transfer-actions"><Button loading={transferBusy === 'export'} onClick={() => void exportBackup()}>导出可验证备份</Button><Button loading={transferBusy === 'preview'} onClick={() => void previewBackup()}>选择备份并校验</Button></div>
       {restorePreview?.previewId && <div className="restore-preview"><strong>备份校验通过：{restorePreview.fileCount} 个文件</strong><p>{restorePreview.categories?.journals ?? 0} 篇日志 · {restorePreview.categories?.reviews ?? 0} 份复盘 · {restorePreview.categories?.projects ?? 0} 个项目</p><p className="muted">为避免覆盖，恢复只允许写入空数据目录。</p><Button variant="primary" loading={transferBusy === 'restore'} onClick={() => void restoreBackup()}>确认恢复</Button></div>}
       {transferMessage && <StatusBanner tone={transferMessage.includes('失败') ? 'error' : 'success'}>{transferMessage}</StatusBanner>}
+    </section>
+    <section className="card transfer-panel">
+      <div className="section-heading"><div><h3>个人背景</h3><p>保存在 {dataInfo ? `${dataInfo.path}\\profile\\about-me.md` : '本地数据目录'}；不会从日志自动生成。</p></div></div>
+      <Field label="个人背景"><textarea aria-label="个人背景" value={profile.body} onChange={(event) => setProfile({ ...profile, body: event.target.value })}/></Field>
+      <label className="profile-toggle"><input type="checkbox" checked={profile.enabledForAi} onChange={(event) => setProfile({ ...profile, enabledForAi: event.target.checked })}/>允许 AI 使用（当前版本只保存选择，暂不注入分析）</label>
+      <div className="settings-actions"><Button variant="danger" disabled={!profile.body} onClick={() => void window.zhiji.profile.clear().then(() => { setProfile({ body: '', enabledForAi: false }); setProfileMessage('个人背景已清空'); })}>清空个人背景</Button><Button variant="primary" disabled={!profile.body.trim()} onClick={() => void window.zhiji.profile.save({ body: profile.body, enabledForAi: profile.enabledForAi }).then(() => setProfileMessage('个人背景已保存'))}>保存个人背景</Button></div>
+      {profileMessage && <StatusBanner tone="success">{profileMessage}</StatusBanner>}
     </section>
   </div>;
 }

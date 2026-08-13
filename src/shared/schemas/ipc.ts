@@ -29,6 +29,8 @@ export const SaveProviderConfigInputSchema = z.object({
   model: z.string().trim().min(1).max(160),
   apiKey: z.string().trim().min(1).max(4096).optional(),
 }).strict();
+export const SaveProfileInputSchema = z.object({ body: z.string().trim().min(1).max(100_000), enabledForAi: z.boolean() }).strict();
+export type SaveProfileInput = z.infer<typeof SaveProfileInputSchema>;
 
 export const GenerateDailyReviewInputSchema = z.object({
   journalId: StableJournalId,

@@ -37,7 +37,9 @@ export const ReviewSchema = z.object({
   createdAt: IsoDateTime,
   body: z.string().min(1),
 });
+export const ProfileSchema = z.object({ schemaVersion: z.literal(1), body: z.string().max(100_000), enabledForAi: z.boolean(), createdAt: IsoDateTime, updatedAt: IsoDateTime });
 
 export type Journal = z.infer<typeof JournalSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
+export type Profile = z.infer<typeof ProfileSchema>;

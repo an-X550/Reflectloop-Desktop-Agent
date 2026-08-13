@@ -4,8 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
 import { ArchiveManifestSchema, assertPortablePath, isPortablePath, type ArchiveManifest } from './archive-manifest';
+import { validateBusinessArchive } from './business-archive-validator';
 
-type Preview = { previewId: string; archivePath: string; exportedAt: string; appVersion: string; fileCount: number; totalBytes: number; categories: { journals: number; reviews: number; projects: number; settings: number } };
+type Preview = { previewId: string; archivePath: string; exportedAt: string; appVersion: string; fileCount: number; totalBytes: number; categories: { journals: number; reviews: number; projects: number; profile: number; settings: number } };
 const digest = (value: Buffer) => crypto.createHash('sha256').update(value).digest('hex');
 
 async function listPortableFiles(root: string): Promise<string[]> {
@@ -48,10 +49,10 @@ export class DataTransferService {
 
   async preview(archivePath: string): Promise<Preview> {
     const manifest = await this.validateArchive(archivePath);
-    const preview: Preview = { previewId: crypto.randomUUID(), archivePath, exportedAt: manifest.exportedAt, appVersion: manifest.appVersion, fileCount: manifest.files.length, totalBytes: manifest.files.reduce((sum, file) => sum + file.size, 0), categories: { journals: 0, reviews: 0, projects: 0, settings: 0 } };
+    const preview: Preview = { previewId: crypto.randomUUID(), archivePath, exportedAt: manifest.exportedAt, appVersion: manifest.appVersion, fileCount: manifest.files.length, totalBytes: manifest.files.reduce((sum, file) => sum + file.size, 0), categories: { journals: 0, reviews: 0, projects: 0, profile: 0, settings: 0 } };
     for (const file of manifest.files) {
       if (file.path === 'settings.json') preview.categories.settings += 1;
-      else preview.categories[file.path.split('/')[0] as 'journals' | 'reviews' | 'projects'] += 1;
+      else preview.categories[file.path.split('/')[0] as 'journals' | 'reviews' | 'projects' | 'profile'] += 1;
     }
     this.previews.set(preview.previewId, preview);
     return preview;
@@ -74,6 +75,7 @@ export class DataTransferService {
         await mkdir(path.dirname(target), { recursive: true });
         await writeFile(target, entry.getData());
       }
+      await this.validateDirectory(staging);
       await rename(this.dataRoot, backup);
       try { await rename(staging, this.dataRoot); }
       catch (error) { await rename(backup, this.dataRoot); throw error; }
@@ -103,6 +105,11 @@ export class DataTransferService {
       const content = entry.getData();
       if (content.byteLength !== file.size || digest(content) !== file.sha256) throw new Error(`压缩包校验失败：${file.path}`);
     }
+    validateBusinessArchive(new Map(manifest.files.map((file) => [file.path, zip.getEntry(file.path)!.getData()])));
     return manifest;
+  }
+
+  private async validateDirectory(root: string): Promise<void> {
+    const files = await listPortableFiles(root); validateBusinessArchive(new Map(await Promise.all(files.map(async (file) => [file, await readFile(path.join(root, ...file.split('/')))] as const))));
   }
 }

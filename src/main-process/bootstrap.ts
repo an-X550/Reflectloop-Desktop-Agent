@@ -12,6 +12,7 @@ import { GenerateDailyReview } from './application/generate-daily-review';
 import { GeneratePeriodicReview } from './application/generate-periodic-review';
 import { DataTransferService } from './infrastructure/transfer/data-transfer-service';
 import { DataDirectoryService } from './infrastructure/data-directory/data-directory-service';
+import { MarkdownProfileRepository } from './infrastructure/markdown/profile-repository';
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
@@ -25,5 +26,5 @@ export function bootstrap() {
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks);
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, reviewTasks, generateDailyReview, generatePeriodicReview, saveJournal: new SaveJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  registerHandlers({ journals, projects, reviews, profile: new MarkdownProfileRepository(dataRoot), reviewTasks, generateDailyReview, generatePeriodicReview, saveJournal: new SaveJournal(journals), configureAi, transfer, dataDirectory, dialog });
 }

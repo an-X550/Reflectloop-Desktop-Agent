@@ -5,6 +5,7 @@ import { SettingsPage } from '../../src/renderer/pages/settings-page';
 
 beforeEach(() => {
   window.zhiji = {
+    profile: { get: vi.fn(async () => null), save: vi.fn(async (input) => ({ schemaVersion: 1, ...input, createdAt: '2026-08-13T00:00:00.000Z', updatedAt: '2026-08-13T00:00:00.000Z' })), clear: vi.fn(async () => undefined) },
     dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, profile: 0, settings: 0 } })), open: vi.fn(async () => undefined) },
     transfer: { exportBackup: vi.fn(async () => ({ canceled: true })), previewRestore: vi.fn(async () => ({ canceled: true })), restore: vi.fn(async () => ({ fileCount: 0 })) },
     settings: {
@@ -48,7 +49,7 @@ describe('SettingsPage', () => {
   });
 
   it('requires a verified preview before restoring local data', async () => {
-    vi.mocked(window.zhiji.transfer.previewRestore).mockResolvedValueOnce({ canceled: false, previewId: 'preview-id', archivePath: 'backup.zhiji.zip', exportedAt: '2026-08-13T00:00:00.000Z', appVersion: '1.0.0', fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, settings: 0 } });
+    vi.mocked(window.zhiji.transfer.previewRestore).mockResolvedValueOnce({ canceled: false, previewId: 'preview-id', archivePath: 'backup.zhiji.zip', exportedAt: '2026-08-13T00:00:00.000Z', appVersion: '1.0.0', fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, profile: 0, settings: 0 } });
     render(<SettingsPage/>);
     expect(screen.queryByRole('button', { name: '确认恢复' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '选择备份并校验' }));
@@ -63,5 +64,12 @@ describe('SettingsPage', () => {
     expect(screen.getByText(/6 个文件/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '打开数据文件夹' }));
     await waitFor(() => expect(window.zhiji.dataDirectory.open).toHaveBeenCalled());
+  });
+
+  it('saves explicit personal background without enabling AI use by default', async () => {
+    render(<SettingsPage/>); const editor = await screen.findByRole('textbox', { name: '个人背景' });
+    fireEvent.change(editor, { target: { value: '我偏好先验证再扩展。' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存个人背景' }));
+    await waitFor(() => expect(window.zhiji.profile.save).toHaveBeenCalledWith({ body: '我偏好先验证再扩展。', enabledForAi: false }));
   });
 });

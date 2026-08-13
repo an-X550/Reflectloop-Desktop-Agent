@@ -1,6 +1,7 @@
 import { ipcMain, type dialog as ElectronDialog } from 'electron';
 import { z } from 'zod';
-import { CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewInputSchema, SaveJournalInputSchema, SaveProviderConfigInputSchema } from '../../shared/schemas/ipc';
+import { CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewInputSchema, SaveJournalInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema } from '../../shared/schemas/ipc';
+import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
 import type { SaveJournal } from '../application/save-journal';
@@ -12,9 +13,10 @@ import type { GeneratePeriodicReview } from '../application/generate-periodic-re
 import type { DataTransferService } from '../infrastructure/transfer/data-transfer-service';
 import type { DataDirectoryService } from '../infrastructure/data-directory/data-directory-service';
 
-export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
+export function registerHandlers(deps: { saveJournal: SaveJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
   ipcMain.handle('data-directory:get-info', () => deps.dataDirectory.getInfo());
   ipcMain.handle('data-directory:open', () => deps.dataDirectory.open());
+  ipcMain.handle('profile:get', () => deps.profile.get()); ipcMain.handle('profile:save', (_event, raw) => deps.profile.save(SaveProfileInputSchema.parse(raw))); ipcMain.handle('profile:clear', () => deps.profile.clear());
   ipcMain.handle('transfer:export', async () => {
     const result = await deps.dialog.showSaveDialog({ title: '导出知己备份', defaultPath: `知己备份-${new Date().toISOString().slice(0, 10)}.zhiji.zip`, filters: [{ name: '知己备份', extensions: ['zip'] }] });
     if (result.canceled || !result.filePath) return { canceled: true };

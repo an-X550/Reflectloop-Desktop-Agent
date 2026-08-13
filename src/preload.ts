@@ -3,6 +3,7 @@ import type { ZhijiDesktopApi } from './shared/contracts/desktop-api';
 
 const api: ZhijiDesktopApi = {
   dataDirectory: { getInfo: () => ipcRenderer.invoke('data-directory:get-info'), open: () => ipcRenderer.invoke('data-directory:open') },
+  profile: { get: () => ipcRenderer.invoke('profile:get'), save: (input) => ipcRenderer.invoke('profile:save', input), clear: () => ipcRenderer.invoke('profile:clear') },
   transfer: {
     exportBackup: () => ipcRenderer.invoke('transfer:export'),
     previewRestore: () => ipcRenderer.invoke('transfer:preview-restore'),
