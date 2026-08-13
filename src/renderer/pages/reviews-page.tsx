@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Project, Review } from '../../shared/schemas/domain';
-import type { NavigationIntent, NavigationTarget } from '../app/navigation';
+import type { NavigationIntent } from '../app/navigation';
 import { Button } from '../components/button';
 import { Field } from '../components/field';
 import { PageHeader } from '../components/page-header';
@@ -8,12 +8,13 @@ import { StatusBanner } from '../components/status-banner';
 import { MaterialPreview } from '../features/reviews/material-preview';
 import { ReviewTypeCard } from '../features/reviews/review-type-card';
 import { getDefaultReviewRange } from '../utils/date-defaults';
+import { toLocalDateString } from '../utils/local-date';
 import { RecordBrowser } from './history-page';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = toLocalDateString();
 type Type = 'weekly' | 'monthly' | 'project';
 
-export function ReviewsPage({ projects, reviews = [], intent, onNavigate = () => undefined }: { projects: Project[]; reviews?: Review[]; intent?: NavigationIntent; onNavigate?(target: NavigationTarget): void }) {
+export function ReviewsPage({ projects, reviews = [], intent }: { projects: Project[]; reviews?: Review[]; intent?: NavigationIntent }) {
   const initialType: Type | null = intent?.type === 'review.weekly' ? 'weekly' : intent?.type === 'review.project' ? 'project' : null;
   const [section, setSection] = useState<'create' | 'history'>('create');
   const [type, setType] = useState<Type | null>(initialType);

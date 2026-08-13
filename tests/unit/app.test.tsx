@@ -21,9 +21,9 @@ describe('App', () => {
   it('navigates across all five product pages', async () => {
     render(<App/>);
     await screen.findByRole('heading', { name: '写下今天的经历' });
-    for (const [nav, heading] of [['日志', '写下今天发生的事'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与材料'], ['设置', 'AI 设置']] as const) {
+    for (const [nav, heading] of [['日志', '写下今天发生的事'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与关联日志'], ['设置', '设置']] as const) {
       fireEvent.click(screen.getByRole('button', { name: nav }));
-      expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: heading, level: 2 })).toBeInTheDocument();
     }
   });
 

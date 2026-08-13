@@ -2,8 +2,9 @@ import type { Journal, Review } from '../../shared/schemas/domain';
 import type { NavigationTarget } from '../app/navigation';
 import { Button } from '../components/button';
 import { resolveNextStep } from '../domain/next-step';
+import { toLocalDateString } from '../utils/local-date';
 
-const today = new Date().toISOString().slice(0, 10);
+const today = toLocalDateString();
 
 export function StartPage({ journals, reviews, hasApiKey, onNavigate }: { journals: Journal[]; reviews: Review[]; hasApiKey: boolean; onNavigate(target: NavigationTarget): void }) {
   const nextStep = resolveNextStep({ today, dayOfWeek: new Date(`${today}T12:00:00`).getDay(), journals, reviews });

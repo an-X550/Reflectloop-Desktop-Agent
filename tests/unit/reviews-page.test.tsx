@@ -11,7 +11,7 @@ beforeEach(() => { window.zhiji = { reviews: { preview: vi.fn(async () => ({ tok
 
 describe('ReviewsPage', () => {
   it('starts from three prototype review cards and uses a sensible weekly range', () => {
-    render(<ReviewsPage projects={[]} onNavigate={vi.fn()}/>);
+    render(<ReviewsPage projects={[]}/>);
     expect(screen.getByText('本周复盘')).toBeInTheDocument(); expect(screen.getByText('本月复盘')).toBeInTheDocument(); expect(screen.getByText('项目复盘')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '预览本周材料' }));
     expect(screen.queryByLabelText('开始日期')).not.toBeInTheDocument();
@@ -20,7 +20,7 @@ describe('ReviewsPage', () => {
   });
 
   it('invalidates a preview after range changes and enables generation only after preview', async () => {
-    render(<ReviewsPage projects={[]} onNavigate={vi.fn()}/>); fireEvent.click(screen.getByRole('button', { name: '预览本周材料' })); fireEvent.click(screen.getByRole('button', { name: '调整日期' })); fireEvent.click(screen.getByRole('button', { name: '预览材料' }));
+    render(<ReviewsPage projects={[]}/>); fireEvent.click(screen.getByRole('button', { name: '预览本周材料' })); fireEvent.click(screen.getByRole('button', { name: '调整日期' })); fireEvent.click(screen.getByRole('button', { name: '预览材料' }));
     await screen.findByText('真实材料'); expect(screen.getByRole('button', { name: '确认并生成' })).toBeEnabled();
     fireEvent.change(screen.getByLabelText('结束日期'), { target: { value: '2026-08-15' } });
     expect(screen.getByRole('button', { name: '确认并生成' })).toBeDisabled();
@@ -33,9 +33,9 @@ describe('ReviewsPage', () => {
   });
 
   it('applies weekly and project navigation intents and keeps review history in this page', () => {
-    const { rerender } = render(<ReviewsPage projects={[project]} reviews={[historicalReview]} intent={{ type: 'review.weekly' }} onNavigate={vi.fn()}/>);
+    const { rerender } = render(<ReviewsPage projects={[project]} reviews={[historicalReview]} intent={{ type: 'review.weekly' }}/>);
     expect(screen.getByRole('heading', { name: '本周复盘设置' })).toBeInTheDocument();
-    rerender(<ReviewsPage projects={[project]} reviews={[historicalReview]} intent={{ type: 'review.project', projectId: project.id }} onNavigate={vi.fn()}/>);
+    rerender(<ReviewsPage projects={[project]} reviews={[historicalReview]} intent={{ type: 'review.project', projectId: project.id }}/>);
     expect(screen.getByLabelText('项目（可选）')).toHaveValue(project.id);
     fireEvent.click(screen.getByRole('button', { name: '历史复盘' }));
     expect(screen.getByText('七月复盘正文', { selector: 'pre' })).toBeInTheDocument();

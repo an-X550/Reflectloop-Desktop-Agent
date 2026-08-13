@@ -24,16 +24,17 @@ button, select { cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(23, 107, 87, .22); outline-offset: 2px; }
 
 .desktop-shell { width: 100%; min-height: 100vh; display: grid; grid-template-columns: 225px 1fr; background: var(--panel); }
-.sidebar { padding: 28px 18px; background: var(--brand-dark); color: #eaf4ef; display: flex; flex-direction: column; }
+.sidebar { padding: 28px 18px; background: #f7f8f7; color: var(--ink); border-right: 1px solid var(--line); display: flex; flex-direction: column; }
 .brand { padding: 0 12px 25px; font-size: 22px; font-weight: 800; letter-spacing: .12em; }
-.brand small { display: block; margin-top: 4px; color: #a9c8bd; font-size: 11px; font-weight: 500; letter-spacing: .03em; }
+.brand small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: .03em; }
 .navigation { display: grid; gap: 7px; }
-.navigation button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 13px; border: 0; border-radius: 10px; background: transparent; color: #bdd4cb; font-weight: 650; text-align: left; }
-.navigation button:hover, .navigation button[aria-current="page"] { background: #2a5145; color: #fff; }
+.navigation button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 13px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 650; text-align: left; }
+.navigation button:hover { background: #eef1ef; color: var(--ink); }
+.navigation button[aria-current="page"] { background: var(--brand-soft); color: var(--brand); }
 .navigation svg { flex: 0 0 auto; }
-.privacy-card { margin-top: auto; padding: 14px; border: 1px solid #3c5c52; border-radius: 12px; background: transparent; color: #b9cec7; font-size: 12px; text-align: left; }
+.privacy-card { margin-top: auto; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--muted); font-size: 12px; text-align: left; }
 .privacy-card strong, .privacy-card span { display: block; }
-.privacy-card strong { margin-bottom: 3px; color: #eaf4ef; }
+.privacy-card strong { margin-bottom: 3px; color: var(--ink); }
 
 .workspace { min-width: 0; background: var(--bg); }
 .topbar { height: 72px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, .88); border-bottom: 1px solid var(--line); }

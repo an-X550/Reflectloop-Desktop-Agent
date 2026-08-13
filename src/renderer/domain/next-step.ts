@@ -1,5 +1,6 @@
 import type { Journal, Review } from '../../shared/schemas/domain';
 import type { NavigationTarget } from '../app/navigation';
+import { toLocalDateString } from '../utils/local-date';
 
 export type NextStep = {
   kind: 'write-journal' | 'generate-daily' | 'weekly-review' | 'recent-records';
@@ -11,7 +12,7 @@ export type NextStep = {
 function isoDateOffset(date: string, days: number) {
   const value = new Date(`${date}T12:00:00`);
   value.setDate(value.getDate() + days);
-  return value.toISOString().slice(0, 10);
+  return toLocalDateString(value);
 }
 
 export function resolveNextStep({ today, dayOfWeek, journals, reviews }: { today: string; dayOfWeek: number; journals: Journal[]; reviews: Review[] }): NextStep {

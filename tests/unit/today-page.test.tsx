@@ -15,6 +15,12 @@ beforeEach(() => {
 });
 
 describe('TodayPage', () => {
+  it('offers a truthful save action when AI is not configured', () => {
+    render(<TodayPage journals={[]} projects={[]} reviews={[]} hasApiKey={false} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    expect(screen.getByRole('button', { name: '保存日志' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /生成今日反馈/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '配置 AI' })).toBeInTheDocument();
+  });
   it('loads the existing journal, saves explicitly and never claims autosave', async () => {
     render(<TodayPage journals={[journal]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
     expect(screen.getByRole('textbox', { name: '今日日志' })).toHaveValue('原来的日志');
@@ -50,7 +56,7 @@ describe('TodayPage', () => {
 
   it('keeps saving available while pointing an unconfigured user to AI settings', () => {
     const onNavigate = vi.fn(); render(<TodayPage journals={[]} projects={[]} reviews={[]} hasApiKey={false} onRefresh={vi.fn()} onNavigate={onNavigate}/>);
-    expect(screen.getByText('先保存日志也可以')).toBeInTheDocument();
+    expect(screen.getByText('日志可直接保存；配置后还能生成反馈。')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
   });
 

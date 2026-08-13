@@ -15,8 +15,17 @@ describe('ProjectsPage', () => {
     await waitFor(() => expect(window.zhiji.projects.create).toHaveBeenCalledWith({ name: '求职准备' })); expect(refresh).toHaveBeenCalled();
   });
   it('shows linked metrics and asks before archiving without deleting journals', async () => {
-    render(<ProjectsPage projects={[project]} journals={[journal]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>); expect(screen.getByText('1 篇关联日志')).toBeInTheDocument(); expect(screen.getByText(/最近活动：2026-08-12/)).toBeInTheDocument();
+    render(<ProjectsPage projects={[project]} journals={[journal]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>); expect(screen.getByRole('heading', { name: '项目与关联日志' })).toBeInTheDocument(); expect(screen.getByText('1 篇关联日志')).toBeInTheDocument(); expect(screen.getByText(/最近活动：2026-08-12/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '归档项目' })); expect(screen.getByText('归档不会删除任何日志。')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: '确认归档' })); await waitFor(() => expect(window.zhiji.projects.archive).toHaveBeenCalledWith('project_a1'));
+  });
+  it('starts a review with the selected project context', () => {
+    const navigate = vi.fn(); render(<ProjectsPage projects={[project]} journals={[journal]} onRefresh={vi.fn()} onNavigate={navigate}/>);
+    fireEvent.click(screen.getByRole('button', { name: '发起项目复盘' }));
+    expect(navigate).toHaveBeenCalledWith({ view: 'reviews', intent: { type: 'review.project', projectId: 'project_a1' } });
+  });
+  it('does not offer a new review for an archived project', () => {
+    render(<ProjectsPage projects={[{ ...project, status: 'archived' }]} journals={[journal]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    expect(screen.queryByRole('button', { name: '发起项目复盘' })).not.toBeInTheDocument();
   });
   it('closes the modal with Escape', () => { render(<ProjectsPage projects={[]} journals={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>); fireEvent.click(screen.getByRole('button', { name: '新建项目' })); fireEvent.keyDown(document, { key: 'Escape' }); expect(screen.queryByRole('dialog')).not.toBeInTheDocument(); });
 });

@@ -17,6 +17,13 @@ beforeEach(() => {
 });
 
 describe('SettingsPage', () => {
+  it('groups configuration under one clear settings page', async () => {
+    render(<SettingsPage/>);
+    expect(screen.getByRole('heading', { name: '设置' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'AI 服务' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '本地数据' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '个人背景' })).toBeInTheDocument();
+  });
   it('shows three provider cards and only reveals the custom URL field when needed', async () => {
     render(<SettingsPage/>);
     expect(await screen.findByRole('button', { name: /^O OpenAI/ })).toBeInTheDocument();

@@ -46,9 +46,9 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const restoreBackup = async () => { if (!restorePreview?.previewId) return; setTransferBusy('restore'); try { const result = await window.zhiji.transfer.restore(restorePreview.previewId); setRestorePreview(null); setTransferMessage(`恢复完成，共写入 ${result.fileCount} 个文件。请重启知己读取数据。`); } catch (reason) { setTransferMessage(`恢复失败：${reason instanceof Error ? reason.message : '请重试'}`); } finally { setTransferBusy(null); } };
 
   return <div className="settings-page">
-    <PageHeader title="AI 设置" description="使用你自己的 API Key；日志和复盘文件仍只保存在本机。"/>
+    <PageHeader title="设置" description="管理 AI 服务、本地数据和你主动提供的个人背景。"/>
     <section className="card settings-panel">
-      <div className="section-heading"><div><h3>选择服务商</h3><p>支持 OpenAI、DeepSeek 和其他 OpenAI 兼容接口。</p></div>{hasApiKey && <span className="saved-key-badge">✓ 已安全保存</span>}</div>
+      <div className="section-heading"><div><h3>AI 服务</h3><p>选择服务商。支持 OpenAI、DeepSeek 和其他 OpenAI 兼容接口。</p></div>{hasApiKey && <span className="saved-key-badge">✓ 已安全保存</span>}</div>
       <div className="provider-grid">{(['openai', 'deepseek', 'custom'] as const).map((id) => <ProviderCard key={id} id={id} selected={form.providerId === id} onSelect={() => updateProvider(id)}/>)}</div>
       <div className="settings-fields">
         {form.providerId === 'custom' && <Field label="API 地址"><input aria-label="API 地址" value={form.baseUrl} placeholder="https://api.example.com/v1" onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}/><small>必须使用 HTTPS；开发环境仅允许 localhost HTTP。</small></Field>}
