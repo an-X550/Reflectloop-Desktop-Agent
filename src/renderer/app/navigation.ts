@@ -5,6 +5,9 @@ export type NavigationIntent =
   | { type: 'journal.generate-daily' }
   | { type: 'records.journals' }
   | { type: 'review.weekly' }
+  | { type: 'review.monthly'; month?: string }
+  | { type: 'review.yearly'; year?: string }
+  | { type: 'review.coach' }
   | { type: 'review.project'; projectId: string };
 
 export type NavigationTarget = { view: AppView; intent?: NavigationIntent };

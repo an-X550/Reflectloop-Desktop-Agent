@@ -7,13 +7,14 @@ import type { ChatMessage } from '../infrastructure/ai/openai-compatible-provide
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import { PERIODIC_PROMPTS, periodicSystemPrompt } from '../prompts/periodic-review-prompts';
+import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 
 interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal): Promise<string> }
 type Input = MaterialSelection & { model: string };
 
 export class GeneratePeriodicReview {
   private previews = new Map<string, { digest: string; input: Input }>();
-  constructor(private journals: MarkdownJournalRepository, private reviews: MarkdownReviewRepository, private provider: ProviderPort, private tasks: ReviewTaskManager, private now = () => new Date().toISOString()) {}
+  constructor(private journals: MarkdownJournalRepository, private reviews: MarkdownReviewRepository, private provider: ProviderPort, private tasks: ReviewTaskManager, private now = () => new Date().toISOString(), private profiles?: Pick<MarkdownProfileRepository, 'get'>) {}
   private async materials(input: Input) { return selectMaterials(input, await this.journals.list(), await this.reviews.list()); }
   private digest(materials: { id: string; updatedAt?: string; createdAt: string }[]) { return crypto.createHash('sha256').update(materials.map((x) => `${x.id}:${x.updatedAt ?? x.createdAt}`).join('|')).digest('hex'); }
   async preview(input: Input) {
@@ -32,7 +33,8 @@ export class GeneratePeriodicReview {
     const task = this.tasks.start();
     try {
       this.tasks.transition(task.taskId, 'generating');
-      const body = (await this.provider.collect([{ role: 'system', content: periodicSystemPrompt(input.type as 'weekly' | 'monthly' | 'project') }, { role: 'user', content: JSON.stringify(materials.map((x) => ({ id: x.id, body: x.body }))) }], task.controller.signal)).trim();
+      const profile = await this.profiles?.get();
+      const body = (await this.provider.collect([{ role: 'system', content: periodicSystemPrompt(input.type as 'weekly' | 'monthly' | 'project') }, { role: 'user', content: JSON.stringify({ materials: materials.map((x) => ({ id: x.id, body: x.body })), ...(profile?.enabledForAi ? { profile: profile.body } : {}) }) }], task.controller.signal)).trim();
       if (!body) throw appError({ code: 'INVALID_MODEL_OUTPUT' });
       const createdAt = this.now();
       const review: Review = { schemaVersion: 1, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: input.type, periodStart: input.start, periodEnd: input.end, sourceIds: materials.map((x) => x.id), projectId: input.projectId ?? null, provider: 'openai-compatible', model: input.model, promptVersion: PERIODIC_PROMPTS[input.type as 'weekly' | 'monthly' | 'project'].version, createdAt, body };

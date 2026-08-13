@@ -7,7 +7,7 @@ import type { Project, Review } from '../../src/shared/schemas/domain';
 const project: Project = { schemaVersion: 1, id: 'project_a1', name: '知己客户端', status: 'active', createdAt: '2026-08-01T00:00:00.000Z', archivedAt: null };
 const historicalReview: Review = { schemaVersion: 1, id: 'review_history', type: 'monthly', periodStart: '2026-07-01', periodEnd: '2026-07-31', sourceIds: [], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'monthly-review-v1', createdAt: '2026-07-31T00:00:00.000Z', body: '七月复盘正文' };
 
-beforeEach(() => { window.zhiji = { reviews: { preview: vi.fn(async () => ({ token: 'token', type: 'weekly', start: '2026-08-10', end: '2026-08-16', sources: [{ id: 'journal_a1', date: '2026-08-13', excerpt: '真实材料' }] })), generatePeriodic: vi.fn(async () => ({ schemaVersion: 1, id: 'review_a1', type: 'weekly', periodStart: '2026-08-10', periodEnd: '2026-08-16', sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'weekly-review-v1', createdAt: '2026-08-13T00:00:00.000Z', body: '本周有效行动' })), delete: vi.fn(async () => undefined), cancel: vi.fn(), list: vi.fn(), generateDaily: vi.fn() } } as unknown as Window['zhiji']; });
+beforeEach(() => { window.zhiji = { reviews: { preview: vi.fn(async () => ({ token: 'token', type: 'weekly', start: '2026-08-10', end: '2026-08-16', sources: [{ id: 'journal_a1', date: '2026-08-13', excerpt: '真实材料' }] })), generatePeriodic: vi.fn(async () => ({ schemaVersion: 1, id: 'review_a1', type: 'weekly', periodStart: '2026-08-10', periodEnd: '2026-08-16', sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'weekly-review-v1', createdAt: '2026-08-13T00:00:00.000Z', body: '本周有效行动' })), previewInsight: vi.fn(async (input) => ({ token: 'insight-token', ...input, sources: [{ id: 'journal_a1', date: '2026-08-13', excerpt: '深度材料' }] })), generateInsight: vi.fn(async (input) => ({ schemaVersion: 1, id: 'review_insight', type: input.type, periodStart: input.start, periodEnd: input.end, sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: `${input.type}-v1`, createdAt: '2026-08-13T00:00:00.000Z', body: '深度洞察' })), delete: vi.fn(async () => undefined), cancel: vi.fn(), list: vi.fn(), generateDaily: vi.fn() } } as unknown as Window['zhiji']; });
 
 describe('ReviewsPage', () => {
   it('starts from three prototype review cards and uses a sensible weekly range', () => {
@@ -39,6 +39,35 @@ describe('ReviewsPage', () => {
     expect(screen.getByLabelText('项目（可选）')).toHaveValue(project.id);
     fireEvent.click(screen.getByRole('button', { name: '历史复盘' }));
     expect(screen.getByText('七月复盘正文', { selector: 'pre' })).toBeInTheDocument();
+  });
+  it('uses the previous period carried by monthly and yearly suggestions', () => {
+    const { rerender } = render(<ReviewsPage projects={[]} intent={{ type: 'review.monthly', month: '2026-07' }}/>);
+    fireEvent.click(screen.getByRole('button', { name: '调整日期' }));
+    expect(screen.getByLabelText('开始日期')).toHaveValue('2026-07-01');
+    expect(screen.getByLabelText('结束日期')).toHaveValue('2026-07-31');
+    rerender(<ReviewsPage projects={[]} intent={{ type: 'review.yearly', year: '2025' }}/>);
+    expect(screen.getByLabelText('开始日期')).toHaveValue('2025-01-01');
+    expect(screen.getByLabelText('结束日期')).toHaveValue('2025-12-31');
+  });
+
+  it('keeps insight tools hidden until the user asks for them', () => {
+    render(<ReviewsPage projects={[]}/>);
+    expect(screen.queryByText('日志质量检查')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '更多洞察' }));
+    expect(screen.getByText('日志质量检查')).toBeInTheDocument();
+    expect(screen.getByText('年度回顾')).toBeInTheDocument();
+    expect(screen.getByText('方向校准')).toBeInTheDocument();
+  });
+
+  it('previews and generates an insight through the dedicated API', async () => {
+    render(<ReviewsPage projects={[]}/>);
+    fireEvent.click(screen.getByRole('button', { name: '更多洞察' }));
+    fireEvent.click(screen.getByRole('button', { name: '检查日志质量' }));
+    fireEvent.click(screen.getByRole('button', { name: '预览材料' }));
+    expect(await screen.findByText('深度材料')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认并生成' }));
+    await waitFor(() => expect(window.zhiji.reviews.generateInsight).toHaveBeenCalled());
+    expect(await screen.findByText('深度洞察', { selector: 'pre' })).toBeInTheDocument();
   });
   it('moves a historical review to the recycle bin without deleting source journals', async () => {
     const refresh = vi.fn();

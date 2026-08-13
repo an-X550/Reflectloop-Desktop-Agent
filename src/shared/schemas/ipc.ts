@@ -57,6 +57,23 @@ export const PeriodicReviewGenerateInputSchema = PeriodicReviewBaseSchema.extend
 export type PeriodicReviewPreviewInput = z.infer<typeof PeriodicReviewPreviewInputSchema>;
 export type PeriodicReviewGenerateInput = z.infer<typeof PeriodicReviewGenerateInputSchema>;
 
+const InsightRangeSchema = z.object({ start: IsoDate, end: IsoDate });
+const CoachInsightSchema = InsightRangeSchema.extend({ type: z.literal('coach') }).strict();
+const YearlyInsightSchema = InsightRangeSchema.extend({ type: z.literal('yearly') }).strict();
+const LifeDesignInsightSchema = InsightRangeSchema.extend({
+  type: z.literal('life-design'),
+  topic: z.string().trim().min(1).max(120).optional(),
+}).strict();
+const InsightReviewBaseSchema = z.discriminatedUnion('type', [CoachInsightSchema, YearlyInsightSchema, LifeDesignInsightSchema]);
+export const InsightReviewPreviewInputSchema = InsightReviewBaseSchema.refine(validPeriodicRange, '开始日期不能晚于结束日期');
+export const InsightReviewGenerateInputSchema = z.union([
+  CoachInsightSchema.extend({ previewToken: z.string().uuid() }),
+  YearlyInsightSchema.extend({ previewToken: z.string().uuid() }),
+  LifeDesignInsightSchema.extend({ previewToken: z.string().uuid() }),
+]).refine(validPeriodicRange, '开始日期不能晚于结束日期');
+export type InsightReviewPreviewInput = z.infer<typeof InsightReviewPreviewInputSchema>;
+export type InsightReviewGenerateInput = z.infer<typeof InsightReviewGenerateInputSchema>;
+
 export type CreateJournalInput = z.infer<typeof CreateJournalInputSchema>;
 export type UpdateJournalInput = z.infer<typeof UpdateJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;

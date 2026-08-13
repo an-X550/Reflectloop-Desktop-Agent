@@ -25,7 +25,7 @@ export const ProjectSchema = z.object({
 
 const ReviewBaseSchema = z.object({
   id: StableId.refine((id) => id.startsWith('review_')),
-  type: z.enum(['daily', 'weekly', 'monthly', 'project']),
+  type: z.enum(['daily', 'weekly', 'monthly', 'project', 'coach', 'yearly', 'life-design']),
   periodStart: IsoDate,
   periodEnd: IsoDate,
   sourceIds: z.array(StableId).min(1),
@@ -48,4 +48,5 @@ export const ProfileSchema = z.object({ schemaVersion: z.literal(1), body: z.str
 export type Journal = z.infer<typeof JournalSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
+export type InsightReviewType = Extract<Review['type'], 'coach' | 'yearly' | 'life-design'>;
 export type Profile = z.infer<typeof ProfileSchema>;

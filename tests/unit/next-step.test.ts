@@ -66,4 +66,28 @@ describe('resolveNextStep', () => {
       target: { view: 'journal', intent: { type: 'records.journals' } },
     });
   });
+
+  it('suggests a monthly review near month start when two weekly reviews exist', () => {
+    const monthToday = '2026-09-02';
+    const journals = [journal('journal_today', monthToday)];
+    const reviews = [
+      review({ id: 'daily_today', type: 'daily', periodStart: monthToday, periodEnd: monthToday, sourceVersions: [{ id: 'journal_today', updatedAt: `${monthToday}T01:00:00.000Z` }] }),
+      review({ id: 'weekly_1', type: 'weekly', periodStart: '2026-08-03', periodEnd: '2026-08-09' }),
+      review({ id: 'weekly_2', type: 'weekly', periodStart: '2026-08-17', periodEnd: '2026-08-23' }),
+    ];
+    expect(resolveNextStep({ today: monthToday, dayOfWeek: 3, journals, reviews })).toMatchObject({ kind: 'monthly-review', target: { view: 'reviews', intent: { type: 'review.monthly', month: '2026-08' } } });
+  });
+
+  it('suggests an annual review only after six monthly reviews', () => {
+    const yearToday = '2027-01-05';
+    const journals = [journal('journal_today', yearToday)];
+    const reviews = [review({ id: 'daily_today', type: 'daily', periodStart: yearToday, periodEnd: yearToday, sourceVersions: [{ id: 'journal_today', updatedAt: `${yearToday}T01:00:00.000Z` }] }), ...Array.from({ length: 6 }, (_, index) => review({ id: `monthly_${index}`, type: 'monthly', periodStart: `2026-${String(index + 1).padStart(2, '0')}-01`, periodEnd: `2026-${String(index + 1).padStart(2, '0')}-28` }))];
+    expect(resolveNextStep({ today: yearToday, dayOfWeek: 2, journals, reviews })).toMatchObject({ kind: 'yearly-review', target: { view: 'reviews', intent: { type: 'review.yearly', year: '2026' } } });
+  });
+
+  it('suggests an occasional quality check after seven recent journals', () => {
+    const journals = Array.from({ length: 7 }, (_, index) => journal(index === 6 ? 'journal_today' : `journal_${index}`, `2026-08-${String(9 + index).padStart(2, '0')}`));
+    const reviews = [review({ id: 'daily_today', type: 'daily', periodStart: today, periodEnd: today, sourceVersions: [{ id: 'journal_today', updatedAt: `${today}T01:00:00.000Z` }] })];
+    expect(resolveNextStep({ today, dayOfWeek: 3, journals, reviews })).toMatchObject({ kind: 'coach-review', target: { view: 'reviews', intent: { type: 'review.coach' } } });
+  });
 });

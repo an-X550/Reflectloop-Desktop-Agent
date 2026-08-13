@@ -105,4 +105,10 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '保存个人背景' }));
     await waitFor(() => expect(window.zhiji.profile.save).toHaveBeenCalledWith({ body: '我偏好先验证再扩展。', enabledForAi: false }));
   });
+
+  it('explains that enabling the profile affects AI analysis', async () => {
+    render(<SettingsPage/>);
+    expect(await screen.findByText('允许 AI 在复盘和方向校准中使用')).toBeInTheDocument();
+    expect(screen.queryByText(/暂不注入分析/)).not.toBeInTheDocument();
+  });
 });

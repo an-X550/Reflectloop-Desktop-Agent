@@ -156,3 +156,4 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .profile-toggle{display:flex;gap:8px;align-items:center;margin-top:14px;color:var(--muted)}
 .inline-review{margin-top:18px}.inline-review pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.75}
 .ai-hint{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px;padding:10px 14px;border-radius:12px;background:var(--warm);color:#6f5528}
+.insight-disclosure{display:flex;align-items:center;gap:12px;margin:14px 0 4px}.insight-disclosure span{color:var(--muted);font-size:13px}.insight-cards{margin-top:10px}.insight-cards .review-type-card{background:#f8faf8}

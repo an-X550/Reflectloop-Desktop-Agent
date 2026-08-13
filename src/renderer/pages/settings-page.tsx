@@ -81,7 +81,7 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
     <section className="card transfer-panel">
       <div className="section-heading"><div><h3>个人背景</h3><p>保存在 {dataInfo ? `${dataInfo.path}\\profile\\about-me.md` : '本地数据目录'}；不会从日志自动生成。</p></div></div>
       <Field label="个人背景"><textarea aria-label="个人背景" value={profile.body} onChange={(event) => setProfile({ ...profile, body: event.target.value })}/></Field>
-      <label className="profile-toggle"><input type="checkbox" checked={profile.enabledForAi} onChange={(event) => setProfile({ ...profile, enabledForAi: event.target.checked })}/>允许 AI 使用（当前版本只保存选择，暂不注入分析）</label>
+      <label className="profile-toggle"><input type="checkbox" checked={profile.enabledForAi} onChange={(event) => setProfile({ ...profile, enabledForAi: event.target.checked })}/>允许 AI 在复盘和方向校准中使用</label>
       <div className="settings-actions"><Button variant="danger" disabled={!profile.body} onClick={() => void window.zhiji.profile.clear().then(() => { setProfile({ body: '', enabledForAi: false }); setProfileMessage('个人背景已清空'); })}>清空个人背景</Button><Button variant="primary" disabled={!profile.body.trim()} onClick={() => void window.zhiji.profile.save({ body: profile.body, enabledForAi: profile.enabledForAi }).then(() => setProfileMessage('个人背景已保存'))}>保存个人背景</Button></div>
       {profileMessage && <StatusBanner tone="success">{profileMessage}</StatusBanner>}
     </section>

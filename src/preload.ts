@@ -36,6 +36,8 @@ const api: ZhijiDesktopApi = {
     cancel: () => ipcRenderer.invoke('reviews:cancel'),
     preview: (input) => ipcRenderer.invoke('reviews:preview', input),
     generatePeriodic: (input) => ipcRenderer.invoke('reviews:generate-periodic', input),
+    previewInsight: (input) => ipcRenderer.invoke('reviews:preview-insight', input),
+    generateInsight: (input) => ipcRenderer.invoke('reviews:generate-insight', input),
     delete: (id) => ipcRenderer.invoke('reviews:delete', id),
   },
 };

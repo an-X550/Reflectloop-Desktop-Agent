@@ -5,7 +5,7 @@ import { buildHistoryItems, type HistoryItem } from '../domain/history-items';
 import { HistoryFilter } from '../features/history/history-filter';
 import { HistoryReader } from '../features/history/history-reader';
 
-const labels: Record<HistoryItem['kind'], string> = { journal: '日志', daily: '日反馈', weekly: '周报', monthly: '月报', project: '项目复盘' };
+const labels: Record<HistoryItem['kind'], string> = { journal: '日志', daily: '日反馈', weekly: '周报', monthly: '月报', project: '项目复盘', coach: '日志质量', yearly: '年度回顾', 'life-design': '方向校准' };
 
 export function RecordBrowser({ journals, reviews = [], projects = [], allowedKinds, onEditJournal, onGenerateDaily, onDelete }: { journals: Journal[]; reviews?: Review[]; projects?: Project[]; allowedKinds: HistoryItem['kind'][]; onEditJournal?(id: string): void; onGenerateDaily?(date: string): void; onDelete?(item: HistoryItem): void }) {
   const items = useMemo(() => buildHistoryItems(journals, reviews, projects).filter((item) => allowedKinds.includes(item.kind)), [journals, reviews, projects, allowedKinds]);

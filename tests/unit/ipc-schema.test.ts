@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CreateJournalInputSchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, RenameProjectInputSchema, UpdateJournalInputSchema } from '../../src/shared/schemas/ipc';
+import { CreateJournalInputSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, RenameProjectInputSchema, UpdateJournalInputSchema } from '../../src/shared/schemas/ipc';
 
 describe('journal input schemas', () => {
   it('rejects ambiguous dates before repository access', () => {
@@ -34,5 +34,18 @@ describe('periodic review input schemas', () => {
   it('requires a preview token before generation', () => {
     expect(() => PeriodicReviewGenerateInputSchema.parse({ type: 'weekly', start: '2026-08-10', end: '2026-08-16' })).toThrow();
     expect(() => PeriodicReviewGenerateInputSchema.parse({ type: 'weekly', start: '2026-08-16', end: '2026-08-10', previewToken: 'b49ef530-786a-47d9-bf8a-c826cf3ea239' })).toThrow();
+  });
+});
+
+describe('insight review input schemas', () => {
+  it('accepts strict coach and yearly ranges', () => {
+    expect(InsightReviewPreviewInputSchema.parse({ type: 'coach', start: '2026-08-01', end: '2026-08-13' })).toEqual({ type: 'coach', start: '2026-08-01', end: '2026-08-13' });
+    expect(InsightReviewPreviewInputSchema.parse({ type: 'yearly', start: '2026-01-01', end: '2026-12-31' })).toMatchObject({ type: 'yearly' });
+  });
+
+  it('allows a bounded topic only for life design and requires preview confirmation', () => {
+    expect(InsightReviewPreviewInputSchema.parse({ type: 'life-design', start: '2026-05-01', end: '2026-08-13', topic: 'Should I change direction?' })).toMatchObject({ type: 'life-design' });
+    expect(() => InsightReviewPreviewInputSchema.parse({ type: 'coach', start: '2026-08-01', end: '2026-08-13', topic: 'extra' })).toThrow();
+    expect(() => InsightReviewGenerateInputSchema.parse({ type: 'yearly', start: '2026-01-01', end: '2026-12-31' })).toThrow();
   });
 });

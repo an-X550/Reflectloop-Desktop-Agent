@@ -1,6 +1,6 @@
 import { ipcMain, type dialog as ElectronDialog } from 'electron';
 import { z } from 'zod';
-import { CreateJournalInputSchema, CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, UpdateJournalInputSchema } from '../../shared/schemas/ipc';
+import { CreateJournalInputSchema, CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, UpdateJournalInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -12,8 +12,9 @@ import type { ReviewTaskManager } from '../domain/review-task';
 import type { GeneratePeriodicReview } from '../application/generate-periodic-review';
 import type { DataTransferService } from '../infrastructure/transfer/data-transfer-service';
 import type { DataDirectoryService } from '../infrastructure/data-directory/data-directory-service';
+import type { GenerateInsightReview } from '../application/generate-insight-review';
 
-export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
+export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
   ipcMain.handle('data-directory:get-info', () => deps.dataDirectory.getInfo());
   ipcMain.handle('data-directory:open', () => deps.dataDirectory.open());
   ipcMain.handle('profile:get', () => deps.profile.get()); ipcMain.handle('profile:save', (_event, raw) => deps.profile.save(SaveProfileInputSchema.parse(raw))); ipcMain.handle('profile:clear', () => deps.profile.clear());
@@ -57,4 +58,6 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
   ipcMain.handle('reviews:cancel', () => { const task = deps.reviewTasks.getCurrent(); if (task) deps.reviewTasks.cancel(task.taskId); });
   ipcMain.handle('reviews:preview', async (_event, raw) => { const input = PeriodicReviewPreviewInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.preview({ ...input, model: config.model }); });
   ipcMain.handle('reviews:generate-periodic', async (_event, raw) => { const input = PeriodicReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.execute({ ...input, model: config.model }); });
+  ipcMain.handle('reviews:preview-insight', async (_event, raw) => { const input = InsightReviewPreviewInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generateInsightReview.preview({ ...input, model: config.model }); });
+  ipcMain.handle('reviews:generate-insight', async (_event, raw) => { const input = InsightReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generateInsightReview.execute({ ...input, model: config.model }); });
 }

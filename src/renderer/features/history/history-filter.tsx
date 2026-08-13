@@ -1,7 +1,7 @@
 import type { Project, Review } from '../../../shared/schemas/domain';
 import type { HistoryItem } from '../../domain/history-items';
 
-const labels: Record<HistoryItem['kind'], string> = { journal: '日志', daily: '日反馈', weekly: '周报', monthly: '月报', project: '项目复盘' };
+const labels: Record<HistoryItem['kind'], string> = { journal: '日志', daily: '日反馈', weekly: '周报', monthly: '月报', project: '项目复盘', coach: '日志质量', yearly: '年度回顾', 'life-design': '方向校准' };
 
 export function HistoryFilter({ type, text, projectId, projects, allowedKinds, onType, onText, onProject }: { type: string; text: string; projectId: string; projects: Project[]; allowedKinds: HistoryItem['kind'][]; onType(value: string): void; onText(value: string): void; onProject(value: string): void }) {
   return <div className="history-filters">

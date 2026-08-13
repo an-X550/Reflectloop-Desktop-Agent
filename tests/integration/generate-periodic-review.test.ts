@@ -4,6 +4,16 @@ import type { Journal } from '../../src/shared/schemas/domain';
 
 const journal: Journal = { schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: ['project_a1'], body: '证据' };
 describe('GeneratePeriodicReview', () => {
+  it('injects an enabled profile as separate context', async () => {
+    let sent = '';
+    const profiles = { get: async () => ({ body: '长期目标是做有价值的产品', enabledForAi: true }) } as never;
+    const service = new GeneratePeriodicReview({ list: async () => [journal] } as never, { list: async () => [], save: async (review: unknown) => review } as never, { collect: async (messages: { content: string }[]) => { sent = messages.at(-1)?.content ?? ''; return '# 复盘'; } }, { start: () => ({ taskId: 'x', controller: new AbortController(), phase: 'queued' }), transition: () => undefined } as never, () => '2026-08-13T10:00:00.000Z', profiles);
+    const input = { type: 'project' as const, start: '2026-08-01', end: '2026-08-31', projectId: 'project_a1', model: 'fake' };
+    const preview = await service.preview(input);
+    await service.execute({ ...input, previewToken: preview.token });
+    expect(JSON.parse(sent)).toMatchObject({ profile: '长期目标是做有价值的产品' });
+  });
+
   it('requires a fresh preview token and limits the model to confirmed sources', async () => {
     let sent = '';
     const service = new GeneratePeriodicReview({ list: async () => [journal] } as never, { list: async () => [], save: async (review: unknown) => review } as never, { collect: async (messages: { content: string }[]) => { sent = messages.at(-1)?.content ?? ''; return '# 复盘'; } }, { start: () => ({ taskId: 'x', controller: new AbortController(), phase: 'queued' }), transition: () => undefined } as never, () => '2026-08-13T10:00:00.000Z');
