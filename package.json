@@ -12,6 +12,7 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "test": "vitest run",
+    "pretest:e2e": "electron-forge package",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },

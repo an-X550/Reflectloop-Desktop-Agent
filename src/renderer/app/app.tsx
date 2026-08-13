@@ -21,6 +21,6 @@ export function App() {
       : target.view === 'journal' ? <TodayPage journals={data.journals} projects={data.projects} reviews={data.reviews} intent={target.intent} hasApiKey={Boolean(data.settings?.hasApiKey)} onRefresh={data.refresh} onNavigate={navigate}/>
       : target.view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')} reviews={data.reviews} intent={target.intent}/>
       : target.view === 'projects' ? <ProjectsPage projects={data.projects} journals={data.journals} onRefresh={data.refresh} onNavigate={navigate}/>
-      : <SettingsPage onSaved={data.refresh}/>} 
+      : <SettingsPage onSaved={data.refresh}/>}
   </AppShell>;
 }

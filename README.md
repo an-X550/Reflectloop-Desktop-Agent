@@ -23,6 +23,8 @@ npm run test:e2e
 npm start
 ```
 
+`npm run test:e2e` 会先自动生成 Electron 构建入口，再启动隔离测试窗口；不要直接用 Electron 打开源码目录。
+
 依赖和缓存可放在 D 盘，项目中的 `node_modules` 可使用 Windows Junction 指向 D 盘目录。
 
 ## 当前发布边界
