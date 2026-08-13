@@ -8,14 +8,14 @@ describe('AppShell', () => {
     const onNavigate = vi.fn();
     render(<AppShell view="reviews" onNavigate={onNavigate} connectionReady dataPath="D:\知己"><p>内容</p></AppShell>);
 
-    expect(screen.getAllByRole('button', { name: /今天|复盘|项目|历史|设置/ })).toHaveLength(5);
+    expect(screen.getAllByRole('button', { name: /开始|日志|复盘|项目|设置/ })).toHaveLength(5);
     expect(screen.getByRole('button', { name: '复盘' })).toHaveAttribute('aria-current', 'page');
-    fireEvent.click(screen.getByRole('button', { name: '历史' }));
-    expect(onNavigate).toHaveBeenCalledWith('history');
+    fireEvent.click(screen.getByRole('button', { name: '日志' }));
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'journal' });
     expect(screen.getByText('数据留在本机')).toBeInTheDocument();
     expect(screen.getByText('D:\\知己')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /数据留在本机/ }));
-    expect(onNavigate).toHaveBeenCalledWith('settings');
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
     expect(screen.getByText('AI 已配置')).toBeInTheDocument();
   });
 });
