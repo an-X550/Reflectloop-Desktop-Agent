@@ -45,6 +45,20 @@ const api: ZhijiDesktopApi = {
     propose: (input) => ipcRenderer.invoke('patterns:propose', input),
     confirm: (input) => ipcRenderer.invoke('patterns:confirm', input),
   },
+  topics: {
+    start: (input) => ipcRenderer.invoke('topics:start', input),
+    discuss: (input) => ipcRenderer.invoke('topics:discuss', input),
+    propose: (input) => ipcRenderer.invoke('topics:propose', input),
+    confirm: (input) => ipcRenderer.invoke('topics:confirm', input),
+    list: () => ipcRenderer.invoke('topics:list'),
+    get: (input) => ipcRenderer.invoke('topics:get', input),
+    sessions: () => ipcRenderer.invoke('topics:sessions'),
+    resume: (input) => ipcRenderer.invoke('topics:resume', input),
+  },
+  web: {
+    search: (input) => ipcRenderer.invoke('web:search', input),
+    readSource: (input) => ipcRenderer.invoke('web:read-source', input),
+  },
 };
 
 contextBridge.exposeInMainWorld('zhiji', api);

@@ -76,3 +76,50 @@ export type Profile = z.infer<typeof ProfileSchema>;
 export type VerifiedPattern = z.infer<typeof VerifiedPatternSchema>;
 export type VerifiedPatternSnapshot = z.infer<typeof VerifiedPatternSnapshotSchema>;
 export type VerifiedPatternCandidate = z.infer<typeof VerifiedPatternCandidateSchema>;
+
+export const TopicIndexEntrySchema = z.object({
+  topic: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(120),
+  coreQuestion: z.string().trim().min(1).max(500),
+  aliases: z.array(z.string().trim().min(1).max(80)).max(10),
+  updatedAt: IsoDateTime,
+});
+export const TopicIndexSchema = z.object({
+  schemaVersion: z.literal(1),
+  entries: z.array(TopicIndexEntrySchema).max(500),
+});
+export const TopicMessageSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1).max(20_000),
+  at: IsoDateTime,
+});
+export const TopicSessionSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().regex(/^topicsession_[a-z0-9]+$/),
+  question: z.string().trim().min(1).max(2000),
+  referencedTopics: z.array(z.string().trim().min(1).max(80)).max(2),
+  messages: z.array(TopicMessageSchema).max(200),
+  createdAt: IsoDateTime,
+  updatedAt: IsoDateTime,
+});
+export const WebSearchResultSchema = z.object({
+  sourceId: z.string().regex(/^source_[a-z0-9]+$/),
+  title: z.string().trim().min(1).max(300),
+  url: z.url().max(2048),
+  snippet: z.string().max(1000),
+  publishedAt: z.string().max(40).nullable(),
+  retrievedAt: IsoDateTime,
+});
+export type TopicIndexEntry = z.infer<typeof TopicIndexEntrySchema>;
+export type TopicIndex = z.infer<typeof TopicIndexSchema>;
+export type TopicMessage = z.infer<typeof TopicMessageSchema>;
+export type TopicSession = z.infer<typeof TopicSessionSchema>;
+export type WebSearchResult = z.infer<typeof WebSearchResultSchema>;
+
+export const WebSourceContentSchema = z.object({
+  title: z.string().trim().min(1).max(300),
+  url: z.url().max(2048),
+  publishedAt: z.string().max(40).nullable(),
+  excerpt: z.string().max(2000),
+}).strict();
+export type WebSourceContent = z.infer<typeof WebSourceContentSchema>;

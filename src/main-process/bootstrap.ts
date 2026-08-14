@@ -17,6 +17,10 @@ import { GenerateInsightReview } from './application/generate-insight-review';
 import { DailyAuditRecorder } from './skill-runtime/daily-audit-recorder';
 import { VerifiedPatternRepository } from './infrastructure/patterns/verified-pattern-repository';
 import { VerifiedPatternService } from './application/verified-patterns';
+import { TopicRepository } from './infrastructure/topics/topic-repository';
+import { TopicSessionStore } from './infrastructure/topics/topic-session-store';
+import { TopicThinkingService } from './application/topic-thinking';
+import { WebSearchService } from './infrastructure/web/web-search-service';
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
@@ -32,7 +36,9 @@ export function bootstrap() {
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const verifiedPatterns = new VerifiedPatternService(reviews, new VerifiedPatternRepository(dataRoot), configureAi);
+  const topicThinking = new TopicThinkingService(new TopicRepository(dataRoot), new TopicSessionStore(dataRoot), configureAi);
+  const webSearch = new WebSearchService();
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
 }

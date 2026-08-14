@@ -11,6 +11,8 @@ function api() {
     journals: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), get: vi.fn() },
     projects: { list: vi.fn(async () => []), create: vi.fn(), archive: vi.fn() },
     reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn() },
+    topics: { list: vi.fn(async () => []), sessions: vi.fn(async () => []), get: vi.fn(), start: vi.fn(), discuss: vi.fn(), propose: vi.fn(), confirm: vi.fn(), resume: vi.fn() },
+    web: { search: vi.fn(), readSource: vi.fn() },
     settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
   } as unknown as Window['zhiji'];
 }
@@ -18,13 +20,15 @@ function api() {
 beforeEach(() => { window.zhiji = api(); });
 
 describe('App', () => {
-  it('navigates across all five product pages', async () => {
+  it('navigates across all six product pages', async () => {
     render(<App/>);
     await screen.findByRole('heading', { name: '写下今天的经历' });
     for (const [nav, heading] of [['日志', '写一条日志'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与关联日志'], ['设置', '设置']] as const) {
       fireEvent.click(screen.getByRole('button', { name: nav }));
       expect(screen.getByRole('heading', { name: heading, level: 2 })).toBeInTheDocument();
     }
+    fireEvent.click(screen.getByRole('button', { name: '主题思考' }));
+    expect(screen.getByRole('heading', { name: '开始一场主题讨论', level: 3 })).toBeInTheDocument();
   });
 
   it('recovers from an initial load failure with Retry', async () => {

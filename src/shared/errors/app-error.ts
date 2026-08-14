@@ -10,6 +10,8 @@ export type AppError =
   | { code: 'DATA_CORRUPTED'; path: string }
   | { code: 'IMPORT_REJECTED'; reason: string }
   | { code: 'TASK_ALREADY_RUNNING' }
+  | { code: 'WEB_SEARCH_FAILED'; message: string }
+  | { code: 'WEB_SOURCE_FAILED'; message: string }
   | { code: 'UNKNOWN'; message: string };
 
 export function appError(error: AppError): AppError & Error {

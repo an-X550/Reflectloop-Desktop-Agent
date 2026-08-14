@@ -1,7 +1,8 @@
-import type { DailyGenerationResult, Journal, PeriodicGenerationResult, Profile, Project, Review, VerifiedPattern, VerifiedPatternCandidate } from '../schemas/domain';
-import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, UpdateJournalInput } from '../schemas/ipc';
+import type { DailyGenerationResult, Journal, PeriodicGenerationResult, Profile, Project, Review, TopicIndexEntry, TopicSession, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
+import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
+import type { TopicSummaryProposal } from '../../main-process/application/topic-thinking';
 
 export interface ZhijiDesktopApi {
   dataDirectory: { getInfo(): Promise<DataDirectoryInfo>; open(): Promise<void> };
@@ -46,5 +47,19 @@ export interface ZhijiDesktopApi {
     list(): Promise<VerifiedPattern[]>;
     propose(input: ProposePatternsInput): Promise<VerifiedPatternCandidate[]>;
     confirm(input: ConfirmPatternInput): Promise<VerifiedPattern>;
+  };
+  topics: {
+    start(input: StartTopicInput): Promise<{ sessionId: string; draft: string; referencedTopics: { topic: string; title: string }[] }>;
+    discuss(input: DiscussTopicInput): Promise<{ reply: string }>;
+    propose(input: TopicSessionInput): Promise<TopicSummaryProposal>;
+    confirm(input: TopicSessionInput): Promise<{ topic: string }>;
+    list(): Promise<TopicIndexEntry[]>;
+    get(input: TopicNameInput): Promise<{ topic: string; body: string }>;
+    sessions(): Promise<TopicSession[]>;
+    resume(input: TopicSessionInput): Promise<TopicSession>;
+  };
+  web: {
+    search(input: WebSearchInput): Promise<{ searchSessionId: string; results: WebSearchResult[] }>;
+    readSource(input: ReadWebSourceInput): Promise<WebSourceContent>;
   };
 }
