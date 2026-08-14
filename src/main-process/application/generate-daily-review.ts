@@ -6,12 +6,11 @@ import type { ReviewTaskManager } from '../domain/review-task';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import { DAILY_REVIEW_PROMPT_VERSION } from '../prompts/daily-review-v1';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { ProviderPort } from '../infrastructure/ai/provider-port';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import { runDailyFeedback } from '../skill-runtime/daily-runtime';
 import type { DailyAuditRecorder } from '../skill-runtime/daily-audit-recorder';
 
-interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> }
 export type DailyReviewResult = DailyGenerationResult;
 
 export class GenerateDailyReview {

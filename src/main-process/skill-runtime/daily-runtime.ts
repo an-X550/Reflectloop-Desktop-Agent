@@ -3,14 +3,12 @@ import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/lang
 import type { Journal, Review } from '../../shared/schemas/domain';
 import { appError } from '../../shared/errors/app-error';
 import { buildDailyContext } from '../domain/daily-context';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { ProviderPort } from '../infrastructure/ai/provider-port';
 import { DAILY_REVIEW_SYSTEM_PROMPT, parseDailyReviewOutput, renderDailyReview, type DailyReviewOutput } from '../prompts/daily-review-v1';
 import { buildDailyEvidence, type DailyEvidence, type DailyEvidenceGrade } from './daily-evidence';
 import { confirmPersonalExperience } from './daily-grade-review';
 
-export interface ProviderPort {
-  collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
-}
+export type { ProviderPort };
 
 export type DailyRuntimeResult =
   | { kind: 'review'; body: string; grade: Exclude<DailyEvidenceGrade, 'D'>; output: DailyReviewOutput }
@@ -49,7 +47,7 @@ function gradeInstruction(grade: Exclude<DailyEvidenceGrade, 'D'>): string {
 
 async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState>> {
   const evidence = state.evidence;
-  if (!evidence || evidence.grade === 'D') throw new Error('日反馈工作流缺少可生成的证据等级。');
+  if (!evidence || evidence.grade === 'D') throw appError({ code: 'UNKNOWN', message: '日反馈工作流缺少可生成的证据等级。' });
   const context = buildDailyContext(state.input.journals, state.input.reviews);
   const raw = await state.input.provider.collect([
     { role: 'system', content: `${DAILY_REVIEW_SYSTEM_PROMPT}\n\n${gradeInstruction(evidence.grade)}` },
@@ -60,7 +58,7 @@ async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState
   catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的日反馈格式无效。' }); }
   const normalized = evidence.grade === 'C' ? { ...output, patternConnection: null } : output;
   const date = state.input.journals[0]?.date;
-  if (!date) throw new Error('日反馈工作流缺少日志日期。');
+  if (!date) throw appError({ code: 'UNKNOWN', message: '日反馈工作流缺少日志日期。' });
   return { result: { kind: 'review', grade: evidence.grade, body: renderDailyReview(normalized, date), output: normalized } };
 }
 
@@ -86,6 +84,6 @@ export async function runDailyFeedback(input: RuntimeInput): Promise<DailyRuntim
     .addEdge('generate', END)
     .compile({ checkpointer: new MemorySaver() });
   const result = await graph.invoke({ input }, { configurable: { thread_id: `daily-${crypto.randomUUID()}` } });
-  if (!result.result) throw new Error('日反馈工作流没有返回结果。');
+  if (!result.result) throw appError({ code: 'UNKNOWN', message: '日反馈工作流没有返回结果。' });
   return result.result;
 }

@@ -2,6 +2,7 @@ import { access, mkdir, readdir, stat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
 import type { DataDirectoryInfo } from '../../../shared/schemas/domain';
+import { appError } from '../../../shared/errors/app-error';
 
 // S5：DataDirectoryInfo 已归位到 shared/schemas/domain.ts，此处保留再导出以兼容既有引用
 export type { DataDirectoryInfo };
@@ -29,5 +30,5 @@ export class DataDirectoryService {
     await walk(this.root);
     return info;
   }
-  async open(): Promise<void> { const error = await this.openPath(this.root); if (error) throw new Error(`无法打开数据文件夹：${error}`); }
+  async open(): Promise<void> { const error = await this.openPath(this.root); if (error) throw appError({ code: 'UNKNOWN', message: `无法打开数据文件夹：${error}` }); }
 }

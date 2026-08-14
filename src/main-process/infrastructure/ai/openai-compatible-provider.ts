@@ -3,20 +3,30 @@ import { appError } from '../../../shared/errors/app-error';
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
 export interface CollectOptions { jsonObject?: boolean }
 
+/** AI 请求 60 秒未返回视为超时；与调用方传入的取消信号合并。 */
+const AI_REQUEST_TIMEOUT_MS = 60_000;
+
+function mapNetworkError(signal?: AbortSignal): Error {
+  if (signal?.aborted) return appError({ code: 'CANCELLED' });
+  return appError({ code: 'NETWORK_TIMEOUT' });
+}
+
 export class OpenAiCompatibleProvider {
   constructor(private readonly config: { baseUrl: string; model: string; apiKey: string }) {}
 
   async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {
+    const combined = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)])
+      : AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
     let response: Response;
     try {
       response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: 'POST', signal,
+        method: 'POST', signal: combined,
         headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({ model: this.config.model, messages, stream: true, ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}) }),
       });
-    } catch (error) {
-      if (signal?.aborted) throw appError({ code: 'NETWORK_TIMEOUT' });
-      throw appError({ code: 'NETWORK_TIMEOUT' });
+    } catch {
+      throw mapNetworkError(signal);
     }
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) throw appError({ code: 'INVALID_API_KEY' });
@@ -29,7 +39,13 @@ export class OpenAiCompatibleProvider {
     const decoder = new TextDecoder();
     let pending = '';
     for (;;) {
-      const { done, value } = await reader.read();
+      let done: boolean;
+      let value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await reader.read());
+      } catch {
+        throw mapNetworkError(signal);
+      }
       pending += decoder.decode(value, { stream: !done });
       const frames = pending.split(/\r?\n\r?\n/);
       pending = frames.pop() ?? '';

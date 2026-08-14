@@ -1,12 +1,10 @@
 import crypto from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
 import type { VerifiedPattern, VerifiedPatternCandidate, VerifiedPatternSnapshot } from '../../shared/schemas/domain';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { ProviderPort } from '../infrastructure/ai/provider-port';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import type { VerifiedPatternRepository } from '../infrastructure/patterns/verified-pattern-repository';
 import { MAX_PATTERN_CANDIDATES, parseVerifiedPatternsOutput, verifiedPatternsSystemPrompt } from '../prompts/verified-patterns-v1';
-
-interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> }
 
 /**
  * 验证模式：模型只能提出候选，只有用户明确确认后才写入快照。

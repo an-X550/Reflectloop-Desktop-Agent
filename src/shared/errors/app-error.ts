@@ -10,6 +10,7 @@ export type AppError =
   | { code: 'DATA_CORRUPTED'; path: string }
   | { code: 'IMPORT_REJECTED'; reason: string }
   | { code: 'TASK_ALREADY_RUNNING' }
+  | { code: 'CANCELLED' }
   | { code: 'WEB_SEARCH_FAILED'; message: string }
   | { code: 'WEB_SOURCE_FAILED'; message: string }
   | { code: 'UNKNOWN'; message: string };
@@ -27,6 +28,7 @@ function defaultMessage(error: AppError): string {
     case 'DATA_CORRUPTED': return `数据文件损坏：${error.path}，请从备份恢复。`;
     case 'IMPORT_REJECTED': return `导入被拒绝：${error.reason}`;
     case 'TASK_ALREADY_RUNNING': return '已有任务正在运行，请等待完成或取消后再试。';
+    case 'CANCELLED': return '已取消本次生成。';
     case 'WEB_SEARCH_FAILED': return '联网搜索失败，请稍后重试。';
     case 'WEB_SOURCE_FAILED': return '读取网页来源失败，请稍后重试。';
     case 'UNKNOWN': return '发生未知错误，请重试。';

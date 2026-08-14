@@ -1,10 +1,7 @@
 import { z } from 'zod';
 import type { Journal } from '../../shared/schemas/domain';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
-
-export interface ProviderPort {
-  collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
-}
+import type { ProviderPort } from '../infrastructure/ai/provider-port';
+import { parseFencedJson } from '../prompts/parse-fenced-json';
 
 /**
  * D 级判级语义复核（兼容快照 desktop-daily-feedback-v3 登记行为）：
@@ -31,9 +28,7 @@ const GRADE_REVIEW_SYSTEM_PROMPT = `你是日志证据判级复核器。只判�
 只返回一个 JSON 对象，字段为 hasFacts、hasStates、hasInterpretations、hasIntentions、hasPersonalExperience，全部为布尔值。`;
 
 export function parseGradeReviewOutput(raw: string): GradeReviewOutput {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return GradeReviewSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
+  return parseFencedJson(raw, GradeReviewSchema);
 }
 
 export async function confirmPersonalExperience(provider: ProviderPort, journals: Journal[], signal?: AbortSignal): Promise<boolean> {

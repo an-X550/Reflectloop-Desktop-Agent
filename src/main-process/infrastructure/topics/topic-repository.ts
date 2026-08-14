@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { TopicIndexSchema, type TopicIndex, type TopicIndexEntry } from '../../../shared/schemas/domain';
 import { atomicWriteUtf8 } from '../markdown/atomic-write';
 import { resolveInsideRoot } from '../markdown/path-policy';
+import { appError } from '../../../shared/errors/app-error';
 
 /** 主题名映射为文件名前去除路径分隔符与不合法字符，保证目标仍在 topics 目录内。 */
 export function safeTopicName(title: string): string {
@@ -32,7 +33,7 @@ export class TopicRepository {
   async saveTopic(input: { title: string; coreQuestion: string; aliases: string[]; body: string }): Promise<string> {
     const topic = safeTopicName(input.title);
     await atomicWriteUtf8(await resolveInsideRoot(this.root, 'topics', `${topic}.md`), input.body, (value) => {
-      if (!value.trim()) throw new Error('主题正文不能为空。');
+      if (!value.trim()) throw appError({ code: 'INVALID_INPUT', message: '主题正文不能为空。' });
     });
     const index = await this.listIndex();
     const entry: TopicIndexEntry = {

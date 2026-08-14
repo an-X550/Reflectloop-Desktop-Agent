@@ -6,6 +6,7 @@ import { Field } from '../components/field';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
 import { ProviderCard } from '../features/settings/provider-card';
+import { applyThemePreference, getThemePreference, type ThemePreference } from '../utils/theme';
 
 const presets = {
   openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini' },
@@ -24,6 +25,8 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const [dataInfo, setDataInfo] = useState<Awaited<ReturnType<Window['zhiji']['dataDirectory']['getInfo']>> | null>(null);
   const [profile, setProfile] = useState({ body: '', enabledForAi: false }); const [profileMessage, setProfileMessage] = useState('');
   const [confirmClearKey, setConfirmClearKey] = useState(false);
+  const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
+  const changeTheme = (next: ThemePreference) => { setTheme(next); applyThemePreference(next); };
 
   useEffect(() => { void Promise.all([window.zhiji.settings.getPublicConfig(), window.zhiji.dataDirectory.getInfo(), window.zhiji.profile.get()]).then(([{ hasApiKey: saved, ...config }, info, savedProfile]) => { setForm(config); setHasApiKey(saved); setDataInfo(info); if (savedProfile) setProfile({ body: savedProfile.body, enabledForAi: savedProfile.enabledForAi }); }); }, []);
   const updateProvider = (providerId: SaveProviderConfigInput['providerId']) => {
@@ -59,7 +62,13 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const restoreBackup = async () => { if (!restorePreview?.previewId) return; setTransferBusy('restore'); try { const result = await window.zhiji.transfer.restore(restorePreview.previewId); setRestorePreview(null); setTransferMessage(`恢复完成，共写入 ${result.fileCount} 个文件。请重启知己读取数据。`); } catch (reason) { setTransferMessage(`恢复失败：${reason instanceof Error ? reason.message : '请重试'}`); } finally { setTransferBusy(null); } };
 
   return <div className="settings-page">
-    <PageHeader title="设置" description="管理 AI 服务、本地数据和你主动提供的个人背景。"/>
+    <PageHeader title="设置" description="管理外观、AI 服务、本地数据和你主动提供的个人背景。"/>
+    <section className="card settings-panel">
+      <div className="section-heading"><div><h3>外观</h3><p>选择浅色或深色界面；跟随系统时随 Windows 设置自动切换。</p></div></div>
+      <div className="page-tabs" role="group" aria-label="外观主题">
+        {([['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']] as const).map(([value, label]) => <button key={value} className={theme === value ? 'is-active' : ''} aria-pressed={theme === value} onClick={() => changeTheme(value)}>{label}</button>)}
+      </div>
+    </section>
     <section className="card settings-panel">
       <div className="section-heading"><div><h3>AI 服务</h3><p>选择服务商。支持 OpenAI、DeepSeek 和其他 OpenAI 兼容接口。</p></div>{hasApiKey && <span className="saved-key-badge">✓ 已安全保存</span>}</div>
       <div className="provider-grid">{(['openai', 'deepseek', 'custom'] as const).map((id) => <ProviderCard key={id} id={id} selected={form.providerId === id} onSelect={() => updateProvider(id)}/>)}</div>

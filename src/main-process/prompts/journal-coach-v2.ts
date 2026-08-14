@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseFencedJson } from './parse-fenced-json';
 
 const text = z.string().min(1).max(1000);
 export const JOURNAL_COACH_PROMPT_VERSION = 'journal-coach-v3';
@@ -31,9 +32,7 @@ export const JournalCoachOutputSchema = z.object({
 export type JournalCoachOutput = z.infer<typeof JournalCoachOutputSchema>;
 
 export function parseJournalCoachOutput(raw: string): JournalCoachOutput {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return JournalCoachOutputSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
+  return parseFencedJson(raw, JournalCoachOutputSchema);
 }
 
 function cell(value: string) { return value.replace(/\|/g, '｜').replace(/\r?\n/g, ' '); }

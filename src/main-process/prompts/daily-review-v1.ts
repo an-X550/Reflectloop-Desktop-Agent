@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseFencedJson } from './parse-fenced-json';
 
 export const DAILY_REVIEW_PROMPT_VERSION = 'daily-review-v3';
 export const DAILY_REVIEW_SYSTEM_PROMPT = `你是知己 Skill 的日反馈分析器。只依据给定日志、前次反馈和用户明确允许使用的个人背景，不得编造事实。内部执行 D0-D6：闭环昨日行动；引用当天原文；只指出一个最关键盲点；只有可靠证据且能改变行动时才连接历史模式；明天只能有一个动作，必须在五分钟内可启动且无需再次拆解；预测必须是 24 小时内可观察的真实行为或结果。
@@ -31,9 +32,7 @@ export const DailyReviewOutputSchema = z.object({
 export type DailyReviewOutput = z.infer<typeof DailyReviewOutputSchema>;
 
 export function parseDailyReviewOutput(raw: string): DailyReviewOutput {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return DailyReviewOutputSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
+  return parseFencedJson(raw, DailyReviewOutputSchema);
 }
 
 export function renderDailyReview(output: DailyReviewOutput, date: string): string {

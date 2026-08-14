@@ -202,10 +202,7 @@ NavigationTarget = { view, intent? }
 - `review-task.ts`：`ReviewTaskManager` 单任务状态机。相位：`queued → building_context → generating → validating → saving → completed|failed|cancelled`。已有非终态任务时 `start()` 抛 `TASK_ALREADY_RUNNING`；每个任务持独立 `AbortController`，`reviews:cancel` 触发 abort。
 - `material-selector.ts`：周期复盘材料选择——范围内日志 + 下游沉淀（weekly 收 daily 复盘；monthly 收 weekly 复盘；project 收项目交集日志），按 id 去重、按日期排序。
 - `insight-materials.ts`：洞察工具材料与门槛——coach ≥3 篇日志（取最近 40）；yearly ≥6 份月报；life-design 按月>周>日优先级混排取 40 条。
-- `token-budget.ts`：`estimateTokens`（字数/2）与证据包构建，控制进模型材料规模。
 - `daily-context.ts`：日反馈上下文组装（当日日志 + 最近前次反馈）。
-- `date-periods.ts`：ISO 周与月份范围计算。
-- `project-materials.ts`：项目与日期交集材料。
 
 ### 7.4 skill-runtime 层（Skill 行为的确定性复刻）
 

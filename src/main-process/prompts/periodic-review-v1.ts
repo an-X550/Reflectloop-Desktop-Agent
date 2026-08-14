@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseFencedJson } from './parse-fenced-json';
 import type { PeriodicEvidenceGrade, PeriodicReviewType } from '../skill-runtime/periodic-evidence';
 
 export const PERIODIC_REVIEW_PROMPT_VERSION = 'periodic-review-v4';
@@ -75,9 +76,7 @@ export const PeriodicReviewOutputSchema = z.object({
 export type PeriodicReviewOutput = z.infer<typeof PeriodicReviewOutputSchema>;
 
 export function parsePeriodicReviewOutput(raw: string): PeriodicReviewOutput {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return PeriodicReviewOutputSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
+  return parseFencedJson(raw, PeriodicReviewOutputSchema);
 }
 
 // 代码层硬质量门：证据降级标注与方向锚点缺席披露不信任提示词自觉

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseFencedJson } from './parse-fenced-json';
 
 export const VERIFIED_PATTERNS_PROMPT_VERSION = 'verified-patterns-v1';
 
@@ -31,7 +32,5 @@ export const VerifiedPatternsOutputSchema = z.object({
 export type VerifiedPatternsOutput = z.infer<typeof VerifiedPatternsOutputSchema>;
 
 export function parseVerifiedPatternsOutput(raw: string): VerifiedPatternsOutput {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return VerifiedPatternsOutputSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
+  return parseFencedJson(raw, VerifiedPatternsOutputSchema);
 }

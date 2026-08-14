@@ -1,16 +1,12 @@
 import crypto from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
 import type { TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicMessage, TopicProposal, TopicSession, TopicStartResult } from '../../shared/schemas/domain';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { ChatMessage } from '../infrastructure/ai/openai-compatible-provider';
+import type { ProviderPort } from '../infrastructure/ai/provider-port';
 import type { TopicRepository } from '../infrastructure/topics/topic-repository';
 import type { TopicSessionStore } from '../infrastructure/topics/topic-session-store';
 import { safeTopicName } from '../infrastructure/topics/topic-repository';
 import { parseTopicSummaryOutput, topicDiscussPrompt, topicFirstDraftPrompt, topicSummaryPrompt, type TopicSummaryOutput } from '../prompts/topic-thinking-v1';
-
-interface ProviderPort {
-  collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
-  stream?(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string>;
-}
 
 /** 提供 onDelta 时优先走流式生成并把增量推给调用方；否则回退一次性收集。 */
 async function generateText(provider: ProviderPort, messages: ChatMessage[], onDelta?: (delta: string) => void): Promise<string> {

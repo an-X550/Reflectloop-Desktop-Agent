@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from '
 import os from 'node:os';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
+import { appError } from '../../../shared/errors/app-error';
 import { ArchiveManifestSchema, assertPortablePath, isPortablePath, type ArchiveManifest } from './archive-manifest';
 import { validateBusinessArchive } from './business-archive-validator';
 
@@ -60,11 +61,11 @@ export class DataTransferService {
 
   async restore(previewId: string): Promise<{ fileCount: number }> {
     const preview = this.previews.get(previewId);
-    if (!preview) throw new Error('恢复预览已失效，请重新选择备份。');
+    if (!preview) throw appError({ code: 'IMPORT_REJECTED', reason: '恢复预览已失效，请重新选择备份。' });
     this.previews.delete(previewId);
     const manifest = await this.validateArchive(preview.archivePath);
     await mkdir(this.dataRoot, { recursive: true });
-    if ((await readdir(this.dataRoot)).some((name) => name !== '.DS_Store')) throw new Error('当前数据目录非空；为避免覆盖已有数据，只能恢复到空目录。');
+    if ((await readdir(this.dataRoot)).some((name) => name !== '.DS_Store')) throw appError({ code: 'IMPORT_REJECTED', reason: '当前数据目录非空；为避免覆盖已有数据，只能恢复到空目录。' });
     const staging = await mkdtemp(path.join(path.dirname(this.dataRoot), '.zhiji-restore-'));
     const backup = `${this.dataRoot}.empty-${crypto.randomUUID()}`;
     try {
@@ -85,25 +86,25 @@ export class DataTransferService {
   }
 
   private async validateArchive(archivePath: string): Promise<ArchiveManifest> {
-    if (!(await stat(archivePath)).isFile()) throw new Error('备份文件无效。');
+    if (!(await stat(archivePath)).isFile()) throw appError({ code: 'IMPORT_REJECTED', reason: '备份文件无效。' });
     const zip = new AdmZip(archivePath);
     const entries = zip.getEntries();
     const manifestEntry = entries.find((entry) => entry.entryName === 'manifest.json');
-    if (!manifestEntry || manifestEntry.isDirectory) throw new Error('压缩包缺少清单。');
+    if (!manifestEntry || manifestEntry.isDirectory) throw appError({ code: 'IMPORT_REJECTED', reason: '压缩包缺少清单。' });
     const manifest = ArchiveManifestSchema.parse(JSON.parse(manifestEntry.getData().toString('utf8')));
     const expected = new Set(manifest.files.map((file) => file.path));
-    if (expected.size !== manifest.files.length) throw new Error('压缩包清单包含重复路径。');
+    if (expected.size !== manifest.files.length) throw appError({ code: 'IMPORT_REJECTED', reason: '压缩包清单包含重复路径。' });
     for (const entry of entries) {
       if (entry.entryName === 'manifest.json' || entry.isDirectory) continue;
       assertPortablePath(entry.entryName);
-      if (!expected.has(entry.entryName)) throw new Error(`压缩包包含未登记文件：${entry.entryName}`);
+      if (!expected.has(entry.entryName)) throw appError({ code: 'IMPORT_REJECTED', reason: `压缩包包含未登记文件：${entry.entryName}` });
     }
     for (const file of manifest.files) {
       assertPortablePath(file.path);
       const entry = zip.getEntry(file.path);
-      if (!entry || entry.isDirectory) throw new Error(`压缩包缺少文件：${file.path}`);
+      if (!entry || entry.isDirectory) throw appError({ code: 'IMPORT_REJECTED', reason: `压缩包缺少文件：${file.path}` });
       const content = entry.getData();
-      if (content.byteLength !== file.size || digest(content) !== file.sha256) throw new Error(`压缩包校验失败：${file.path}`);
+      if (content.byteLength !== file.size || digest(content) !== file.sha256) throw appError({ code: 'IMPORT_REJECTED', reason: `压缩包校验失败：${file.path}` });
     }
     validateBusinessArchive(new Map(manifest.files.map((file) => [file.path, zip.getEntry(file.path)!.getData()])));
     return manifest;

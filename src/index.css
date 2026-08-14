@@ -405,8 +405,10 @@ select:hover { border-color: var(--ink-tertiary); }
   border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0;
   background: var(--accent-soft); color: var(--ink);
 }
-.markdown-document ul { margin: var(--space-2) 0; padding-left: 22px; }
+.markdown-document ul, .markdown-document ol { margin: var(--space-2) 0; padding-left: 22px; }
 .markdown-document li { margin: 3px 0; }
+.markdown-document code { padding: 2px 6px; border-radius: 6px; background: var(--fill); font-family: "Cascadia Mono", "JetBrains Mono", monospace; font-size: .9em; }
+.markdown-document strong { font-weight: 600; color: var(--ink); }
 .markdown-table-wrap { overflow-x: auto; margin: var(--space-3) 0; }
 .markdown-document table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .markdown-document th, .markdown-document td { padding: 9px 10px; border: 1px solid var(--separator); text-align: left; vertical-align: top; }
@@ -555,36 +557,34 @@ select:hover { border-color: var(--ink-tertiary); }
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
 
-/* ---------------------------------------------------------------- 暗色模式 */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #000000;
-    --surface: #1c1c1e;
-    --surface-secondary: #141416;
-    --surface-glass: rgba(28, 28, 30, .72);
-    --fill: rgba(255, 255, 255, .07);
-    --fill-strong: rgba(255, 255, 255, .14);
-    --ink: #f5f5f7;
-    --ink-secondary: #98989d;
-    --ink-tertiary: #6e6e73;
-    --separator: rgba(255, 255, 255, .12);
-    --accent: #3ab894;
-    --accent-contrast: #06110d;
-    --accent-soft: rgba(58, 184, 148, .14);
-    --accent-ring: rgba(58, 184, 148, .35);
-    --warm: rgba(255, 214, 130, .1);
-    --warm-ink: #e5c07b;
-    --danger: #ff453a;
-    --danger-soft: rgba(255, 69, 58, .12);
-    --success-soft: rgba(58, 184, 148, .14);
-    --success-ink: #3ab894;
-    --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
-    --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, .35), 0 14px 34px rgba(0, 0, 0, .45);
-    --shadow-overlay: 0 12px 40px rgba(0, 0, 0, .55);
-  }
-  .modal-backdrop { background: rgba(0, 0, 0, .55); }
-  .page-tabs button.is-active { background: var(--fill-strong); box-shadow: none; }
-  select {
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2398989d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  }
+/* ---------------------------------------------------------------- 暗色模式（由 <html data-theme="dark"> 驱动，支持手动覆盖系统） */
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-secondary: #141416;
+  --surface-glass: rgba(28, 28, 30, .72);
+  --fill: rgba(255, 255, 255, .07);
+  --fill-strong: rgba(255, 255, 255, .14);
+  --ink: #f5f5f7;
+  --ink-secondary: #98989d;
+  --ink-tertiary: #6e6e73;
+  --separator: rgba(255, 255, 255, .12);
+  --accent: #3ab894;
+  --accent-contrast: #06110d;
+  --accent-soft: rgba(58, 184, 148, .14);
+  --accent-ring: rgba(58, 184, 148, .35);
+  --warm: rgba(255, 214, 130, .1);
+  --warm-ink: #e5c07b;
+  --danger: #ff453a;
+  --danger-soft: rgba(255, 69, 58, .12);
+  --success-soft: rgba(58, 184, 148, .14);
+  --success-ink: #3ab894;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .35);
+  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, .35), 0 14px 34px rgba(0, 0, 0, .45);
+  --shadow-overlay: 0 12px 40px rgba(0, 0, 0, .55);
+}
+:root[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, .55); }
+:root[data-theme="dark"] .page-tabs button.is-active { background: var(--fill-strong); box-shadow: none; }
+:root[data-theme="dark"] select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2398989d' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }

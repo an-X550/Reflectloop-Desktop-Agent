@@ -10,6 +10,9 @@ import { resolveInsideRoot } from '../markdown/path-policy';
 export class VerifiedPatternRepository {
   constructor(private readonly root: string) {}
 
+  /** 读-改-写串行化：读取快照与追加写入之间不允许另一个写入插入。 */
+  private queue: Promise<unknown> = Promise.resolve();
+
   private async target(): Promise<string> {
     return resolveInsideRoot(this.root, 'patterns', 'verified-patterns.json');
   }
@@ -26,16 +29,20 @@ export class VerifiedPatternRepository {
   }
 
   async add(pattern: VerifiedPattern): Promise<VerifiedPatternSnapshot> {
-    const validated = VerifiedPatternSchema.parse(pattern);
-    const current = await this.list();
-    const next = VerifiedPatternSnapshotSchema.parse({
-      schemaVersion: 1,
-      updatedAt: new Date().toISOString(),
-      patterns: [...current.patterns, validated],
+    const task = this.queue.then(async () => {
+      const validated = VerifiedPatternSchema.parse(pattern);
+      const current = await this.list();
+      const next = VerifiedPatternSnapshotSchema.parse({
+        schemaVersion: 1,
+        updatedAt: new Date().toISOString(),
+        patterns: [...current.patterns, validated],
+      });
+      await atomicWriteUtf8(await this.target(), JSON.stringify(next, null, 2), (value) => {
+        VerifiedPatternSnapshotSchema.parse(JSON.parse(value));
+      });
+      return this.list();
     });
-    await atomicWriteUtf8(await this.target(), JSON.stringify(next, null, 2), (value) => {
-      VerifiedPatternSnapshotSchema.parse(JSON.parse(value));
-    });
-    return this.list();
+    this.queue = task.catch(() => undefined);
+    return task;
   }
 }

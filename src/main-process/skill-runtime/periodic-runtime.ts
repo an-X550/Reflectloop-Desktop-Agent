@@ -2,14 +2,12 @@ import crypto from 'node:crypto';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
 import type { Journal, Review } from '../../shared/schemas/domain';
 import { appError } from '../../shared/errors/app-error';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { ProviderPort } from '../infrastructure/ai/provider-port';
 import { applyPeriodicQualityGates, periodicSystemPrompt, parsePeriodicReviewOutput, renderPeriodicReview, type PeriodicReviewOutput } from '../prompts/periodic-review-v1';
 import { buildPeriodicEvidence, type PeriodicEvidence, type PeriodicEvidenceGrade, type PeriodicReviewType } from './periodic-evidence';
 import { buildPeriodicModelMaterials } from './periodic-materials';
 
-export interface ProviderPort {
-  collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
-}
+export type { ProviderPort };
 
 export type PeriodicRuntimeResult =
   | { kind: 'review'; body: string; grade: Exclude<PeriodicEvidenceGrade, 'D'>; output: PeriodicReviewOutput }
@@ -45,7 +43,7 @@ function clarification(evidence: PeriodicEvidence): PeriodicRuntimeResult {
 
 async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState>> {
   const evidence = state.evidence;
-  if (!evidence || evidence.grade === 'D') throw new Error('周期复盘工作流缺少可生成的证据等级。');
+  if (!evidence || evidence.grade === 'D') throw appError({ code: 'UNKNOWN', message: '周期复盘工作流缺少可生成的证据等级。' });
   const { type, start, end, journals, reviews, provider, profile, signal } = state.input;
   const system = periodicSystemPrompt(type, evidence.grade);
   const payload = {
@@ -76,6 +74,6 @@ export async function runPeriodicFeedback(input: RuntimeInput): Promise<Periodic
     .addEdge('generate', END)
     .compile({ checkpointer: new MemorySaver() });
   const result = await graph.invoke({ input }, { configurable: { thread_id: `periodic-${crypto.randomUUID()}` } });
-  if (!result.result) throw new Error('周期复盘工作流没有返回结果。');
+  if (!result.result) throw appError({ code: 'UNKNOWN', message: '周期复盘工作流没有返回结果。' });
   return result.result;
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseFencedJson } from './parse-fenced-json';
 
 export const TOPIC_THINKING_PROMPT_VERSION = 'topic-thinking-v2';
 
@@ -55,7 +56,5 @@ export const TopicSummaryOutputSchema = z.object({
 export type TopicSummaryOutput = z.infer<typeof TopicSummaryOutputSchema>;
 
 export function parseTopicSummaryOutput(raw: string): TopicSummaryOutput {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return TopicSummaryOutputSchema.parse(JSON.parse(fenced?.[1] ?? trimmed));
+  return parseFencedJson(raw, TopicSummaryOutputSchema);
 }
