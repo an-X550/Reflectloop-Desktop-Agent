@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
-import type { Review } from '../../shared/schemas/domain';
+import type { Review, ReviewPreview } from '../../shared/schemas/domain';
 import type { InsightReviewPreviewInput } from '../../shared/schemas/ipc';
 import { selectInsightMaterials } from '../domain/insight-materials';
 import type { ReviewTaskManager } from '../domain/review-task';
@@ -15,19 +15,35 @@ interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, 
 type Input = InsightReviewPreviewInput & { model: string };
 
 export class GenerateInsightReview {
-  private previews = new Map<string, { digest: string; input: Input }>();
+  private static readonly PREVIEW_TTL_MS = 30 * 60 * 1000;
+  private static readonly MAX_PREVIEWS = 50;
+  private previews = new Map<string, { digest: string; input: Input; createdAt: string }>();
   constructor(private journals: MarkdownJournalRepository, private reviews: MarkdownReviewRepository, private provider: ProviderPort, private tasks: ReviewTaskManager, private now = () => new Date().toISOString(), private profiles?: Pick<MarkdownProfileRepository, 'get'>) {}
   private async materials(input: Input) { return selectInsightMaterials(input, await this.journals.list(), await this.reviews.list()); }
   private digest(materials: { id: string; updatedAt?: string; createdAt: string }[]) { return crypto.createHash('sha256').update(materials.map((item) => `${item.id}:${item.updatedAt ?? item.createdAt}`).join('|')).digest('hex'); }
 
-  async preview(input: Input) {
+  private prunePreviews() {
+    const horizon = new Date(this.now()).getTime() - GenerateInsightReview.PREVIEW_TTL_MS;
+    for (const [token, preview] of this.previews) {
+      if (new Date(preview.createdAt).getTime() < horizon) this.previews.delete(token);
+    }
+    while (this.previews.size > GenerateInsightReview.MAX_PREVIEWS) {
+      const oldest = this.previews.keys().next();
+      if (oldest.done) break;
+      this.previews.delete(oldest.value);
+    }
+  }
+
+  async preview(input: Input): Promise<ReviewPreview> {
     const materials = await this.materials(input);
     const token = crypto.randomUUID();
-    this.previews.set(token, { input, digest: this.digest(materials) });
+    this.previews.set(token, { input, digest: this.digest(materials), createdAt: this.now() });
+    this.prunePreviews();
     return { token, type: input.type, start: input.start, end: input.end, sources: materials.map((item) => ({ id: item.id, date: 'date' in item ? item.date : item.periodStart, excerpt: item.body.slice(0, 100) })) };
   }
 
   async execute(input: Input & { previewToken: string }): Promise<Review> {
+    this.prunePreviews();
     const preview = this.previews.get(input.previewToken);
     if (!preview || preview.input.type !== input.type) throw appError({ code: 'INVALID_INPUT', message: '请先预览并确认材料。' });
     const materials = await this.materials(input);

@@ -66,4 +66,19 @@ describe('GeneratePeriodicReview', () => {
     await expect(service.preview(input)).rejects.toMatchObject({ code: 'INVALID_INPUT' });
     expect(collect).not.toHaveBeenCalled();
   });
+
+  it('expires preview tokens after the TTL window', async () => {
+    let current = '2026-08-13T10:00:00.000Z';
+    const service = new GeneratePeriodicReview(
+      { list: async () => [journal] } as never,
+      { list: async () => [], save: async (review: unknown) => review } as never,
+      { collect: async () => validModelOutput } as never,
+      { start: () => ({ taskId: 'x', controller: new AbortController(), phase: 'queued' }), transition: () => undefined } as never,
+      () => current,
+    );
+    const input = { type: 'project' as const, start: '2026-08-01', end: '2026-08-31', projectId: 'project_a1', model: 'fake' };
+    const preview = await service.preview(input);
+    current = '2026-08-13T10:31:00.000Z';
+    await expect(service.execute({ ...input, previewToken: preview.token })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
 });

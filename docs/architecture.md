@@ -40,7 +40,7 @@
 
 ```text
 npm start          开发运行
-npm test           vitest run（当前 50 文件 / 229 测试）
+npm test           vitest run（当前 54 文件 / 308 测试，2026-08-14 实测）
 npm run typecheck  tsc --noEmit
 npm run lint       eslint（发布门要求 0 error）
 npm run package    electron-forge package（E2E 前置与发布门）
@@ -49,7 +49,7 @@ npm run test:e2e   playwright（先自动 package）
 
 发布门：自动化测试、类型检查、Lint 0 error、真实 Electron 主链路 E2E、Windows x64 打包全部通过。
 
-注意：`package.json` 声明了 `react-router-dom`、`zustand`、`@tanstack/react-query`、`react-hook-form`、`@hookform/resolvers`，但当前代码均未使用（前端用原生 hooks）。清理需验证无隐式引用后属于可做的优化项。
+注意：原声明未使用的 `react-router-dom`、`zustand`、`@tanstack/react-query`、`react-hook-form`、`@hookform/resolvers` 已于 2026-08-14 从 `package.json` 移除（renderer.tsx 的 QueryClientProvider 死接线一并删除）；前端始终用原生 hooks。
 
 ## 3. 进程架构与安全基线
 
@@ -83,11 +83,12 @@ src/
 ├── preload.ts                 contextBridge 暴露 window.zhiji（唯一 IPC 面）
 ├── renderer.tsx               React 挂载点
 ├── index.css                  全局样式（单文件，BEM 风格类名）
-├── shared/                    前后端共享（类型 + zod schema + 错误模型）
-│   ├── contracts/desktop-api.ts   ZhijiDesktopApi 接口（前端 API 总契约）
-│   ├── schemas/domain.ts          Journal/Project/Review/Pattern/Topic/Intent 等域模型
+├── shared/                    前后端共享（类型 + zod schema + 错误模型 + 纯领域函数）
+│   ├── contracts/desktop-api.ts   ZhijiDesktopApi 接口（前端 API 总契约，返回类型引用 domain.ts 命名 schema）
+│   ├── schemas/domain.ts          Journal/Project/Review/Pattern/Topic 等域模型，及 ProviderConfig/DataDirectoryInfo/备份与预览与主题返回等契约类型
 │   ├── schemas/ipc.ts             所有 IPC 入参 schema
-│   └── errors/app-error.ts        AppError 判别联合 + appError() 工厂
+│   ├── domain/daily-freshness.ts  日反馈新鲜度纯函数（前后端共用，S6 去重）
+│   └── errors/app-error.ts        AppError 判别联合 + appError() 工厂（带中文默认文案）
 ├── main-process/
 │   ├── bootstrap.ts               组合根：手工装配全部服务
 │   ├── window-options.ts          窗口与安全配置
@@ -103,7 +104,7 @@ src/
     ├── features/                  跨页面复用功能块（history/patterns/reviews/settings/projects）
     ├── components/                基础组件（Button/Field/Modal/MarkdownDocument 等）
     ├── hooks/use-app-data.ts      启动数据加载与刷新
-    ├── domain/                    渲染端纯逻辑（next-step/intent-target/history-items）
+    ├── domain/                    渲染端纯逻辑（next-step/history-items）
     └── utils/                     本地日期工具
 ```
 
@@ -127,7 +128,6 @@ NavigationTarget = { view, intent? }
 
 - 页面通过 `intent` prop 消费导航意图（如复盘页根据 `review.monthly` 自动选中月复盘并回填日期），不得为意图新建页面。
 - 离开 `journal` 页且 `journalDirty` 时弹 `window.confirm` 草稿保护；`TodayPage` 通过 `onDirtyChange` 上报脏状态。
-- 意图路由（第 9.6 节）的结果必须经 `domain/intent-target.ts` 映射为既有 `NavigationTarget`——"路由只带路，不创建新视图或新流程"。
 
 ### 5.2 数据层
 
@@ -139,7 +139,7 @@ NavigationTarget = { view, intent? }
 
 | 页面 | 文件 | 职责与关键逻辑 |
 |---|---|---|
-| 开始 | `pages/start-page.tsx` | 意图输入框（调用 `intent.resolve`，matched 显示"前往"按钮，clarify 显示澄清问题）；`resolveNextStep` 确定性建议卡；能力链接 |
+| 开始 | `pages/start-page.tsx` | `resolveNextStep` 确定性建议卡；能力链接（做复盘/查看记录/管理项目）。原意图输入框已于 2026-08-14 下线删除 |
 | 日志 | `pages/today-page.tsx` | 写日志/过去日志两个 section；日期可选今天或过去（补写只保存不自动生成反馈）；"保存并生成今日反馈"会先保存再调 `reviews.generateDaily`；clarification 结果以 info 横幅展示；删除走确认条 + 回收站；复用 `RecordBrowser` 浏览历史并支持对过去日期"生成这一天的反馈" |
 | 复盘 | `pages/reviews-page.tsx` | 生成/历史两个 section；周/月/项目三卡 + "更多洞察"折叠区（coach/yearly/life-design）；固定流程：选类型 → 预览材料（拿 token）→ 确认并生成（带 previewToken）；结果用 `MarkdownDocument` 渲染并挂 `PatternPanel` |
 | 主题思考 | `pages/topics-page.tsx` | 讨论（start/discuss）、归纳提案（propose，更新模式展示旧正文差异）、确认沉淀（confirm）、主题列表与阅读、会话恢复、受控联网搜索与读源 |
@@ -158,8 +158,7 @@ NavigationTarget = { view, intent? }
 
 ### 5.5 渲染端纯逻辑（domain/）
 
-- `next-step.ts`：首页建议的确定性决策链，按优先级：今天无日志 → 写日志；有日志无匹配当日来源版本的日反馈 → 生成反馈；周末且本周 ≥3 篇日志且无周报 → 周复盘；1 月上半月且上年 ≥6 份月报且无年报 → 年度回顾；每月前 3 天且上月 ≥2 份周报且无月报 → 月度复盘；近 30 天 ≥7 篇日志且无近期 coach → 日志质量检查；兜底 → 查看最近记录。日反馈新鲜度判断与后端 `GenerateDailyReview` 相同（sourceVersions JSON 对比）——**这是跨前后端的重复逻辑，改一侧必须同步另一侧**。
-- `intent-target.ts`：WorkflowIntent 六值 → NavigationTarget 的固定映射；project-review 不带 projectId（由复盘页选项目）。
+- `next-step.ts`：首页建议的确定性决策链，按优先级：今天无日志 → 写日志；有日志无匹配当日来源版本的日反馈 → 生成反馈；周末且本周 ≥3 篇日志且无周报 → 周复盘；1 月上半月且上年 ≥6 份月报且无年报 → 年度回顾；每月前 3 天且上月 ≥2 份周报且无月报 → 月度复盘；近 30 天 ≥7 篇日志且无近期 coach → 日志质量检查；兜底 → 查看最近记录。日反馈新鲜度判断已抽至 `shared/domain/daily-freshness.ts`（S6），前后端同引用该纯函数，修改只需改一处。
 - `history-items.ts`：历史条目归并排序。
 
 ### 5.6 安全渲染
@@ -170,7 +169,7 @@ NavigationTarget = { view, intent? }
 
 三件套必须保持一致：
 
-1. `shared/contracts/desktop-api.ts`——`ZhijiDesktopApi` 接口，前端可见的完整 API 形状（dataDirectory / profile / transfer / journals / projects / settings / reviews / patterns / topics / web / intent 十一个域）。
+1. `shared/contracts/desktop-api.ts`——`ZhijiDesktopApi` 接口，前端可见的完整 API 形状（dataDirectory / profile / transfer / journals / projects / settings / reviews / patterns / topics / web 十个域）。
 2. `preload.ts`——每个方法逐一映射到 `ipcRenderer.invoke('通道名')`；`contextBridge.exposeInMainWorld('zhiji', api)`。
 3. `ipc/register-handlers.ts`——`ipcMain.handle('通道名', ...)`，入参一律 zod schema `.parse(raw)` 后再委托服务。
 
@@ -196,7 +195,6 @@ NavigationTarget = { view, intent? }
 | `GenerateInsightReview` | `generate-insight-review.ts` | coach/yearly/life-design 三种洞察工具；同样的预览-digest 确认门；coach 走 JSON 模式 + `renderJournalCoach`，其余为自由文本 |
 | `VerifiedPatternService` | `verified-patterns.ts` | propose：从单篇复盘提取 ≤3 条候选（不落库）；confirm：确认后才写入 JSON 快照 |
 | `TopicThinkingService` | `topic-thinking.ts` | start（确定性主题召回 → 首稿）→ discuss（全历史进模型）→ proposeSummary（归纳 + create/update 判定）→ confirm（才写主题文件并删除会话）；会话文件型 checkpoint |
-| `IntentRoutingService` | `intent-routing.ts` | 确定性正则规则优先（月度先于周度，防"这个月的周复盘"误判）；未命中才问模型；模型只能在六值枚举内选择；校验失败或 null 一律回退固定澄清问题 |
 | `ConfigureAi` | `configure-ai.ts` | settings.json 读写（原子写 + schema 复读校验）、Key 存凭证库、连接测试、`collect()` 适配器；非开发环境强制 HTTPS |
 
 ### 7.3 domain 层（纯逻辑，可单测）
@@ -230,7 +228,6 @@ NavigationTarget = { view, intent? }
 | `journal-coach-v2.ts` | `journal-coach-v3` | A-D 就绪度 + 六步法表格（回忆事实/筛选重点/评估结果/洞察思考/行为改进/分享讨论） + 一项低摩擦动作；`directionWarning` 需四类方向信号中至少两类才填，单日低落或普通任务压力不触发 |
 | `topic-thinking-v1.ts` | `topic-thinking-v1` | 首稿/继续/归纳三套提示词；只归纳用户明确认可的判断 |
 | `verified-patterns-v1.ts` | `verified-patterns-v1` | 单篇复盘提取 0-3 条可验证行为假说候选 |
-| `intent-routing-v1.ts` | `intent-routing-v1` | 六值枚举选择器；不创建新流程 |
 | `insight-review-prompts.ts` | 按类型 | yearly（`yearly-review-v2`，含升级提醒触发条件）/life-design（`life-design-v2`，含下次如何验证）的系统提示词与版本 |
 
 规则：提示词语义变化必须递增版本常量（`xxx-vN`），并写入 Review 的 `promptVersion` 字段与兼容快照；渲染函数是输出格式的唯一真相，不要让模型直接产出最终 Markdown。
@@ -265,7 +262,6 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 - `Review` 联合：v1 无来源版本；v2 增加 `sourceVersions`（目前仅 daily 使用，支撑新鲜度快路径）。type 七值：daily/weekly/monthly/project/coach/yearly/life-design。必带 model/promptVersion 溯源字段。
 - `VerifiedPatternSnapshot`：≤500 条模式；候选不落库。
 - `TopicIndex/TopicSession`：索引 ≤500 条；会话 ≤200 条消息；referencedTopics ≤2。
-- `IntentResolution`：discriminated union（matched 带 source: deterministic|model；clarify 带问题）。
 
 数据目录（默认 `Documents/知己`，`ZHIJI_DATA_ROOT` 可覆盖）：
 
@@ -324,11 +320,11 @@ topics:start → findRelatedTopics（标题/别名/核心问题与提问的最�
 → 首稿提示词 + 相关主题正文（≤2）→ 保存会话 checkpoint → 返回 draft
 topics:discuss → 全历史消息进模型 → 追加 checkpoint
 topics:propose → 归纳提示词（jsonObject）→ 与索引按 topic/title/别名匹配
-→ create 或 update 提案（update 带旧正文供前端差异展示）→ 暂存 proposals Map
-topics:confirm → 才写主题文件 → 删提案与会话
+→ create 或 update 提案（update 将旧正文传入归纳提示词重组整篇论证，前端展示合并后全文）→ 提案写入会话 checkpoint
+topics:confirm → 才写主题文件 → 删除会话
 ```
 
-未经 confirm 不写任何主题文件；proposals 只存内存，重启后需重新 propose。
+未经 confirm 不写任何主题文件；提案持久化在会话 checkpoint 文件内（topic-thinking-v2），重启后可恢复并 confirm。
 
 ### 9.4 验证模式
 
@@ -338,16 +334,7 @@ patterns:confirm（候选）→ 生成 pattern_ id → 快照 add（原子写 + 
 拒绝：前端只移除列表项，后端无调用、无持久化
 ```
 
-### 9.5 意图路由
-
-```text
-intent:resolve → 确定性正则规则（月度>周度>项目>每日>主题>写日志）命中直接返回 deterministic
-→ 未命中 → 模型在六值枚举内选择（jsonObject）
-→ zod 失败或 intent=null → clarify 固定问题
-前端 intentToTarget 映射为既有 NavigationTarget，用户点"前往"确认跳转
-```
-
-### 9.6 备份与恢复
+### 9.5 备份与恢复
 
 导出：对话框选路径（强制 `.zhiji.zip` 后缀）→ 收集数据文件 → manifest（逐文件 sha256）→ adm-zip 写出。恢复：选包 → preview（校验 manifest、路径白名单、哈希、逐文件业务 schema；返回分类计数与 previewId）→ restore（uuid 校验 previewId；只允许空数据目录；提示重启）。
 
@@ -373,8 +360,8 @@ intent:resolve → 确定性正则规则（月度>周度>项目>每日>主题>�
 
 ## 11. 测试与验证
 
-- `tests/unit/`（36 文件）：domain 纯逻辑、证据分级、提示词解析/渲染、仓储、服务（ProviderPort 注入假实现）。
-- `tests/integration/`（14 文件）：用例级链路（含审计记录、预览门、确认门）。
+- `tests/unit/`（39 文件）：domain 纯逻辑、证据分级、提示词解析/渲染、仓储、服务（ProviderPort 注入假实现）。
+- `tests/integration/`（15 文件）：用例级链路（含审计记录、预览门、确认门）。
 - `e2e/desktop.spec.ts`：真实打包 Electron 主链路（项目、日志保存、历史读取等）。
 - `tests/setup.ts`：jsdom 环境。
 - 测试约定：AI 调用一律注入 `ProviderPort` 假实现，不打真实网络；时间用构造注入的 `now`；文件用临时目录。
@@ -403,7 +390,7 @@ intent:resolve → 确定性正则规则（月度>周度>项目>每日>主题>�
 
 ### 13.2 修改生成类行为
 
-- 是否影响新鲜度快路径（sourceVersions 对比，前后端各一处）？
+- 是否影响新鲜度快路径（`shared/domain/daily-freshness.ts`，前后端同引用）？
 - 是否需要递增 promptVersion？是否需要同步 `skill-runtime/compatibility/` 快照？
 - 是否经过 `ReviewTaskManager` 状态机与 AbortSignal？
 - D 级/材料不足路径是否仍然不调模型、不落盘？
@@ -416,9 +403,9 @@ intent:resolve → 确定性正则规则（月度>周度>项目>每日>主题>�
 
 ## 14. 已知技术债与优化候选（按证据强度排序）
 
-1. **未使用依赖**：react-router-dom、zustand、@tanstack/react-query、react-hook-form、@hookform/resolvers 已声明未使用；清理属低风险维护（先 grep 确认零引用）。
-2. **跨端重复的新鲜度逻辑**：`next-step.ts` 与 `generate-daily-review.ts` 各自实现 sourceVersions 对比；可抽到 shared 纯函数并加对照测试。
-3. **预览/提案 Map 无回收**：`GeneratePeriodicReview`、`GenerateInsightReview` 的 previews 与 `TopicThinkingService` 的 proposals 只在成功 execute/confirm 时删除；放弃的 token 常驻内存至进程退出。单用户场景影响小，但加 TTL 或上限是低成本加固。
+1. ~~**未使用依赖**~~：已于 2026-08-14 清理（移除五个未使用依赖与 react-query 死接线，lock 文件同步）。
+2. ~~**跨端重复的新鲜度逻辑**~~：已于 2026-08-14 抽至 `shared/domain/daily-freshness.ts`，双端对照单测见 `daily-freshness.test.ts`。
+3. **预览 Map 无回收**：`GeneratePeriodicReview`、`GenerateInsightReview` 的 previews 只在成功 execute 时删除；放弃的 token 常驻内存至进程退出。单用户场景影响小，但加 TTL 或上限是低成本加固。（TopicThinkingService 的 proposals 已随 topic-thinking-v2 持久化到会话 checkpoint，不再是内存 Map。）
 4. **IPC 无 sender 校验**：2026-08-13 审计遗留项；当前单窗口场景风险低，做之前评估成本收益。
 5. **日反馈长度仅软约束**：提示词写 320 字但 zod 字段上限宽松且无渲染期校验；出现真实超长样本再加硬校验。
 6. **MarkdownDocument 无内联格式**：加粗/链接/行内代码不渲染；扩展须在安全渲染器内实现。

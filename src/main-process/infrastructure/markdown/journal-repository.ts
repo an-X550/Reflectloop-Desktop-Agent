@@ -98,7 +98,7 @@ export class MarkdownJournalRepository {
 
   async get(id: string): Promise<Journal> {
     if (!/^journal_[a-z0-9]+$/.test(id)) {
-      throw appError({ code: 'INVALID_INPUT', message: 'Invalid journal id.' });
+      throw appError({ code: 'INVALID_INPUT', message: '日志 id 不合法。' });
     }
     const match = (await this.entries()).find((entry) => entry.journal.id === id);
     if (match) return match.journal;

@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { SaveProviderConfigInput } from '../../shared/schemas/ipc';
+import { appError } from '../../shared/errors/app-error';
 import { atomicWriteUtf8 } from '../infrastructure/markdown/atomic-write';
 import { normalizeProviderConfig, PROVIDER_PRESETS, ProviderConfigSchema, type ProviderConfig, type PublicProviderConfig } from '../infrastructure/ai/provider-config';
 import { OpenAiCompatibleProvider } from '../infrastructure/ai/openai-compatible-provider';
@@ -37,7 +38,7 @@ export class ConfigureAi {
     const { apiKey, ...rawConfig } = input;
     const config = normalizeProviderConfig(rawConfig, this.allowLoopbackHttp);
     const key = apiKey || await this.credentials.read(config.providerId);
-    if (!key) throw new Error('请先填写 API Key。');
+    if (!key) throw appError({ code: 'INVALID_INPUT', message: '请先填写 API Key。' });
     await new OpenAiCompatibleProvider({ ...config, apiKey: key }).testConnection();
   }
 
@@ -50,7 +51,7 @@ export class ConfigureAi {
   async collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> {
     const config = await this.readConfig();
     const apiKey = await this.credentials.read(config.providerId);
-    if (!apiKey) throw new Error('请先在设置中保存 API Key。');
+    if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
     return new OpenAiCompatibleProvider({ ...config, apiKey }).collect(messages, signal, options);
   }
 }

@@ -21,6 +21,12 @@ describe('MarkdownJournalRepository', () => {
     await expect(readFile(path.join(root, 'journals/2026/2026-08-13--journal_b2.md'), 'utf8')).resolves.toContain('第二条');
   });
 
+  it('rejects malformed journal ids with a Chinese message', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'zhiji-journal-'));
+    const repository = new MarkdownJournalRepository(root);
+    await expect(repository.get('../escape')).rejects.toMatchObject({ code: 'INVALID_INPUT', message: '日志 id 不合法。' });
+  });
+
   it('updates only the requested journal and rejects stale edits', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'zhiji-journal-'));
     const repository = new MarkdownJournalRepository(root);

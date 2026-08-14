@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
-import type { TopicIndexEntry, TopicMessage, TopicSession } from '../../shared/schemas/domain';
+import type { TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicMessage, TopicProposal, TopicSession, TopicStartResult } from '../../shared/schemas/domain';
 import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
 import type { TopicRepository } from '../infrastructure/topics/topic-repository';
 import type { TopicSessionStore } from '../infrastructure/topics/topic-session-store';
@@ -9,14 +9,8 @@ import { parseTopicSummaryOutput, topicDiscussPrompt, topicFirstDraftPrompt, top
 
 interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> }
 
-export interface TopicSummaryProposal {
-  mode: 'create' | 'update';
-  targetTopic?: string;
-  existingBody?: string;
-  summary: TopicSummaryOutput;
-}
-
 const MAX_REFERENCED_TOPICS = 2;
+const MAX_CONTEXT_EXCERPT = 500;
 
 function longestCommonSubstring(a: string, b: string): number {
   let best = 0;
@@ -52,8 +46,6 @@ export function findRelatedTopics(question: string, entries: TopicIndexEntry[]):
  * 会话通过文件型 checkpoint 持久化，应用重启后可恢复；未经确认不写入任何主题文件。
  */
 export class TopicThinkingService {
-  private readonly proposals = new Map<string, TopicSummaryProposal>();
-
   constructor(
     private readonly topics: Pick<TopicRepository, 'listIndex' | 'getTopic' | 'saveTopic'>,
     private readonly sessions: Pick<TopicSessionStore, 'save' | 'load' | 'list' | 'remove'>,
@@ -61,18 +53,20 @@ export class TopicThinkingService {
     private readonly now: () => string = () => new Date().toISOString(),
   ) {}
 
-  async start(input: { question: string; model: string }): Promise<{ sessionId: string; draft: string; referencedTopics: { topic: string; title: string }[] }> {
+  async start(input: { question: string; model: string; contextExcerpt?: string }): Promise<TopicStartResult> {
     const index = await this.topics.listIndex();
     const related = findRelatedTopics(input.question, index.entries);
     const referenced = await Promise.all(related.map(async (entry) => ({
       entry,
       body: await this.topics.getTopic(entry.topic).catch(() => ''),
     })));
+    const contextExcerpt = input.contextExcerpt ? input.contextExcerpt.slice(0, MAX_CONTEXT_EXCERPT) : undefined;
     const raw = await this.provider.collect([
       { role: 'system', content: topicFirstDraftPrompt() },
       { role: 'user', content: JSON.stringify({
         question: input.question,
         referencedTopics: referenced.filter((item) => item.body).map((item) => ({ title: item.entry.title, body: item.body })),
+        ...(contextExcerpt ? { contextExcerpt } : {}),
       }) },
     ]);
     const at = this.now();
@@ -92,7 +86,7 @@ export class TopicThinkingService {
     return { sessionId: session.id, draft: raw, referencedTopics: related.map((entry) => ({ topic: entry.topic, title: entry.title })) };
   }
 
-  async discuss(input: { sessionId: string; message: string; model: string }): Promise<{ reply: string }> {
+  async discuss(input: { sessionId: string; message: string; model: string }): Promise<TopicDiscussResult> {
     const session = await this.requireSession(input.sessionId);
     const history: TopicMessage[] = [...session.messages, { role: 'user', content: input.message, at: this.now() }];
     const raw = await this.provider.collect([
@@ -102,38 +96,51 @@ export class TopicThinkingService {
     await this.sessions.save({
       ...session,
       messages: [...history, { role: 'assistant', content: raw, at: this.now() }],
+      proposal: undefined,
       updatedAt: this.now(),
     });
     return { reply: raw };
   }
 
-  async proposeSummary(input: { sessionId: string; model: string }): Promise<TopicSummaryProposal> {
-    const session = await this.requireSession(input.sessionId);
+  private async summarize(payload: Record<string, unknown>, existingBody?: string): Promise<TopicSummaryOutput> {
     const raw = await this.provider.collect([
-      { role: 'system', content: topicSummaryPrompt() },
-      { role: 'user', content: JSON.stringify({ question: session.question, messages: session.messages }) },
+      { role: 'system', content: topicSummaryPrompt(existingBody) },
+      { role: 'user', content: JSON.stringify(payload) },
     ], undefined, { jsonObject: true });
-    let summary: TopicSummaryOutput;
     try {
-      summary = parseTopicSummaryOutput(raw);
+      return parseTopicSummaryOutput(raw);
     } catch {
       throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的主题归纳格式无效。' });
     }
+  }
+
+  private matchExisting(summary: TopicSummaryOutput, entries: TopicIndexEntry[]): TopicIndexEntry | undefined {
     const topic = safeTopicName(summary.title);
-    const index = await this.topics.listIndex();
-    const existing = index.entries.find((entry) => entry.topic === topic || entry.title === summary.title || entry.aliases.some((alias) => summary.aliases.includes(alias) || alias === summary.title));
-    const proposal: TopicSummaryProposal = existing
-      ? { mode: 'update', targetTopic: existing.topic, existingBody: await this.topics.getTopic(existing.topic).catch(() => ''), summary }
-      : { mode: 'create', summary };
-    this.proposals.set(input.sessionId, proposal);
+    return entries.find((entry) => entry.topic === topic || entry.title === summary.title || entry.aliases.some((alias) => summary.aliases.includes(alias) || alias === summary.title));
+  }
+
+  async proposeSummary(input: { sessionId: string; model: string }): Promise<TopicProposal> {
+    const session = await this.requireSession(input.sessionId);
+    const basePayload = { question: session.question, messages: session.messages };
+    let summary = await this.summarize(basePayload);
+    const existing = this.matchExisting(summary, (await this.topics.listIndex()).entries);
+    let proposal: TopicProposal;
+    if (existing) {
+      const existingBody = await this.topics.getTopic(existing.topic).catch(() => '');
+      summary = await this.summarize({ ...basePayload, existingBody }, existingBody);
+      proposal = { mode: 'update', targetTopic: existing.topic, existingBody, summary };
+    } else {
+      proposal = { mode: 'create', summary };
+    }
+    await this.sessions.save({ ...session, proposal, updatedAt: this.now() });
     return proposal;
   }
 
-  async confirm(input: { sessionId: string }): Promise<{ topic: string }> {
-    const proposal = this.proposals.get(input.sessionId);
+  async confirm(input: { sessionId: string }): Promise<TopicConfirmResult> {
+    const session = await this.requireSession(input.sessionId);
+    const proposal = session.proposal;
     if (!proposal) throw appError({ code: 'INVALID_INPUT', message: '请先生成主题归纳，再确认沉淀。' });
     const topic = await this.topics.saveTopic(proposal.summary);
-    this.proposals.delete(input.sessionId);
     await this.sessions.remove(input.sessionId);
     return { topic };
   }
@@ -142,7 +149,7 @@ export class TopicThinkingService {
     return (await this.topics.listIndex()).entries;
   }
 
-  async get(input: { topic: string }): Promise<{ topic: string; body: string }> {
+  async get(input: { topic: string }): Promise<TopicContent> {
     return { topic: input.topic, body: await this.topics.getTopic(input.topic) };
   }
 

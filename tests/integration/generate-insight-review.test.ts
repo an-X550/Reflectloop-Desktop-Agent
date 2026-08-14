@@ -72,4 +72,13 @@ describe('GenerateInsightReview', () => {
     expect(system).not.toContain('/life-design');
     expect(system).not.toContain('自动生成');
   });
+
+  it('expires preview tokens after the TTL window', async () => {
+    let current = '2026-08-13T10:00:00.000Z';
+    const service = new GenerateInsightReview({ list: async () => journals } as never, { list: async () => [], save: async (review: Review) => review } as never, { collect: async () => '# result' }, tasks, () => current);
+    const input = { type: 'coach' as const, start: '2026-08-01', end: '2026-08-13', model: 'fake' };
+    const preview = await service.preview(input);
+    current = '2026-08-13T10:31:00.000Z';
+    await expect(service.execute({ ...input, previewToken: preview.token })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
 });

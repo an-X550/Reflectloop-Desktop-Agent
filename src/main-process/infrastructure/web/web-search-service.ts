@@ -4,6 +4,7 @@ import { WebSearchResultSchema, WebSourceContentSchema, type WebSearchResult, ty
 
 const MAX_RESULTS = 8;
 const MAX_EXCERPT = 2000;
+const MAX_SESSIONS = 20;
 
 interface WebSearchSession {
   id: string;
@@ -55,12 +56,20 @@ export class WebSearchService {
   constructor(
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly now: () => string = () => new Date().toISOString(),
+    private readonly timeoutMs = 15_000,
   ) {}
 
+  private timedFetch(url: string): Promise<Response> {
+    return this.fetchImpl(url, { headers: { 'user-agent': 'zhiji-desktop/1.0' }, signal: AbortSignal.timeout(this.timeoutMs) });
+  }
+
   async search(input: { query: string }): Promise<{ searchSessionId: string; results: WebSearchResult[] }> {
-    const response = await this.fetchImpl(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(input.query)}`, {
-      headers: { 'user-agent': 'zhiji-desktop/1.0' },
-    });
+    let response: Response;
+    try {
+      response = await this.timedFetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(input.query)}`);
+    } catch {
+      throw appError({ code: 'NETWORK_TIMEOUT' });
+    }
     if (!response.ok) throw appError({ code: 'WEB_SEARCH_FAILED', message: `搜索请求失败（HTTP ${response.status}）。` });
     const html = await response.text();
     const results: WebSearchResult[] = [];
@@ -89,6 +98,11 @@ export class WebSearchService {
       createdAt: this.now(),
     };
     this.sessions.set(session.id, session);
+    while (this.sessions.size > MAX_SESSIONS) {
+      const oldest = this.sessions.keys().next();
+      if (oldest.done) break;
+      this.sessions.delete(oldest.value);
+    }
     return { searchSessionId: session.id, results };
   }
 
@@ -101,7 +115,12 @@ export class WebSearchService {
     if (url.protocol !== 'https:' && url.protocol !== 'http:') {
       throw appError({ code: 'INVALID_INPUT', message: '只允许读取 http/https 来源。' });
     }
-    const response = await this.fetchImpl(result.url, { headers: { 'user-agent': 'zhiji-desktop/1.0' } });
+    let response: Response;
+    try {
+      response = await this.timedFetch(result.url);
+    } catch {
+      throw appError({ code: 'WEB_SOURCE_FAILED', message: '读取来源失败（网络超时或不可达）。' });
+    }
     if (!response.ok) throw appError({ code: 'WEB_SOURCE_FAILED', message: `读取来源失败（HTTP ${response.status}）。` });
     const html = await response.text();
     return WebSourceContentSchema.parse({

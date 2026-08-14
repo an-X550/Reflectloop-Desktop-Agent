@@ -44,6 +44,13 @@ describe('OpenAiCompatibleProvider', () => {
     await expect(provider.collect([{ role: 'user', content: 'hello' }])).resolves.toBe('你好');
   });
 
+  it('skips malformed SSE frames instead of failing the whole generation', async () => {
+    const body = 'data: {"choices":[{"delta":{"content":"你"}}]}\n\ndata: {broken-json!!\n\ndata: {"choices":[{"delta":{"content":"好"}}]}\n\ndata: [DONE]\n\n';
+    const baseUrl = await endpoint(200, body, 'text/event-stream');
+    const provider = new OpenAiCompatibleProvider({ baseUrl, model: 'fake', apiKey: 'x' });
+    await expect(provider.collect([{ role: 'user', content: 'hello' }])).resolves.toBe('你好');
+  });
+
   it('requests JSON object mode only for structured generations', async () => {
     let requestBody: unknown;
     const body = 'data: {"choices":[{"delta":{"content":"{}"}}]}\n\ndata: [DONE]\n\n';

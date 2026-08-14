@@ -8,7 +8,8 @@ export type NavigationIntent =
   | { type: 'review.monthly'; month?: string }
   | { type: 'review.yearly'; year?: string }
   | { type: 'review.coach' }
-  | { type: 'review.project'; projectId: string };
+  | { type: 'review.project'; projectId: string }
+  | { type: 'topics.start'; question?: string; contextExcerpt?: string };
 
 export type NavigationTarget = { view: AppView; intent?: NavigationIntent };
 

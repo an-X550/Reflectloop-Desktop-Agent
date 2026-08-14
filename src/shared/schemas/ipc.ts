@@ -85,9 +85,7 @@ export type ProposePatternsInput = z.infer<typeof ProposePatternsInputSchema>;
 export type ConfirmPatternInput = z.infer<typeof ConfirmPatternInputSchema>;
 
 const TopicSessionId = z.string().regex(/^topicsession_[a-z0-9]+$/);
-export const IntentResolveInputSchema = z.object({ text: z.string().trim().min(1).max(2000) }).strict();
-export type IntentResolveInput = z.infer<typeof IntentResolveInputSchema>;
-export const StartTopicInputSchema = z.object({ question: z.string().trim().min(1).max(2000) }).strict();
+export const StartTopicInputSchema = z.object({ question: z.string().trim().min(1).max(2000), contextExcerpt: z.string().max(20_000).optional() }).strict();
 export const DiscussTopicInputSchema = z.object({ sessionId: TopicSessionId, message: z.string().trim().min(1).max(4000) }).strict();
 export const TopicSessionInputSchema = z.object({ sessionId: TopicSessionId }).strict();
 export const TopicNameInputSchema = z.object({ topic: z.string().trim().min(1).max(80) }).strict();

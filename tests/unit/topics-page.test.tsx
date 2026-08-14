@@ -67,6 +67,8 @@ describe('TopicsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '生成主题归纳' }));
     expect(await screen.findByText(/更新既有主题：职业选择/)).toBeInTheDocument();
     expect(screen.getByText('旧正文')).toBeInTheDocument();
+    expect(screen.queryByText(/将被新归纳覆盖/)).not.toBeInTheDocument();
+    expect(screen.getByText(/重组后的完整正文/)).toBeInTheDocument();
     expect(window.zhiji.topics.confirm).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: '确认沉淀' }));
     await waitFor(() => expect(window.zhiji.topics.confirm).toHaveBeenCalledWith({ sessionId: 'topicsession_new1' }));
@@ -98,5 +100,30 @@ describe('TopicsPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '阅读原文' }));
     expect(await screen.findByText('正文摘录')).toBeInTheDocument();
     expect(window.zhiji.web.readSource).toHaveBeenCalledWith({ searchSessionId: 'search_s1', sourceId: 'source_a1b2' });
+  });
+
+  it('prefills the question and carries the source excerpt from a topics.start intent', async () => {
+    render(<TopicsPage intent={{ type: 'topics.start', question: '预填的困惑', contextExcerpt: '日反馈摘录' }}/>);
+    expect(screen.getByLabelText('主题问题')).toHaveValue('预填的困惑');
+    expect(screen.getByText(/已带入来源页的摘录/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '开始讨论' }));
+    await waitFor(() => expect(window.zhiji.topics.start).toHaveBeenCalledWith({ question: '预填的困惑', contextExcerpt: '日反馈摘录' }));
+  });
+
+  it('keeps the empty textarea as a fallback entry without any context excerpt', async () => {
+    render(<TopicsPage/>);
+    expect(screen.queryByText(/已带入来源页的摘录/)).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('主题问题'), { target: { value: '徒手提问' } });
+    fireEvent.click(screen.getByRole('button', { name: '开始讨论' }));
+    await waitFor(() => expect(window.zhiji.topics.start).toHaveBeenCalledWith({ question: '徒手提问' }));
+  });
+
+  it('renders the AI first draft as Markdown rather than plain text', async () => {
+    vi.mocked(window.zhiji.topics.start).mockResolvedValueOnce({ sessionId: 'topicsession_md1', draft: '## 当前判断\n先看现金流', referencedTopics: [] });
+    render(<TopicsPage/>);
+    fireEvent.change(screen.getByLabelText('主题问题'), { target: { value: '一个问题' } });
+    fireEvent.click(screen.getByRole('button', { name: '开始讨论' }));
+    const heading = await screen.findByText('当前判断');
+    expect(heading.closest('.markdown-document')).not.toBeNull();
   });
 });

@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Journal, Project, Review } from '../../shared/schemas/domain';
-import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
-import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
+import type { DataDirectoryInfo, Journal, Project, PublicProviderConfig, Review } from '../../shared/schemas/domain';
 
 export function useAppData() {
   const [journals, setJournals] = useState<Journal[]>([]); const [projects, setProjects] = useState<Project[]>([]); const [reviews, setReviews] = useState<Review[]>([]); const [settings, setSettings] = useState<PublicProviderConfig | null>(null); const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState('');

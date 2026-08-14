@@ -28,6 +28,8 @@
 | 方向锚点缺席检查 | 模型按五态（有推进/缺席-未执行/缺席-未记录/目标变化/证据不足）逐个标注，zod 枚举强制；空锚点时渲染显式披露 | `periodic-review-v1.test.ts` | 本阶段实现 |
 | 周报深度 | 原因分析只做 3Why；下周规划必含目标 + 手段 + 检查方式 | `periodic-review-v1.test.ts` | 本阶段实现 |
 | 月报深度 | 正式写报告前归并 2-3 个主主题（主题名/支持视角/关键证据/反例或证据不足/对重来或下月规划的意义），下月规划含目标+手段+检查点+假说；触发条件（长期方向冲突/重复卡点/工作观人生观冲突/只能局部修补）满足时输出一条基于证据的升级提醒，指向复盘页的方向校准（life-design），不自动生成；主主题不足时代码强制披露不硬凑 | `periodic-review-v1.test.ts`、`periodic-runtime.test.ts` | 本阶段实现 |
+| 月报额外一级标题（D3） | 月报渲染额外输出 `## 主主题`、`## 方向锚点缺席检查` 一级标题；Skill 契约要求主主题只在六问内归并 | `periodic-review-v1.test.ts` | 有意差异（主主题与方向锚点的显式披露在桌面语境有价值，2026-08-14 登记） |
+| 月复盘视角证据包层（D4） | Skill 侧 monthly-processor 按视角生成证据包；桌面端月复盘以周复盘为主材料，无视角证据包层 | 不适用 | 设计性差异，不实现（复刻视角层不符合桌面单次调用架构，2026-08-14 登记） |
 | 材料预览与确认 | 预览材料并生成 digest；确认后才执行生成 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 正式复盘写入 | 原子写入并由仓储保存 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 分发、提醒、飞书、滴答 | 不属于桌面第二阶段 | 不适用 | 排除 |
@@ -52,14 +54,11 @@
 | sourceId 会话绑定 | readSource 校验搜索会话存在且 sourceId 属于该会话，拒绝伪造 ID；仅 http/https | `web-search-service.test.ts` | 本阶段实现 |
 | 向量检索、自动归档、任意 URL 执行 | 不属于桌面第四阶段 | 不适用 | 排除 |
 
-## 第五阶段：模糊意图路由
+## 第五阶段：模糊意图路由（已下线）
 
 | 已冻结规则能力 | 桌面端行为 | 验收测试 | 状态 |
 |---|---|---|---|
-| 确定性匹配优先 | 固定关键词规则命中时不调用模型；月度规则先于周度避免误判 | `intent-routing.test.ts` | 本阶段实现 |
-| 模型只能从固定枚举选择 | 未命中时模型在 WorkflowIntent 六值枚举内选择，严格 Zod 校验 | `intent-routing.test.ts` | 本阶段实现 |
-| 校验失败回退澄清 | 模型输出不合 Schema 或返回 null 时返回澄清问题，不猜测、不创建新流程 | `intent-routing.test.ts`、`start-page.test.tsx` | 本阶段实现 |
-| 路由只带路 | 意图映射到既有导航目标，不新增视图 | `intent-target.test.ts` | 本阶段实现 |
+| 模糊意图路由全链路（确定性匹配/枚举选择/澄清回退/路由映射） | 已下线（2026-08-14 用户决策）：首页意图输入框、出发/前往按钮、`intent:resolve` IPC、`intent-routing` 服务与提示词整体删除；首页保留建议下一步卡片与能力链接 | 无（相关测试已删除） | 已下线 |
 
 ## 洞察工具（coach / yearly / life-design）
 
@@ -74,12 +73,18 @@
 | 材料预览与确认 | 三链路同一预览-digest 确认门 | `generate-insight-review.test.ts` | 已有，保留 |
 | standard/full/odyssey 模式、部分综合 | 不属于桌面端洞察范围 | 不适用 | 排除 |
 
+## 数据平面（D1 已知差异）
+
+| Skill 侧数据面 | 桌面端数据面 | 差异与用户后果 | 状态 |
+|---|---|---|---|
+| 日志 `日志/YYYY-MM-DD.md`、复盘 `复盘/每日反馈/YYYY-MM-DD.md` 等（`.claude/shared/paths.md` 契约） | 日志 `journals/{年}/{日期}--{id}.md`、复盘 `reviews/{type}/...`（独立目录结构与 frontmatter 格式） | 双轨数据互不可消费：文件命名与格式完全非对称，同时使用两套系统时，任一侧的复盘/昨日闭环/材料选择都读不到另一侧记录，用户需重复录入；单轨使用无影响 | 已知差异（2026-08-14 登记）；若实际双轨使用，优先评估“桌面端导出→Skill 目录导入”单向只读桥，不做双向互通 |
+
 ## 隔离规则
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v3`（增记 D 级判级复核）；提示词版本：`daily-review-v3`。
 - 周期复盘兼容快照版本：`desktop-periodic-review-v3`（增记月报深度）；提示词版本：`periodic-review-v4`。
-- 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
-- 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。
+- 主题思考提示词版本：`topic-thinking-v2`（自有快照，不读取 `.claude/shared/contracts/`）。
+- 意图路由已下线（2026-08-14 用户决策）：原 `intent-routing-v1` 提示词与相关实现已删除，Skill 侧 `codex-natural-language-routing.md` 契约（CLI 域）不受影响。
 - 洞察工具提示词版本：`journal-coach-v3`、`yearly-review-v2`、`life-design-v2`（语义参考 `.claude/agents/` 与 `.claude/commands/` 对应 command/agent，运行不依赖它们；设计性差异见洞察工具节与契约对照表）。
 - 桌面端运行时禁止依赖 `.claude` 路径。
 - 原有 Codex + Skill 的开发和日常运行不受桌面端代码、审计或数据影响。

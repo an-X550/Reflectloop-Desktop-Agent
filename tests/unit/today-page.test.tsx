@@ -58,6 +58,17 @@ describe('TodayPage', () => {
     expect(await screen.findByText('今天最重要的反馈')).toBeInTheDocument();
   });
 
+  it('offers to dive deeper from the daily feedback with the body as prefilled context', async () => {
+    const onNavigate = vi.fn();
+    const review: Review = { schemaVersion: 1, id: 'review_a1', type: 'daily', periodStart: date, periodEnd: date, sourceIds: [journal.id], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'daily-review-v1', createdAt: `${date}T01:00:00.000Z`, body: '今天最重要的判断：先补现金流。' };
+    vi.mocked(window.zhiji.reviews.generateDaily).mockResolvedValueOnce({ kind: 'review', review });
+    render(<TodayPage journals={[journal]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={onNavigate}/>);
+    fireEvent.change(screen.getByRole('textbox', { name: '日志内容' }), { target: { value: '新内容' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存并生成今日反馈' }));
+    fireEvent.click(await screen.findByRole('button', { name: '就这个深入探讨' }));
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'topics', intent: { type: 'topics.start', question: '今天最重要的判断：先补现金流。', contextExcerpt: '今天最重要的判断：先补现金流。' } });
+  });
+
   it('keeps saving available while pointing an unconfigured user to AI settings', () => {
     const onNavigate = vi.fn(); render(<TodayPage journals={[]} projects={[]} reviews={[]} hasApiKey={false} onRefresh={vi.fn()} onNavigate={onNavigate}/>);
     expect(screen.getByText('日志可直接保存；配置后还能生成反馈。')).toBeInTheDocument();

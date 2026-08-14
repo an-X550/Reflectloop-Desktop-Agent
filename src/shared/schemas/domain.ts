@@ -93,12 +93,24 @@ export const TopicMessageSchema = z.object({
   content: z.string().min(1).max(20_000),
   at: IsoDateTime,
 });
+export const TopicProposalSchema = z.object({
+  mode: z.enum(['create', 'update']),
+  targetTopic: z.string().trim().min(1).max(80).optional(),
+  existingBody: z.string().max(40_000).optional(),
+  summary: z.object({
+    title: z.string().trim().min(1).max(120),
+    coreQuestion: z.string().trim().min(1).max(500),
+    aliases: z.array(z.string().trim().min(1).max(80)).max(3),
+    body: z.string().trim().min(1).max(20_000),
+  }).strict(),
+}).strict();
 export const TopicSessionSchema = z.object({
   schemaVersion: z.literal(1),
   id: z.string().regex(/^topicsession_[a-z0-9]+$/),
   question: z.string().trim().min(1).max(2000),
   referencedTopics: z.array(z.string().trim().min(1).max(80)).max(2),
   messages: z.array(TopicMessageSchema).max(200),
+  proposal: TopicProposalSchema.optional(),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -113,6 +125,7 @@ export const WebSearchResultSchema = z.object({
 export type TopicIndexEntry = z.infer<typeof TopicIndexEntrySchema>;
 export type TopicIndex = z.infer<typeof TopicIndexSchema>;
 export type TopicMessage = z.infer<typeof TopicMessageSchema>;
+export type TopicProposal = z.infer<typeof TopicProposalSchema>;
 export type TopicSession = z.infer<typeof TopicSessionSchema>;
 export type WebSearchResult = z.infer<typeof WebSearchResultSchema>;
 
@@ -124,11 +137,80 @@ export const WebSourceContentSchema = z.object({
 }).strict();
 export type WebSourceContent = z.infer<typeof WebSourceContentSchema>;
 
-export const WorkflowIntentSchema = z.enum(['write-journal', 'daily-review', 'weekly-review', 'monthly-review', 'project-review', 'topic-thinking']);
-export type WorkflowIntent = z.infer<typeof WorkflowIntentSchema>;
+// —— 契约层共享类型（S5：从 main-process 归位到 shared，消除反向依赖） ——
 
-export const IntentResolutionSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('matched'), intent: WorkflowIntentSchema, source: z.enum(['deterministic', 'model']), reason: z.string().max(200) }).strict(),
-  z.object({ kind: z.literal('clarify'), question: z.string().trim().min(1).max(500) }).strict(),
-]);
-export type IntentResolution = z.infer<typeof IntentResolutionSchema>;
+export const ProviderConfigSchema = z.object({
+  providerId: z.enum(['openai', 'deepseek', 'custom']),
+  baseUrl: z.string().trim().min(1).max(2048),
+  model: z.string().trim().min(1).max(160),
+}).strict();
+export const PublicProviderConfigSchema = ProviderConfigSchema.extend({ hasApiKey: z.boolean() }).strict();
+export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type PublicProviderConfig = z.infer<typeof PublicProviderConfigSchema>;
+
+const DataCategoryCountsSchema = z.object({
+  journals: z.number().int().nonnegative(),
+  reviews: z.number().int().nonnegative(),
+  projects: z.number().int().nonnegative(),
+  profile: z.number().int().nonnegative(),
+  settings: z.number().int().nonnegative(),
+}).strict();
+export const DataDirectoryInfoSchema = z.object({
+  path: z.string().min(1),
+  writable: z.boolean(),
+  fileCount: z.number().int().nonnegative(),
+  totalBytes: z.number().int().nonnegative(),
+  categories: DataCategoryCountsSchema,
+}).strict();
+export type DataDirectoryInfo = z.infer<typeof DataDirectoryInfoSchema>;
+
+// —— 契约返回类型命名化（S5：desktop-api 匿名内联类型归位） ——
+
+export const BackupExportOutcomeSchema = z.object({
+  canceled: z.boolean(),
+  path: z.string().min(1).optional(),
+  fileCount: z.number().int().nonnegative().optional(),
+  totalBytes: z.number().int().nonnegative().optional(),
+}).strict();
+export type BackupExportOutcome = z.infer<typeof BackupExportOutcomeSchema>;
+
+export const RestorePreviewOutcomeSchema = z.object({
+  canceled: z.boolean(),
+  previewId: z.string().min(1).optional(),
+  archivePath: z.string().min(1).optional(),
+  exportedAt: z.string().min(1).optional(),
+  appVersion: z.string().min(1).optional(),
+  fileCount: z.number().int().nonnegative().optional(),
+  totalBytes: z.number().int().nonnegative().optional(),
+  categories: DataCategoryCountsSchema.optional(),
+}).strict();
+export type RestorePreviewOutcome = z.infer<typeof RestorePreviewOutcomeSchema>;
+
+export const RestoreResultSchema = z.object({
+  fileCount: z.number().int().nonnegative(),
+}).strict();
+export type RestoreResult = z.infer<typeof RestoreResultSchema>;
+
+/** 周期与洞察复盘共用的材料预览结果（原 preview/previewInsight 重复定义合并）。 */
+export const ReviewPreviewSchema = z.object({
+  token: z.string().min(1),
+  type: z.string().min(1),
+  start: IsoDate,
+  end: IsoDate,
+  sources: z.array(z.object({ id: z.string().min(1), date: IsoDate, excerpt: z.string() })),
+}).strict();
+export type ReviewPreview = z.infer<typeof ReviewPreviewSchema>;
+
+export const TopicStartResultSchema = z.object({
+  sessionId: z.string().regex(/^topicsession_[a-z0-9]+$/),
+  draft: z.string().min(1),
+  referencedTopics: z.array(z.object({ topic: z.string().min(1), title: z.string().min(1) })),
+}).strict();
+export type TopicStartResult = z.infer<typeof TopicStartResultSchema>;
+
+export const TopicDiscussResultSchema = z.object({ reply: z.string().min(1) }).strict();
+export type TopicDiscussResult = z.infer<typeof TopicDiscussResultSchema>;
+export const TopicConfirmResultSchema = z.object({ topic: z.string().min(1) }).strict();
+export type TopicConfirmResult = z.infer<typeof TopicConfirmResultSchema>;
+export const TopicContentSchema = z.object({ topic: z.string().min(1), body: z.string() }).strict();
+export type TopicContent = z.infer<typeof TopicContentSchema>;

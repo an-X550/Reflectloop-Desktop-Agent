@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const TOPIC_THINKING_PROMPT_VERSION = 'topic-thinking-v1';
+export const TOPIC_THINKING_PROMPT_VERSION = 'topic-thinking-v2';
 
 const SHARED_RULES = `你在知己桌面端与用户讨论一个长期困惑、既有观点或价值判断。
 
@@ -14,7 +14,8 @@ const SHARED_RULES = `你在知己桌面端与用户讨论一个长期困惑、�
 export function topicFirstDraftPrompt(): string {
   return `${SHARED_RULES}
 
-这是首次讨论。如果用户消息中带 referencedTopics，它们是用户既有的相关主题认识，最多两条；参考时明确说出参考了哪条，当前表达优先于历史认识。`;
+这是首次讨论。如果用户消息中带 referencedTopics，它们是用户既有的相关主题认识，最多两条；参考时明确说出参考了哪条，当前表达优先于历史认识。
+如果用户消息中带 contextExcerpt，以下为相关背景摘录（来自日反馈或复盘结果，最多 500 字），可回查引用；它只是背景，不改变主线要求。`;
 }
 
 export function topicDiscussPrompt(): string {
@@ -23,8 +24,11 @@ export function topicDiscussPrompt(): string {
 这是继续讨论。回应用户带来的新信息：它补强、修正还是反驳了当前判断？必要时更新判断主线，不要重复已经说过的内容。`;
 }
 
-export function topicSummaryPrompt(): string {
-  return `你是知己 Skill 的主题归纳器。把对话中用户已经明确认可的认识归纳为一篇可长期保留的主题文件。
+export function topicSummaryPrompt(existingBody?: string): string {
+  const mergeRule = existingBody
+    ? '\n用户消息中会带 existingBody，这是该主题的既有正文。请结合本轮对话，重组整篇当前论证而非仅写新内容；可改写、移动、合并或删除旧内容，不追加与当前判断无关的历史内容。'
+    : '';
+  return `你是知己 Skill 的主题归纳器。把对话中用户已经明确认可的认识归纳为一篇可长期保留的主题文件。${mergeRule}
 
 规则：
 - 只归纳用户在对话中明确表达或认可的判断；AI 单方面观点不得写成用户认识。

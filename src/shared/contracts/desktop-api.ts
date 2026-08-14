@@ -1,16 +1,13 @@
-import type { DailyGenerationResult, IntentResolution, Journal, PeriodicGenerationResult, Profile, Project, Review, TopicIndexEntry, TopicSession, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
-import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, IntentResolveInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
-import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
-import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
-import type { TopicSummaryProposal } from '../../main-process/application/topic-thinking';
+import type { BackupExportOutcome, DailyGenerationResult, DataDirectoryInfo, Journal, PeriodicGenerationResult, Profile, Project, PublicProviderConfig, RestorePreviewOutcome, RestoreResult, Review, ReviewPreview, TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicProposal, TopicSession, TopicStartResult, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
+import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
 
 export interface ZhijiDesktopApi {
   dataDirectory: { getInfo(): Promise<DataDirectoryInfo>; open(): Promise<void> };
   profile: { get(): Promise<Profile | null>; save(input: SaveProfileInput): Promise<Profile>; clear(): Promise<void> };
   transfer: {
-    exportBackup(): Promise<{ canceled: boolean; path?: string; fileCount?: number; totalBytes?: number }>;
-    previewRestore(): Promise<{ canceled: boolean; previewId?: string; archivePath?: string; exportedAt?: string; appVersion?: string; fileCount?: number; totalBytes?: number; categories?: { journals: number; reviews: number; projects: number; profile: number; settings: number } }>;
-    restore(previewId: string): Promise<{ fileCount: number }>;
+    exportBackup(): Promise<BackupExportOutcome>;
+    previewRestore(): Promise<RestorePreviewOutcome>;
+    restore(previewId: string): Promise<RestoreResult>;
   };
   journals: {
     create(input: CreateJournalInput): Promise<Journal>;
@@ -37,9 +34,9 @@ export interface ZhijiDesktopApi {
     generateDaily(input: { date: string; regenerate?: boolean }): Promise<DailyGenerationResult>;
     list(): Promise<Review[]>;
     cancel(): Promise<void>;
-    preview(input: PeriodicReviewPreviewInput): Promise<{ token: string; type: string; start: string; end: string; sources: { id: string; date: string; excerpt: string }[] }>;
+    preview(input: PeriodicReviewPreviewInput): Promise<ReviewPreview>;
     generatePeriodic(input: PeriodicReviewGenerateInput): Promise<PeriodicGenerationResult>;
-    previewInsight(input: InsightReviewPreviewInput): Promise<{ token: string; type: string; start: string; end: string; sources: { id: string; date: string; excerpt: string }[] }>;
+    previewInsight(input: InsightReviewPreviewInput): Promise<ReviewPreview>;
     generateInsight(input: InsightReviewGenerateInput): Promise<Review>;
     delete(id: string): Promise<void>;
   };
@@ -49,12 +46,12 @@ export interface ZhijiDesktopApi {
     confirm(input: ConfirmPatternInput): Promise<VerifiedPattern>;
   };
   topics: {
-    start(input: StartTopicInput): Promise<{ sessionId: string; draft: string; referencedTopics: { topic: string; title: string }[] }>;
-    discuss(input: DiscussTopicInput): Promise<{ reply: string }>;
-    propose(input: TopicSessionInput): Promise<TopicSummaryProposal>;
-    confirm(input: TopicSessionInput): Promise<{ topic: string }>;
+    start(input: StartTopicInput): Promise<TopicStartResult>;
+    discuss(input: DiscussTopicInput): Promise<TopicDiscussResult>;
+    propose(input: TopicSessionInput): Promise<TopicProposal>;
+    confirm(input: TopicSessionInput): Promise<TopicConfirmResult>;
     list(): Promise<TopicIndexEntry[]>;
-    get(input: TopicNameInput): Promise<{ topic: string; body: string }>;
+    get(input: TopicNameInput): Promise<TopicContent>;
     sessions(): Promise<TopicSession[]>;
     resume(input: TopicSessionInput): Promise<TopicSession>;
   };
@@ -62,5 +59,4 @@ export interface ZhijiDesktopApi {
     search(input: WebSearchInput): Promise<{ searchSessionId: string; results: WebSearchResult[] }>;
     readSource(input: ReadWebSourceInput): Promise<WebSourceContent>;
   };
-  intent: { resolve(input: IntentResolveInput): Promise<IntentResolution> };
 }

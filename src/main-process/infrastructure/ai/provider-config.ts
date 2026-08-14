@@ -1,19 +1,15 @@
-import { z } from 'zod';
 import { appError } from '../../../shared/errors/app-error';
+import { ProviderConfigSchema, type ProviderConfig } from '../../../shared/schemas/domain';
+
+// S5：配置类型定义已归位到 shared/schemas/domain.ts，此处保留再导出以兼容既有引用
+export { ProviderConfigSchema };
+export type { ProviderConfig };
+export type { PublicProviderConfig } from '../../../shared/schemas/domain';
 
 export const PROVIDER_PRESETS = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-5-mini' },
   deepseek: { baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
 } as const;
-
-export const ProviderConfigSchema = z.object({
-  providerId: z.enum(['openai', 'deepseek', 'custom']),
-  baseUrl: z.string().trim().min(1).max(2048),
-  model: z.string().trim().min(1).max(160),
-}).strict();
-
-export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
-export type PublicProviderConfig = ProviderConfig & { hasApiKey: boolean };
 
 export function normalizeProviderConfig(input: ProviderConfig, allowLoopbackHttp = false): ProviderConfig {
   const config = ProviderConfigSchema.parse(input);

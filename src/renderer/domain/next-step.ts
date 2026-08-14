@@ -1,4 +1,5 @@
 import type { Journal, Review } from '../../shared/schemas/domain';
+import { isDailyReviewFresh, toSourceVersions } from '../../shared/domain/daily-freshness';
 import type { NavigationTarget } from '../app/navigation';
 import { toLocalDateString } from '../utils/local-date';
 
@@ -19,9 +20,8 @@ export function resolveNextStep({ today, dayOfWeek, journals, reviews }: { today
   const todayJournals = journals.filter((item) => item.date === today);
   if (!todayJournals.length) return { kind: 'write-journal', title: '写下今天的经历', reason: '今天还没有记录。一段真实经历就够了。', target: { view: 'journal', intent: { type: 'journal.compose' } } };
 
-  const sourceVersions = todayJournals.map(({ id, updatedAt }) => ({ id, updatedAt })).sort((a, b) => a.id.localeCompare(b.id));
-  const hasDailyReview = reviews.some((item) => item.schemaVersion === 2 && item.type === 'daily' && item.periodEnd === today
-    && JSON.stringify(item.sourceVersions.slice().sort((a, b) => a.id.localeCompare(b.id))) === JSON.stringify(sourceVersions));
+  const sourceVersions = toSourceVersions(todayJournals);
+  const hasDailyReview = reviews.some((item) => isDailyReviewFresh(item, today, sourceVersions));
   if (!hasDailyReview) return { kind: 'generate-daily', title: '生成今日反馈', reason: '今天的日志已保存，还差一次反馈。', target: { view: 'journal', intent: { type: 'journal.generate-daily' } } };
 
   const normalizedDay = dayOfWeek === 0 ? 7 : dayOfWeek;

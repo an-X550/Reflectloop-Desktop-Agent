@@ -14,6 +14,20 @@ const articleHtml = `<html><head><title>化债对行业的影响 - 示例站</ti
 const makeFetch = (handler: (url: string) => string) => vi.fn(async (url: unknown) => new Response(handler(String(url)), { status: 200 })) as unknown as typeof fetch;
 
 describe('WebSearchService.search', () => {
+  it('passes a timeout signal to fetch and reports hanging requests in Chinese', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const hanging = vi.fn((_url: unknown, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+      capturedSignal = init?.signal ?? undefined;
+      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      void resolve;
+    })) as unknown as typeof fetch;
+    const service = new WebSearchService(hanging, () => '2026-08-14T10:00:00.000Z', 20);
+    const error = await service.search({ query: '化债' }).catch((value) => value);
+    expect(capturedSignal).toBeInstanceOf(AbortSignal);
+    expect(error).toMatchObject({ code: 'NETWORK_TIMEOUT' });
+    expect(error.message).toMatch(/[\u4e00-\u9fa5]/);
+  });
+
   it('parses results with source, url, snippet and retrieval date', async () => {
     const service = new WebSearchService(makeFetch(() => ddgHtml), () => '2026-08-14T10:00:00.000Z');
     const { searchSessionId, results } = await service.search({ query: '化债 行业选择' });
@@ -28,6 +42,17 @@ describe('WebSearchService.search', () => {
     const service = new WebSearchService(makeFetch(() => '<html><body>no results</body></html>'));
     const { results } = await service.search({ query: 'nothing' });
     expect(results).toEqual([]);
+  });
+
+  it('evicts the oldest search session once the session limit is exceeded', async () => {
+    let tick = 0;
+    const service = new WebSearchService(makeFetch(() => ddgHtml), () => `2026-08-14T10:${String(tick).padStart(2, '0')}:00.000Z`);
+    const first = await service.search({ query: 'first' });
+    for (let index = 0; index < 20; index += 1) {
+      tick += 1;
+      await service.search({ query: `query-${index}` });
+    }
+    await expect(service.readSource({ searchSessionId: first.searchSessionId, sourceId: 'source_x' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 });
 

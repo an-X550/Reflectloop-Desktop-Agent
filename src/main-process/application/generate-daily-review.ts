@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
+import { isDailyReviewFresh, toSourceVersions } from '../../shared/domain/daily-freshness';
 import type { DailyGenerationResult, Review } from '../../shared/schemas/domain';
 import type { ReviewTaskManager } from '../domain/review-task';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
@@ -18,9 +19,9 @@ export class GenerateDailyReview {
   async execute(input: { date: string; model: string; regenerate?: boolean }): Promise<DailyReviewResult> {
     const journals = (await this.journals.list()).filter((journal) => journal.date === input.date);
     if (!journals.length) throw appError({ code: 'NOT_FOUND', entity: input.date });
-    const sourceVersions = journals.map(({ id, updatedAt }) => ({ id, updatedAt })).sort((a, b) => a.id.localeCompare(b.id));
+    const sourceVersions = toSourceVersions(journals);
     const existing = (await this.reviews.list()).filter((review) => review.type === 'daily' && review.periodStart === input.date).at(-1);
-    if (existing?.schemaVersion === 2 && JSON.stringify(existing.sourceVersions.slice().sort((a, b) => a.id.localeCompare(b.id))) === JSON.stringify(sourceVersions) && !input.regenerate) return { kind: 'review', review: existing };
+    if (isDailyReviewFresh(existing, input.date, sourceVersions) && !input.regenerate) return { kind: 'review', review: existing };
     const task = this.tasks.start();
     try {
       this.tasks.transition(task.taskId, 'building_context');

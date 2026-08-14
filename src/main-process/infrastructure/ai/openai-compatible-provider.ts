@@ -38,7 +38,10 @@ export class OpenAiCompatibleProvider {
           if (!line.startsWith('data:')) continue;
           const data = line.slice(5).trim();
           if (data === '[DONE]') return;
-          const delta = JSON.parse(data)?.choices?.[0]?.delta?.content;
+          let payload: unknown;
+          try { payload = JSON.parse(data); }
+          catch { continue; }
+          const delta = (payload as { choices?: Array<{ delta?: { content?: unknown } }> } | null)?.choices?.[0]?.delta?.content;
           if (typeof delta === 'string') yield delta;
         }
       }

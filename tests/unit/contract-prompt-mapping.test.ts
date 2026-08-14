@@ -39,7 +39,17 @@ describe('contract-prompt mapping (R1 drift guard)', () => {
     for (const text of ['不得做人格标签、心理诊断', '唯一客观答案', '只归纳用户在对话中明确表达或认可的判断']) {
       expect(prompt, `topic prompt missing: ${text}`).toContain(text);
     }
-    expect(TOPIC_THINKING_PROMPT_VERSION).toBe('topic-thinking-v1');
+    expect(TOPIC_THINKING_PROMPT_VERSION).toBe('topic-thinking-v2');
+  });
+
+  it('marks the caller-provided context excerpt as quotable background in the first draft', () => {
+    expect(topicFirstDraftPrompt()).toContain('背景摘录');
+    expect(topicFirstDraftPrompt()).toContain('可回查引用');
+  });
+
+  it('instructs merged updates to reorganize the whole argument, not only append', () => {
+    expect(topicSummaryPrompt()).not.toContain('重组整篇当前论证');
+    expect(topicSummaryPrompt('# 既有正文')).toContain('重组整篇当前论证');
   });
 
   it('keeps the verification-candidate rule that only users confirm patterns', async () => {
