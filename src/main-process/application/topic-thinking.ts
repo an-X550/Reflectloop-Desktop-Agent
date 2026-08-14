@@ -7,7 +7,18 @@ import type { TopicSessionStore } from '../infrastructure/topics/topic-session-s
 import { safeTopicName } from '../infrastructure/topics/topic-repository';
 import { parseTopicSummaryOutput, topicDiscussPrompt, topicFirstDraftPrompt, topicSummaryPrompt, type TopicSummaryOutput } from '../prompts/topic-thinking-v1';
 
-interface ProviderPort { collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string> }
+interface ProviderPort {
+  collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
+  stream?(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string>;
+}
+
+/** 提供 onDelta 时优先走流式生成并把增量推给调用方；否则回退一次性收集。 */
+async function generateText(provider: ProviderPort, messages: ChatMessage[], onDelta?: (delta: string) => void): Promise<string> {
+  if (!onDelta || !provider.stream) return provider.collect(messages);
+  let output = '';
+  for await (const delta of provider.stream(messages)) { output += delta; onDelta(delta); }
+  return output;
+}
 
 const MAX_REFERENCED_TOPICS = 2;
 const MAX_CONTEXT_EXCERPT = 500;
@@ -53,7 +64,7 @@ export class TopicThinkingService {
     private readonly now: () => string = () => new Date().toISOString(),
   ) {}
 
-  async start(input: { question: string; model: string; contextExcerpt?: string }): Promise<TopicStartResult> {
+  async start(input: { question: string; model: string; contextExcerpt?: string }, onDelta?: (delta: string) => void): Promise<TopicStartResult> {
     const index = await this.topics.listIndex();
     const related = findRelatedTopics(input.question, index.entries);
     const referenced = await Promise.all(related.map(async (entry) => ({
@@ -61,14 +72,14 @@ export class TopicThinkingService {
       body: await this.topics.getTopic(entry.topic).catch(() => ''),
     })));
     const contextExcerpt = input.contextExcerpt ? input.contextExcerpt.slice(0, MAX_CONTEXT_EXCERPT) : undefined;
-    const raw = await this.provider.collect([
+    const raw = await generateText(this.provider, [
       { role: 'system', content: topicFirstDraftPrompt() },
       { role: 'user', content: JSON.stringify({
         question: input.question,
         referencedTopics: referenced.filter((item) => item.body).map((item) => ({ title: item.entry.title, body: item.body })),
         ...(contextExcerpt ? { contextExcerpt } : {}),
       }) },
-    ]);
+    ], onDelta);
     const at = this.now();
     const session: TopicSession = {
       schemaVersion: 1,
@@ -86,13 +97,13 @@ export class TopicThinkingService {
     return { sessionId: session.id, draft: raw, referencedTopics: related.map((entry) => ({ topic: entry.topic, title: entry.title })) };
   }
 
-  async discuss(input: { sessionId: string; message: string; model: string }): Promise<TopicDiscussResult> {
+  async discuss(input: { sessionId: string; message: string; model: string }, onDelta?: (delta: string) => void): Promise<TopicDiscussResult> {
     const session = await this.requireSession(input.sessionId);
     const history: TopicMessage[] = [...session.messages, { role: 'user', content: input.message, at: this.now() }];
-    const raw = await this.provider.collect([
+    const raw = await generateText(this.provider, [
       { role: 'system', content: topicDiscussPrompt() },
       ...history.map((message) => ({ role: message.role, content: message.content })),
-    ]);
+    ], onDelta);
     await this.sessions.save({
       ...session,
       messages: [...history, { role: 'assistant', content: raw, at: this.now() }],

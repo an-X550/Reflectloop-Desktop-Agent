@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SaveProviderConfigInput } from '../../shared/schemas/ipc';
 import { Button } from '../components/button';
+import { ConfirmDialog } from '../components/confirm-dialog';
 import { Field } from '../components/field';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
@@ -22,6 +23,7 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const [restorePreview, setRestorePreview] = useState<Awaited<ReturnType<Window['zhiji']['transfer']['previewRestore']>> | null>(null);
   const [dataInfo, setDataInfo] = useState<Awaited<ReturnType<Window['zhiji']['dataDirectory']['getInfo']>> | null>(null);
   const [profile, setProfile] = useState({ body: '', enabledForAi: false }); const [profileMessage, setProfileMessage] = useState('');
+  const [confirmClearKey, setConfirmClearKey] = useState(false);
 
   useEffect(() => { void Promise.all([window.zhiji.settings.getPublicConfig(), window.zhiji.dataDirectory.getInfo(), window.zhiji.profile.get()]).then(([{ hasApiKey: saved, ...config }, info, savedProfile]) => { setForm(config); setHasApiKey(saved); setDataInfo(info); if (savedProfile) setProfile({ body: savedProfile.body, enabledForAi: savedProfile.enabledForAi }); }); }, []);
   const updateProvider = (providerId: SaveProviderConfigInput['providerId']) => {
@@ -47,7 +49,6 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
     finally { setBusy(null); }
   };
   const clearApiKey = async () => {
-    if (!window.confirm('移除当前服务商保存的 API Key？')) return;
     setBusy('save'); setMessage(''); setError('');
     try { const result = await window.zhiji.settings.clearApiKey(); setHasApiKey(result.hasApiKey); await onSaved?.(); setMessage('已移除当前服务商的 API Key'); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '移除失败'); }
@@ -69,7 +70,8 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
       </div>
       {message && <StatusBanner tone="success">{message}</StatusBanner>}
       {error && <StatusBanner tone="error">操作失败：{error}</StatusBanner>}
-      <div className="settings-actions">{hasApiKey && <Button variant="danger" onClick={() => void clearApiKey()}>移除已保存 Key</Button>}<Button loading={busy === 'test'} onClick={() => void run('test')}>测试连接</Button><Button variant="primary" loading={busy === 'save'} onClick={() => void run('save')}>保存设置</Button></div>
+      <div className="settings-actions">{hasApiKey && <Button variant="danger" onClick={() => setConfirmClearKey(true)}>移除已保存 Key</Button>}<Button loading={busy === 'test'} onClick={() => void run('test')}>测试连接</Button><Button variant="primary" loading={busy === 'save'} onClick={() => void run('save')}>保存设置</Button></div>
+      <ConfirmDialog open={confirmClearKey} title="移除已保存的 API Key？" description="移除后需要重新输入才能使用 AI 功能；其他设置保持不变。" confirmLabel="确认移除" onCancel={() => setConfirmClearKey(false)} onConfirm={() => { setConfirmClearKey(false); void clearApiKey(); }}/>
     </section>
     <section className="card transfer-panel">
       <div className="section-heading"><div><h3>本地数据</h3><p>导出日志、复盘、项目与公开 AI 配置；API Key 和缓存不会进入备份。</p></div></div>

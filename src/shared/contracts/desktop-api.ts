@@ -39,6 +39,8 @@ export interface ZhijiDesktopApi {
     previewInsight(input: InsightReviewPreviewInput): Promise<ReviewPreview>;
     generateInsight(input: InsightReviewGenerateInput): Promise<Review>;
     delete(id: string): Promise<void>;
+    /** 订阅生成任务阶段进度（building_context/generating/validating/saving…），返回取消订阅函数。 */
+    onTaskPhase(listener: (phase: string) => void): () => void;
   };
   patterns: {
     list(): Promise<VerifiedPattern[]>;
@@ -54,6 +56,8 @@ export interface ZhijiDesktopApi {
     get(input: TopicNameInput): Promise<TopicContent>;
     sessions(): Promise<TopicSession[]>;
     resume(input: TopicSessionInput): Promise<TopicSession>;
+    /** 订阅主题讨论的流式增量文本，返回取消订阅函数。 */
+    onStream(listener: (delta: string) => void): () => void;
   };
   web: {
     search(input: WebSearchInput): Promise<{ searchSessionId: string; results: WebSearchResult[] }>;

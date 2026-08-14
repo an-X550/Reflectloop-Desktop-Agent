@@ -71,11 +71,11 @@ describe('SettingsPage', () => {
     expect(screen.getByText('连接成功，设置已安全保存')).toBeInTheDocument();
   });
   it('removes the saved key after explicit confirmation and refreshes global AI state', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
     const onSaved = vi.fn();
     render(<SettingsPage onSaved={onSaved}/>);
     await screen.findByText(/已安全保存/);
     fireEvent.click(screen.getByRole('button', { name: '移除已保存 Key' }));
+    fireEvent.click(screen.getByRole('button', { name: '确认移除' }));
     await waitFor(() => expect(window.zhiji.settings.clearApiKey).toHaveBeenCalled());
     expect(onSaved).toHaveBeenCalled();
     expect(screen.getByText('已移除当前服务商的 API Key')).toBeInTheDocument();

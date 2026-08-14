@@ -39,6 +39,11 @@ const api: ZhijiDesktopApi = {
     previewInsight: (input) => ipcRenderer.invoke('reviews:preview-insight', input),
     generateInsight: (input) => ipcRenderer.invoke('reviews:generate-insight', input),
     delete: (id) => ipcRenderer.invoke('reviews:delete', id),
+    onTaskPhase: (listener) => {
+      const handler = (_event: unknown, payload: { phase: string }) => listener(payload.phase);
+      ipcRenderer.on('reviews:task-phase', handler);
+      return () => ipcRenderer.removeListener('reviews:task-phase', handler);
+    },
   },
   patterns: {
     list: () => ipcRenderer.invoke('patterns:list'),
@@ -54,6 +59,11 @@ const api: ZhijiDesktopApi = {
     get: (input) => ipcRenderer.invoke('topics:get', input),
     sessions: () => ipcRenderer.invoke('topics:sessions'),
     resume: (input) => ipcRenderer.invoke('topics:resume', input),
+    onStream: (listener) => {
+      const handler = (_event: unknown, payload: { delta: string }) => listener(payload.delta);
+      ipcRenderer.on('topics:stream', handler);
+      return () => ipcRenderer.removeListener('topics:stream', handler);
+    },
   },
   web: {
     search: (input) => ipcRenderer.invoke('web:search', input),

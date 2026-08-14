@@ -22,6 +22,7 @@ beforeEach(() => {
       propose: vi.fn(async () => ({ mode: 'update' as const, targetTopic: '职业选择', existingBody: '旧正文', summary: { title: '职业选择', coreQuestion: '化债下选什么行业', aliases: [], body: '新归纳正文' } })),
       confirm: vi.fn(async () => ({ topic: '职业选择' })),
       resume: vi.fn(async () => session),
+      onStream: vi.fn(() => () => undefined),
     },
     web: {
       search: vi.fn(async () => ({ searchSessionId: 'search_s1', results: [searchResult] })),

@@ -52,23 +52,24 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
   ipcMain.handle('settings:save', (_event, raw) => deps.configureAi.save(SaveProviderConfigInputSchema.parse(raw)));
   ipcMain.handle('settings:test', (_event, raw) => deps.configureAi.testConnection(SaveProviderConfigInputSchema.parse(raw)));
   ipcMain.handle('settings:clear-api-key', () => deps.configureAi.clearApiKey());
-  ipcMain.handle('reviews:generate-daily', async (_event, raw) => {
+  ipcMain.handle('reviews:generate-daily', async (event, raw) => {
     const input = GenerateDailyReviewInputSchema.parse(raw);
     const config = await deps.configureAi.getPublicConfig();
+    deps.reviewTasks.onTransition = (phase) => { if (!event.sender.isDestroyed()) event.sender.send('reviews:task-phase', { phase }); };
     return deps.generateDailyReview.execute({ ...input, model: config.model });
   });
   ipcMain.handle('reviews:list', () => deps.reviews.list());
   ipcMain.handle('reviews:delete', (_event, raw) => deps.reviews.delete(z.string().regex(/^review_[a-z0-9]+$/).parse(raw)));
   ipcMain.handle('reviews:cancel', () => { const task = deps.reviewTasks.getCurrent(); if (task) deps.reviewTasks.cancel(task.taskId); });
   ipcMain.handle('reviews:preview', async (_event, raw) => { const input = PeriodicReviewPreviewInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.preview({ ...input, model: config.model }); });
-  ipcMain.handle('reviews:generate-periodic', async (_event, raw) => { const input = PeriodicReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generatePeriodicReview.execute({ ...input, model: config.model }); });
+  ipcMain.handle('reviews:generate-periodic', async (event, raw) => { const input = PeriodicReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); deps.reviewTasks.onTransition = (phase) => { if (!event.sender.isDestroyed()) event.sender.send('reviews:task-phase', { phase }); }; return deps.generatePeriodicReview.execute({ ...input, model: config.model }); });
   ipcMain.handle('reviews:preview-insight', async (_event, raw) => { const input = InsightReviewPreviewInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generateInsightReview.preview({ ...input, model: config.model }); });
-  ipcMain.handle('reviews:generate-insight', async (_event, raw) => { const input = InsightReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.generateInsightReview.execute({ ...input, model: config.model }); });
+  ipcMain.handle('reviews:generate-insight', async (event, raw) => { const input = InsightReviewGenerateInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); deps.reviewTasks.onTransition = (phase) => { if (!event.sender.isDestroyed()) event.sender.send('reviews:task-phase', { phase }); }; return deps.generateInsightReview.execute({ ...input, model: config.model }); });
   ipcMain.handle('patterns:list', async () => (await deps.verifiedPatterns.list()).patterns);
   ipcMain.handle('patterns:propose', async (_event, raw) => { const input = ProposePatternsInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.verifiedPatterns.propose({ ...input, model: config.model }); });
   ipcMain.handle('patterns:confirm', (_event, raw) => deps.verifiedPatterns.confirm(ConfirmPatternInputSchema.parse(raw)));
-  ipcMain.handle('topics:start', async (_event, raw) => { const input = StartTopicInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.topicThinking.start({ ...input, model: config.model }); });
-  ipcMain.handle('topics:discuss', async (_event, raw) => { const input = DiscussTopicInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.topicThinking.discuss({ ...input, model: config.model }); });
+  ipcMain.handle('topics:start', async (event, raw) => { const input = StartTopicInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.topicThinking.start({ ...input, model: config.model }, (delta) => { if (!event.sender.isDestroyed()) event.sender.send('topics:stream', { delta }); }); });
+  ipcMain.handle('topics:discuss', async (event, raw) => { const input = DiscussTopicInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.topicThinking.discuss({ ...input, model: config.model }, (delta) => { if (!event.sender.isDestroyed()) event.sender.send('topics:stream', { delta }); }); });
   ipcMain.handle('topics:propose', async (_event, raw) => { const input = TopicSessionInputSchema.parse(raw); const config = await deps.configureAi.getPublicConfig(); return deps.topicThinking.proposeSummary({ ...input, model: config.model }); });
   ipcMain.handle('topics:confirm', (_event, raw) => deps.topicThinking.confirm(TopicSessionInputSchema.parse(raw)));
   ipcMain.handle('topics:list', () => deps.topicThinking.list());

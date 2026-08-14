@@ -11,7 +11,7 @@ const journal: Journal = { schemaVersion: 1, id: 'journal_today', date, createdA
 beforeEach(() => {
   window.zhiji = {
     journals: { create: vi.fn(async (input) => ({ ...journal, ...input })), update: vi.fn(), delete: vi.fn(async () => undefined), list: vi.fn(), get: vi.fn() },
-    reviews: { generateDaily: vi.fn(async () => ({}) as never), list: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn() },
+    reviews: { generateDaily: vi.fn(async () => ({}) as never), list: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn(), onTaskPhase: vi.fn(() => () => undefined) },
   } as unknown as Window['zhiji'];
 });
 

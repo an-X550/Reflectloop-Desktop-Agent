@@ -34,6 +34,9 @@ export function TopicsPage({ intent }: { intent?: NavigationIntent }) {
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [contextExcerpt, setContextExcerpt] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState<string | null>(null);
+
+  useEffect(() => window.zhiji.topics.onStream((delta) => setStreaming((old) => (old ?? '') + delta)), []);
 
   useEffect(() => {
     if (intent?.type === 'topics.start') {
@@ -57,7 +60,9 @@ export function TopicsPage({ intent }: { intent?: NavigationIntent }) {
   };
 
   const start = () => run(async () => {
+    setStreaming(null);
     const next = await window.zhiji.topics.start({ question: question.trim(), ...(contextExcerpt ? { contextExcerpt } : {}) });
+    setStreaming(null);
     setDiscussion({ sessionId: next.sessionId, question: question.trim(), referencedTopics: next.referencedTopics, messages: [
       { role: 'user', content: question.trim(), at: new Date().toISOString() },
       { role: 'assistant', content: next.draft, at: new Date().toISOString() },
@@ -70,8 +75,9 @@ export function TopicsPage({ intent }: { intent?: NavigationIntent }) {
     if (!discussion) return;
     const text = message.trim();
     setDiscussion({ ...discussion, messages: [...discussion.messages, { role: 'user', content: text, at: new Date().toISOString() }] });
-    setMessage('');
+    setMessage(''); setStreaming(null);
     const { reply } = await window.zhiji.topics.discuss({ sessionId: discussion.sessionId, message: text });
+    setStreaming(null);
     setDiscussion((old) => old ? { ...old, messages: [...old.messages, { role: 'assistant', content: reply, at: new Date().toISOString() }] } : old);
     setProposal(null);
   });
@@ -116,6 +122,11 @@ export function TopicsPage({ intent }: { intent?: NavigationIntent }) {
       <div className="button-row">
         <Button variant="primary" loading={busy} disabled={!question.trim()} onClick={() => void start()}>开始讨论</Button>
       </div>
+      {streaming !== null && !discussion && <div className="topic-message topic-message--assistant" style={{ marginTop: 16 }}>
+        <strong>AI</strong>
+        <MarkdownDocument>{streaming}</MarkdownDocument>
+        <span className="stream-caret" aria-hidden="true"/>
+      </div>}
       {sessions.length > 0 && <div className="topic-sessions">
         <h4>未完成的讨论（可恢复）</h4>
         <ul>{sessions.map((session) => <li key={session.id}>
@@ -133,6 +144,11 @@ export function TopicsPage({ intent }: { intent?: NavigationIntent }) {
           <strong>{item.role === 'user' ? '你' : 'AI'}</strong>
           {item.role === 'assistant' ? <MarkdownDocument>{item.content}</MarkdownDocument> : <p>{item.content}</p>}
         </div>)}
+        {streaming !== null && <div className="topic-message topic-message--assistant">
+          <strong>AI</strong>
+          <MarkdownDocument>{streaming}</MarkdownDocument>
+          <span className="stream-caret" aria-hidden="true"/>
+        </div>}
       </div>
       <div className="form-row">
         <textarea aria-label="继续讨论" value={message} onChange={(event) => setMessage(event.target.value)} placeholder="带来新信息、反例或追问…" rows={3}/>
