@@ -47,10 +47,20 @@
 | sourceId 会话绑定 | readSource 校验搜索会话存在且 sourceId 属于该会话，拒绝伪造 ID；仅 http/https | `web-search-service.test.ts` | 本阶段实现 |
 | 向量检索、自动归档、任意 URL 执行 | 不属于桌面第四阶段 | 不适用 | 排除 |
 
+## 第五阶段：模糊意图路由
+
+| 已冻结规则能力 | 桌面端行为 | 验收测试 | 状态 |
+|---|---|---|---|
+| 确定性匹配优先 | 固定关键词规则命中时不调用模型；月度规则先于周度避免误判 | `intent-routing.test.ts` | 本阶段实现 |
+| 模型只能从固定枚举选择 | 未命中时模型在 WorkflowIntent 六值枚举内选择，严格 Zod 校验 | `intent-routing.test.ts` | 本阶段实现 |
+| 校验失败回退澄清 | 模型输出不合 Schema 或返回 null 时返回澄清问题，不猜测、不创建新流程 | `intent-routing.test.ts`、`start-page.test.tsx` | 本阶段实现 |
+| 路由只带路 | 意图映射到既有导航目标，不新增视图 | `intent-target.test.ts` | 本阶段实现 |
+
 ## 隔离规则
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v1`。
 - 周期复盘兼容快照版本：`desktop-periodic-review-v1`；提示词版本：`periodic-review-v2`。
 - 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
+- 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。
 - 桌面端运行时禁止依赖 `.claude` 路径。
 - 原有 Codex + Skill 的开发和日常运行不受桌面端代码、审计或数据影响。

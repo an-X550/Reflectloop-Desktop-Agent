@@ -59,6 +59,7 @@ const api: ZhijiDesktopApi = {
     search: (input) => ipcRenderer.invoke('web:search', input),
     readSource: (input) => ipcRenderer.invoke('web:read-source', input),
   },
+  intent: { resolve: (input) => ipcRenderer.invoke('intent:resolve', input) },
 };
 
 contextBridge.exposeInMainWorld('zhiji', api);

@@ -20,6 +20,7 @@ import { VerifiedPatternService } from './application/verified-patterns';
 import { TopicRepository } from './infrastructure/topics/topic-repository';
 import { TopicSessionStore } from './infrastructure/topics/topic-session-store';
 import { TopicThinkingService } from './application/topic-thinking';
+import { IntentRoutingService } from './application/intent-routing';
 import { WebSearchService } from './infrastructure/web/web-search-service';
 
 export function bootstrap() {
@@ -37,8 +38,9 @@ export function bootstrap() {
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const verifiedPatterns = new VerifiedPatternService(reviews, new VerifiedPatternRepository(dataRoot), configureAi);
   const topicThinking = new TopicThinkingService(new TopicRepository(dataRoot), new TopicSessionStore(dataRoot), configureAi);
+  const intentRouting = new IntentRoutingService(configureAi);
   const webSearch = new WebSearchService();
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, intentRouting, webSearch, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
 }

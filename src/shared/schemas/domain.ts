@@ -123,3 +123,12 @@ export const WebSourceContentSchema = z.object({
   excerpt: z.string().max(2000),
 }).strict();
 export type WebSourceContent = z.infer<typeof WebSourceContentSchema>;
+
+export const WorkflowIntentSchema = z.enum(['write-journal', 'daily-review', 'weekly-review', 'monthly-review', 'project-review', 'topic-thinking']);
+export type WorkflowIntent = z.infer<typeof WorkflowIntentSchema>;
+
+export const IntentResolutionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('matched'), intent: WorkflowIntentSchema, source: z.enum(['deterministic', 'model']), reason: z.string().max(200) }).strict(),
+  z.object({ kind: z.literal('clarify'), question: z.string().trim().min(1).max(500) }).strict(),
+]);
+export type IntentResolution = z.infer<typeof IntentResolutionSchema>;

@@ -1,5 +1,5 @@
-import type { DailyGenerationResult, Journal, PeriodicGenerationResult, Profile, Project, Review, TopicIndexEntry, TopicSession, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
-import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
+import type { DailyGenerationResult, IntentResolution, Journal, PeriodicGenerationResult, Profile, Project, Review, TopicIndexEntry, TopicSession, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
+import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, IntentResolveInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
 import type { TopicSummaryProposal } from '../../main-process/application/topic-thinking';
@@ -62,4 +62,5 @@ export interface ZhijiDesktopApi {
     search(input: WebSearchInput): Promise<{ searchSessionId: string; results: WebSearchResult[] }>;
     readSource(input: ReadWebSourceInput): Promise<WebSourceContent>;
   };
+  intent: { resolve(input: IntentResolveInput): Promise<IntentResolution> };
 }
