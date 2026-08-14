@@ -3,7 +3,7 @@ import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/lang
 import type { Journal, Review } from '../../shared/schemas/domain';
 import { appError } from '../../shared/errors/app-error';
 import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
-import { periodicSystemPrompt, parsePeriodicReviewOutput, renderPeriodicReview, type PeriodicReviewOutput } from '../prompts/periodic-review-v1';
+import { applyPeriodicQualityGates, periodicSystemPrompt, parsePeriodicReviewOutput, renderPeriodicReview, type PeriodicReviewOutput } from '../prompts/periodic-review-v1';
 import { buildPeriodicEvidence, type PeriodicEvidence, type PeriodicEvidenceGrade, type PeriodicReviewType } from './periodic-evidence';
 import { buildPeriodicModelMaterials } from './periodic-materials';
 
@@ -61,7 +61,8 @@ async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState
   let output: PeriodicReviewOutput;
   try { output = parsePeriodicReviewOutput(raw); }
   catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的周期复盘格式无效。' }); }
-  return { result: { kind: 'review', grade: evidence.grade, body: renderPeriodicReview(output, type, start, end), output } };
+  const gated = applyPeriodicQualityGates(output, evidence.grade);
+  return { result: { kind: 'review', grade: evidence.grade, body: renderPeriodicReview(gated, type, start, end), output: gated } };
 }
 
 export async function runPeriodicFeedback(input: RuntimeInput): Promise<PeriodicRuntimeResult> {

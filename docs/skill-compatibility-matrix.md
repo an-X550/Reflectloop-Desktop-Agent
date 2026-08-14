@@ -22,7 +22,11 @@
 | 下游沉淀优先 | 周复盘以日反馈为主材料；月复盘以周复盘为主材料；原始日志仅在下游沉淀不足时补全文，充足时只保留索引 | `periodic-materials.test.ts`、`generate-periodic-review.test.ts` | 本阶段实现 |
 | A-D 输入等级 | 程序生成周期证据卡并按等级限制模型行为 | `periodic-evidence.test.ts` | 本阶段实现 |
 | D 级降级 | 仅提出一个补证问题；不调用模型、不保存复盘 | `periodic-runtime.test.ts`、`generate-periodic-review.test.ts` | 本阶段实现 |
-| 复盘六问 | 使用严格 JSON Schema（summary/effective/ineffective/evidence/ifRedone/nextAction）、确定性渲染 | `periodic-review-v1.test.ts` | 本阶段实现 |
+| 复盘六问 | 使用严格 JSON Schema（chatSummary/goalReview/resultEvaluation/causesPositive/causesNegative/ifRedone/nextPlan/directionAnchors/qualitySelfCheck）、确定性渲染：标题 + 聊天摘要 + 六问一级标题（含回顾目标）+ 方向锚点缺席检查 + 质量自检，与 Skill 侧 review-synthesis 契约同构 | `periodic-review-v1.test.ts` | 本阶段实现 |
+| 硬质量门 | 提示词要求证据或降级、关键判断附反例或限制；B/C 级降级标注与方向锚点缺席披露由代码强制注入质量自检，不依赖提示词自觉 | `periodic-review-v1.test.ts`、`periodic-runtime.test.ts` | 本阶段实现 |
+| 方向锚点缺席检查 | 模型按五态（有推进/缺席-未执行/缺席-未记录/目标变化/证据不足）逐个标注，zod 枚举强制；空锚点时渲染显式披露 | `periodic-review-v1.test.ts` | 本阶段实现 |
+| 周报深度 | 原因分析只做 3Why；下周规划必含目标 + 手段 + 检查方式 | `periodic-review-v1.test.ts` | 本阶段实现 |
+| 月报深度 | 主主题归并与 life-design 升级提醒未实现（桌面端无 /life-design，措辞需另行设计，待后续决策） | 不适用 | 延后 |
 | 材料预览与确认 | 预览材料并生成 digest；确认后才执行生成 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 正式复盘写入 | 原子写入并由仓储保存 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 分发、提醒、飞书、滴答 | 不属于桌面第二阶段 | 不适用 | 排除 |
@@ -59,7 +63,7 @@
 ## 隔离规则
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v1`。
-- 周期复盘兼容快照版本：`desktop-periodic-review-v1`；提示词版本：`periodic-review-v2`。
+- 周期复盘兼容快照版本：`desktop-periodic-review-v2`；提示词版本：`periodic-review-v3`。
 - 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
 - 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。
 - 桌面端运行时禁止依赖 `.claude` 路径。

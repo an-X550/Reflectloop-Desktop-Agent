@@ -5,12 +5,15 @@ import type { Journal } from '../../src/shared/schemas/domain';
 const journal: Journal = { schemaVersion: 1, id: 'journal_a1', date: '2026-08-13', createdAt: '2026-08-13T08:00:00.000Z', updatedAt: '2026-08-13T08:00:00.000Z', projectIds: ['project_a1'], body: '证据' };
 
 const validModelOutput = JSON.stringify({
-  summary: '完成了功能开发',
-  effectiveActions: '上午专注有效',
-  ineffectiveActions: '晚间加班效果递减',
-  evidenceAndConflicts: '日志显示进展',
+  chatSummary: '完成了功能开发',
+  goalReview: '目标是交付项目功能',
+  resultEvaluation: '目标达成',
+  causesPositive: '上午专注有效',
+  causesNegative: '晚间加班效果递减',
   ifRedone: '会更早开始测试',
-  nextAction: { step: '写下一次计划的第一行', prediction: '下周会直接开始' },
+  nextPlan: { goal: '补齐测试', means: '先写失败测试', check: '下次复盘核对' },
+  directionAnchors: [{ name: '求职', status: '证据不足', note: '本期材料未提及行动' }],
+  qualitySelfCheck: '质量门已通过；无影响本次判断的已知缺口。',
 });
 
 describe('GeneratePeriodicReview', () => {
