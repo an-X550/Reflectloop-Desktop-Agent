@@ -61,7 +61,7 @@ async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState
   let output: PeriodicReviewOutput;
   try { output = parsePeriodicReviewOutput(raw); }
   catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的周期复盘格式无效。' }); }
-  const gated = applyPeriodicQualityGates(output, evidence.grade);
+  const gated = applyPeriodicQualityGates(output, evidence.grade, type);
   return { result: { kind: 'review', grade: evidence.grade, body: renderPeriodicReview(gated, type, start, end), output: gated } };
 }
 

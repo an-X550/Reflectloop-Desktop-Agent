@@ -1,5 +1,5 @@
 export const PERIODIC_REVIEW_COMPATIBILITY = Object.freeze({
-  id: 'desktop-periodic-review-v2',
+  id: 'desktop-periodic-review-v3',
   sourceRuleVersion: '2026-07-08',
   runtimeReadsClaudeDirectory: false,
   materialCategories: [
@@ -16,6 +16,7 @@ export const PERIODIC_REVIEW_COMPATIBILITY = Object.freeze({
     'hard quality gates with code-enforced downgrade disclosure',
     'direction-anchor absence check with five states',
     'weekly depth (3Why and three-element plan)',
+    'monthly depth (main-theme merge and life-design escalation reminder)',
     'clarification on D-grade',
     'material preview confirmation',
     'validated write',
@@ -24,6 +25,5 @@ export const PERIODIC_REVIEW_COMPATIBILITY = Object.freeze({
     'distribution',
     'reminders',
     'user-response-section',
-    'monthly depth (main-theme merge and life-design escalation reminder)',
   ] as const,
 });

@@ -26,10 +26,11 @@ const dailyReview = (date: string): Review => ({
 
 describe('runPeriodicFeedback', () => {
   it('uses a frozen desktop compatibility snapshot without reading .claude', () => {
-    expect(PERIODIC_REVIEW_COMPATIBILITY.id).toBe('desktop-periodic-review-v2');
+    expect(PERIODIC_REVIEW_COMPATIBILITY.id).toBe('desktop-periodic-review-v3');
     expect(PERIODIC_REVIEW_COMPATIBILITY.runtimeReadsClaudeDirectory).toBe(false);
     expect(PERIODIC_REVIEW_COMPATIBILITY.supports).toContain('downstream-first materials');
     expect(PERIODIC_REVIEW_COMPATIBILITY.supports).toContain('direction-anchor absence check with five states');
+    expect(PERIODIC_REVIEW_COMPATIBILITY.supports).toContain('monthly depth (main-theme merge and life-design escalation reminder)');
     expect(PERIODIC_REVIEW_COMPATIBILITY.materialCategories).toEqual(['target-journals', 'daily-reviews', 'weekly-reviews', 'verified-patterns']);
   });
 
@@ -94,6 +95,37 @@ describe('runPeriodicFeedback', () => {
     if (result.kind === 'review') {
       expect(result.body).toContain('证据等级 B');
       expect(result.body).toContain('方向锚点不足');
+    }
+  });
+
+  it('renders monthly main themes and escalation reminder from model output', async () => {
+    const collect = vi.fn().mockResolvedValue(JSON.stringify({
+      chatSummary: '本月主线是桌面同构与求职并行，方向冲突显现。',
+      goalReview: '目标是双线推进',
+      resultEvaluation: '部分达成',
+      causesPositive: '无新增判断',
+      causesNegative: '开发挤占投递时间',
+      ifRedone: '会给求职留固定时段',
+      nextPlan: { goal: '简历定稿', means: '每周投递两次', check: '月末核对投递记录', hypothesis: '归并主主题后规划更聚焦' },
+      directionAnchors: [],
+      qualitySelfCheck: '质量门已通过；无影响本次判断的已知缺口。',
+      mainThemes: [{ name: '开发与求职的时间冲突', supportingPerspectives: '周复盘', keyEvidence: '连续三周记录', counterExampleOrGap: '证据不足以断言长期模式', significance: '下月规划需给求职留固定时段' }],
+      escalationReminder: '⚠️ 这可能不是普通执行问题：长期方向冲突连续三个月出现。建议在复盘页的“方向校准”做一次人生设计校准。',
+    }));
+    const result = await runPeriodicFeedback({
+      type: 'monthly', start: '2026-07-01', end: '2026-07-31',
+      journals: [journal('2026-07-01'), journal('2026-07-02'), journal('2026-07-03')],
+      reviews: [dailyReview('2026-07-01'), dailyReview('2026-07-02'), dailyReview('2026-07-03')],
+      provider: { collect },
+    });
+    expect(result).toMatchObject({ kind: 'review' });
+    expect(collect).toHaveBeenCalledOnce();
+    if (result.kind === 'review') {
+      expect(result.body).toContain('## 主主题');
+      expect(result.body).toContain('开发与求职的时间冲突');
+      expect(result.body).toContain('假说：归并主主题后规划更聚焦');
+      expect(result.body).toContain('⚠️ 这可能不是普通执行问题');
+      expect(result.output.mainThemes).toHaveLength(1);
     }
   });
 

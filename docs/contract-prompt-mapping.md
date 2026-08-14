@@ -19,7 +19,7 @@
 |---|---|---|---|
 | `daily-feedback.md` | `prompts/daily-review-v1.ts` + `skill-runtime/daily-runtime.ts` | `daily-review-v3`（快照 `desktop-daily-feedback-v3`） | 同源：输出五段模板、D0-D6、昨日闭环三态、单洞察单行动、常规 260/例外 320 字；快照增记 D 级判级复核 |
 | `journal-input.md` | `skill-runtime/daily-evidence.ts` + `skill-runtime/daily-grade-review.ts` + `application/save-journal.ts` | 无提示词（代码实现） | 同源：A-D 证据判据（桌面端为正则实现，见契约审计 R2 对照证据）；正则判 D 时经 D 级语义复核保守升 C；日期由 UI 显式选择，场景消解 |
-| `review-synthesis.md` | `prompts/periodic-review-v1.ts` + `skill-runtime/periodic-runtime.ts` | `periodic-review-v3`（快照 `desktop-periodic-review-v2`） | 同源：稳定结构（标题/聊天摘要/六问一级标题/方向锚点缺席检查/质量自检）、硬质量门、五态定义、周报深度；月报深度延后 |
+| `review-synthesis.md` | `prompts/periodic-review-v1.ts` + `skill-runtime/periodic-runtime.ts` | `periodic-review-v4`（快照 `desktop-periodic-review-v3`） | 同源：稳定结构（标题/聊天摘要/六问一级标题/方向锚点缺席检查/质量自检）、硬质量门、五态定义、周报深度、月报深度（主主题五要素/下月规划四要素/升级提醒措辞按桌面语境改写，指向复盘页方向校准，不出现命令字样） |
 | `evidence-and-verification.md` | `prompts/verified-patterns-v1.ts` + `application/verified-patterns.ts` | `verified-patterns-v1` | 部分同源：确认后才沉淀的精神一致；六状态词流转与升级门槛未实现（有意差异） |
 | `topic-thinking.md` + `topic-thinking-persistence.md` | `prompts/topic-thinking-v1.ts` + `application/topic-thinking.ts` | `topic-thinking-v1` | 同源：首稿主线、事实/推断/价值/未知区分、确认后才写主题文件；持久化结构精简为三段 |
 | `codex-natural-language-routing.md` | `prompts/intent-routing-v1.ts` + `application/intent-routing.ts` | `intent-routing-v1` | 精神同源：模型不得创建新流程；桌面端收窄为六值枚举且确定性优先 |
@@ -41,6 +41,7 @@
 | 证据不足降级标注 | B/C 级降级披露由代码注入质量自检 | periodic-review-v1.ts（applyPeriodicQualityGates） | periodic-review-v1.test.ts、periodic-runtime.test.ts |
 | 模型不得创建新流程 | 六值枚举 + zod 失败回退澄清（代码强制） | intent-routing-v1.ts + intent-routing.ts | intent-routing.test.ts |
 | D 级判级复核纪律 | 至多一次复核短调用；确认本人经历只保守升 C；失败、超时或输出无效回落原 D（代码强制） | daily-grade-review.ts + daily-runtime.ts | daily-runtime.test.ts、daily-evidence-gold.test.ts |
+| 月报主主题不硬凑 | 主主题少于 2 条时代码注入证据不足披露；升级提醒至多一条且不自动生成方向校准报告 | periodic-review-v1.ts（applyPeriodicQualityGates + 渲染） | periodic-review-v1.test.ts、periodic-runtime.test.ts |
 
 ## 未纳入断言的已知部分差异
 

@@ -27,7 +27,7 @@
 | 硬质量门 | 提示词要求证据或降级、关键判断附反例或限制；B/C 级降级标注与方向锚点缺席披露由代码强制注入质量自检，不依赖提示词自觉 | `periodic-review-v1.test.ts`、`periodic-runtime.test.ts` | 本阶段实现 |
 | 方向锚点缺席检查 | 模型按五态（有推进/缺席-未执行/缺席-未记录/目标变化/证据不足）逐个标注，zod 枚举强制；空锚点时渲染显式披露 | `periodic-review-v1.test.ts` | 本阶段实现 |
 | 周报深度 | 原因分析只做 3Why；下周规划必含目标 + 手段 + 检查方式 | `periodic-review-v1.test.ts` | 本阶段实现 |
-| 月报深度 | 主主题归并与 life-design 升级提醒未实现（桌面端无 /life-design，措辞需另行设计，待后续决策） | 不适用 | 延后 |
+| 月报深度 | 正式写报告前归并 2-3 个主主题（主题名/支持视角/关键证据/反例或证据不足/对重来或下月规划的意义），下月规划含目标+手段+检查点+假说；触发条件（长期方向冲突/重复卡点/工作观人生观冲突/只能局部修补）满足时输出一条基于证据的升级提醒，指向复盘页的方向校准（life-design），不自动生成；主主题不足时代码强制披露不硬凑 | `periodic-review-v1.test.ts`、`periodic-runtime.test.ts` | 本阶段实现 |
 | 材料预览与确认 | 预览材料并生成 digest；确认后才执行生成 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 正式复盘写入 | 原子写入并由仓储保存 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 分发、提醒、飞书、滴答 | 不属于桌面第二阶段 | 不适用 | 排除 |
@@ -64,7 +64,7 @@
 ## 隔离规则
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v3`（增记 D 级判级复核）；提示词版本：`daily-review-v3`。
-- 周期复盘兼容快照版本：`desktop-periodic-review-v2`；提示词版本：`periodic-review-v3`。
+- 周期复盘兼容快照版本：`desktop-periodic-review-v3`（增记月报深度）；提示词版本：`periodic-review-v4`。
 - 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
 - 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。
 - 桌面端运行时禁止依赖 `.claude` 路径。

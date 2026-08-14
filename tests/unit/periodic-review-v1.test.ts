@@ -16,14 +16,40 @@ const goldOutput: PeriodicReviewOutput = {
   causesPositive: '上午关消息有效。Why1 注意力不被打断；Why2 深度工作块变长；Why3 计划先行。',
   causesNegative: '晚间加班效果递减。限制：样本仅一周，存在反例（周三晚间仍完成交付）。',
   ifRedone: '会把测试前置，避免收尾期挤压。',
-  nextPlan: { goal: '完成日反馈 260 字上限补齐', means: '提示词补一句并递增版本', check: '下周复盘时核对全量测试结果' },
+  nextPlan: { goal: '完成日反馈 260 字上限补齐', means: '提示词补一句并递增版本', check: '下周复盘时核对全量测试结果', hypothesis: null },
   directionAnchors: [{ name: '作息稳定', status: '有推进', note: '三篇日志记录 23:30 前入睡' }],
   qualitySelfCheck: '质量门已通过；无影响本次判断的已知缺口。',
+  mainThemes: [],
+  escalationReminder: null,
 };
 
-describe('periodic-review-v3', () => {
+// 月报金样本：主主题归并 + 下月规划四要素 + 升级提醒（桌面语境措辞）
+const monthlyGoldOutput: PeriodicReviewOutput = {
+  ...goldOutput,
+  chatSummary: '本月主线是桌面端同构与求职准备并行，方向冲突显现。',
+  nextPlan: { goal: '把求职主线推进到简历定稿', means: '每周两个晚上改简历与投递', check: '月末核对投递记录', hypothesis: '若先归并主主题，下月规划会更聚焦，重复卡点减少。' },
+  mainThemes: [
+    {
+      name: '开发与求职的时间冲突',
+      supportingPerspectives: '日志、日反馈、周复盘',
+      keyEvidence: '三周周复盘均记录开发挤占投递时间',
+      counterExampleOrGap: '反例：最后一周投递了两次；证据不足以断言长期模式',
+      significance: '重来演练需保留投递最低节奏；下月规划需给求职留固定时段',
+    },
+    {
+      name: '晚间状态下滑',
+      supportingPerspectives: '日反馈',
+      keyEvidence: '多日日反馈记录 23 点后效率下降',
+      counterExampleOrGap: '证据不足：缺少白天对照',
+      significance: '下月把重要任务前移',
+    },
+  ],
+  escalationReminder: '⚠️ 这可能不是普通执行问题：本月材料显示长期方向冲突连续三个月出现。建议在复盘页的“方向校准”做一次人生设计校准。',
+};
+
+describe('periodic-review-v4', () => {
   it('exposes the bumped prompt version', () => {
-    expect(PERIODIC_REVIEW_PROMPT_VERSION).toBe('periodic-review-v3');
+    expect(PERIODIC_REVIEW_PROMPT_VERSION).toBe('periodic-review-v4');
   });
 
   it('keeps grade-specific rules in the system prompt', () => {
@@ -98,6 +124,75 @@ describe('periodic-review-v3', () => {
   it('renders type-specific sixth headings for monthly and project', () => {
     expect(renderPeriodicReview(goldOutput, 'monthly', '2026-07-01', '2026-07-31')).toContain('## 六、下月规划');
     expect(renderPeriodicReview(goldOutput, 'project', '2026-07-01', '2026-07-31')).toContain('## 六、后续规划');
+  });
+
+  it('carries monthly depth rules only in the monthly prompt', () => {
+    const monthly = periodicSystemPrompt('monthly', 'A');
+    expect(monthly).toContain('主主题');
+    expect(monthly).toContain('2-3');
+    expect(monthly).toContain('目标 + 手段 + 检查点 + 假说');
+    expect(monthly).toContain('升级提醒');
+    expect(monthly).toContain('方向校准');
+    expect(monthly).toContain('不强行制造');
+    expect(monthly).not.toContain('/life-design');
+    const weekly = periodicSystemPrompt('weekly', 'A');
+    expect(weekly).not.toContain('主主题');
+    expect(weekly).not.toContain('升级提醒');
+  });
+
+  it('parses the monthly gold sample with main themes, hypothesis and escalation reminder', () => {
+    const result = parsePeriodicReviewOutput(JSON.stringify(monthlyGoldOutput));
+    expect(result.mainThemes).toHaveLength(2);
+    expect(result.mainThemes[0].counterExampleOrGap).toContain('反例');
+    expect(result.nextPlan.hypothesis).toContain('归并');
+    expect(result.escalationReminder).toContain('⚠️');
+  });
+
+  it('parses weekly output without monthly fields using safe defaults', () => {
+    const legacy: Record<string, unknown> = { ...goldOutput };
+    delete legacy.mainThemes;
+    delete legacy.escalationReminder;
+    const parsed = parsePeriodicReviewOutput(JSON.stringify({ ...legacy, nextPlan: { goal: 'g', means: 'm', check: 'c' } }));
+    expect(parsed.mainThemes).toEqual([]);
+    expect(parsed.escalationReminder).toBeNull();
+    expect(parsed.nextPlan.hypothesis).toBeNull();
+    expect(goldOutput.mainThemes).toEqual([]);
+  });
+
+  it('rejects more than three main themes', () => {
+    const tooMany = { ...monthlyGoldOutput, mainThemes: [...monthlyGoldOutput.mainThemes, monthlyGoldOutput.mainThemes[0], monthlyGoldOutput.mainThemes[0]] };
+    expect(() => parsePeriodicReviewOutput(JSON.stringify(tooMany)) as never).toThrow();
+  });
+
+  it('renders the monthly main-theme section, hypothesis and escalation reminder', () => {
+    const rendered = renderPeriodicReview(monthlyGoldOutput, 'monthly', '2026-07-01', '2026-07-31');
+    expect(rendered).toContain('## 主主题');
+    expect(rendered).toContain('开发与求职的时间冲突');
+    expect(rendered).toContain('支持视角：日志、日反馈、周复盘');
+    expect(rendered).toContain('关键证据：三周周复盘均记录开发挤占投递时间');
+    expect(rendered).toContain('反例或证据不足：反例：最后一周投递了两次；证据不足以断言长期模式');
+    expect(rendered).toContain('对重来演练或下月规划的意义：重来演练需保留投递最低节奏；下月规划需给求职留固定时段');
+    expect(rendered).toContain('假说：若先归并主主题，下月规划会更聚焦，重复卡点减少。');
+    expect(rendered).toContain('⚠️ 这可能不是普通执行问题');
+  });
+
+  it('keeps weekly and project rendering free of monthly-only sections', () => {
+    expect(renderPeriodicReview(monthlyGoldOutput, 'weekly', '2026-08-10', '2026-08-16')).not.toContain('## 主主题');
+    expect(renderPeriodicReview(monthlyGoldOutput, 'project', '2026-07-01', '2026-07-31')).not.toContain('## 主主题');
+  });
+
+  it('renders an explicit no-theme disclosure instead of forcing themes', () => {
+    const rendered = renderPeriodicReview({ ...monthlyGoldOutput, mainThemes: [], escalationReminder: null }, 'monthly', '2026-07-01', '2026-07-31');
+    expect(rendered).toContain('## 主主题');
+    expect(rendered).toContain('不硬凑');
+  });
+
+  it('discloses insufficient main themes for monthly in the quality self-check', () => {
+    const gated = applyPeriodicQualityGates({ ...monthlyGoldOutput, mainThemes: [] }, 'A', 'monthly');
+    expect(gated.qualitySelfCheck).toContain('主主题');
+    expect(gated.qualitySelfCheck).toContain('证据不足');
+    const weekly = applyPeriodicQualityGates(goldOutput, 'A', 'weekly');
+    expect(weekly.qualitySelfCheck).toBe(goldOutput.qualitySelfCheck);
   });
 
   it('renders an explicit disclosure when no direction anchors were identified', () => {
