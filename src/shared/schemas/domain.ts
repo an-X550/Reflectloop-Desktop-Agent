@@ -49,5 +49,6 @@ export type Journal = z.infer<typeof JournalSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
 export type DailyGenerationResult = { kind: 'review'; review: Review } | { kind: 'clarification'; question: string };
+export type PeriodicGenerationResult = { kind: 'review'; review: Review } | { kind: 'clarification'; question: string };
 export type InsightReviewType = Extract<Review['type'], 'coach' | 'yearly' | 'life-design'>;
 export type Profile = z.infer<typeof ProfileSchema>;

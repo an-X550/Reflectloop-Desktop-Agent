@@ -5,11 +5,11 @@
 ## Skill Runtime 边界
 
 - 当前仅支持 Windows 本地单用户；只在应用打开时运行，不启动后台常驻服务。
-- 日反馈使用版本化兼容快照与 LangGraph JS 编排，不会动态执行 Skill Markdown。
+- 日反馈与周期复盘（周/月/项目）使用版本化兼容快照与 LangGraph JS 编排，不会动态执行 Skill Markdown。
 - 桌面端不读取、执行或修改 Codex + `.claude` Skill 系统；原系统可继续独立用于开发和日常使用。
 - 桌面端数据目录会追加 `runtime/daily-feedback-audit.jsonl` 审计摘要，用于追溯日反馈等级、结果和昨日行动状态；其中不保存 API Key 或日记全文。
 
-日反馈当前的支持范围与延后项见 [Skill 兼容矩阵](docs/skill-compatibility-matrix.md)。
+日反馈与周期复盘的支持范围与延后项见 [Skill 兼容矩阵](docs/skill-compatibility-matrix.md)。
 
 ## 当前 MVP
 
