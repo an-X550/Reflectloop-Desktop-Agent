@@ -61,11 +61,25 @@
 | 校验失败回退澄清 | 模型输出不合 Schema 或返回 null 时返回澄清问题，不猜测、不创建新流程 | `intent-routing.test.ts`、`start-page.test.tsx` | 本阶段实现 |
 | 路由只带路 | 意图映射到既有导航目标，不新增视图 | `intent-target.test.ts` | 本阶段实现 |
 
+## 洞察工具（coach / yearly / life-design）
+
+| 已冻结规则能力 | 桌面端行为 | 验收测试 | 状态 |
+|---|---|---|---|
+| coach ≥3 篇门槛与文案 | 与 Skill 逐字一致；取最近 40 篇 | `generate-insight-review.test.ts`、`insight-materials.test.ts` | 已有，保留 |
+| coach A-D 就绪度与六步法 | 判据与 Skill 一致；六步法命名对齐方法论权威（回忆事实/筛选重点/评估结果/洞察思考/行为改进/分享讨论）；directionWarning 需四类方向信号中至少两类，单日低落或普通任务压力不触发 | `generate-insight-review.test.ts` | 本阶段实现 |
+| yearly 6 份月报门槛 | 同为 6 份；<6 份桌面硬拦截（Skill 为警告继续生成部分综合），预览-确认交互下不生成残缺报告 | `insight-materials.test.ts`、`generate-insight-review.test.ts` | 设计性差异，登记 |
+| yearly 升级提醒 | 四类触发条件（长期方向冲突/重复卡点/工作观人生观冲突/无法局部优化）满足时追加提醒，指向复盘页方向校准入口，不出现命令字样、不输出方向校准报告内容 | `generate-insight-review.test.ts` | 本阶段实现 |
+| yearly 输出结构 | 简洁五要素自由 Markdown（Skill 为 13 节固定长报告），桌面定位轻量本地复盘 | `generate-insight-review.test.ts` | 设计性差异，登记 |
+| life-design 材料与输出 | 月>周>日复盘 + 日志混排取 40 条；问题重述/张力与资源/两个方向/7 天实验/可观察判据/下次如何验证；仅 quick 模式（Skill 另有 standard/full/odyssey） | `generate-insight-review.test.ts`、`insight-materials.test.ts` | 本阶段实现；仅 quick 为设计性差异 |
+| 材料预览与确认 | 三链路同一预览-digest 确认门 | `generate-insight-review.test.ts` | 已有，保留 |
+| standard/full/odyssey 模式、部分综合 | 不属于桌面端洞察范围 | 不适用 | 排除 |
+
 ## 隔离规则
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v3`（增记 D 级判级复核）；提示词版本：`daily-review-v3`。
 - 周期复盘兼容快照版本：`desktop-periodic-review-v3`（增记月报深度）；提示词版本：`periodic-review-v4`。
 - 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
 - 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。
+- 洞察工具提示词版本：`journal-coach-v3`、`yearly-review-v2`、`life-design-v2`（语义参考 `.claude/agents/` 与 `.claude/commands/` 对应 command/agent，运行不依赖它们；设计性差异见洞察工具节与契约对照表）。
 - 桌面端运行时禁止依赖 `.claude` 路径。
 - 原有 Codex + Skill 的开发和日常运行不受桌面端代码、审计或数据影响。

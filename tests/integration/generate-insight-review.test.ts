@@ -16,10 +16,13 @@ describe('GenerateInsightReview', () => {
     await expect(service.execute({ ...input, previewToken: 'missing' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
     const preview = await service.preview(input);
     const result = await service.execute({ ...input, previewToken: preview.token });
-    expect(result).toMatchObject({ type: 'coach', promptVersion: 'journal-coach-v2', sourceIds: journals.map((item) => item.id) });
+    expect(result).toMatchObject({ type: 'coach', promptVersion: 'journal-coach-v3', sourceIds: journals.map((item) => item.id) });
     expect(messages[0].content).toContain('日志质量');
     expect(messages[0].content).toContain('分析就绪度');
     expect(messages[0].content).toContain('六步法写作习惯');
+    expect(messages[0].content).toContain('回忆事实、筛选重点、评估结果、洞察思考、行为改进、分享讨论');
+    expect(messages[0].content).toContain('反复怀疑长期方向');
+    expect(messages[0].content).toContain('单日情绪低落或普通任务压力不触发');
     expect(options).toEqual({ jsonObject: true });
     expect(result.body).toContain('# 日志教练报告：2026-08-01..2026-08-13');
     expect(result.body).toContain('| 日期 | 等级 | 已有证据 | 最值得补充 |');
@@ -43,12 +46,30 @@ describe('GenerateInsightReview', () => {
   });
 
   it('adds an enabled profile and topic to quick life design', async () => {
+    let system = '';
     let payload = '';
-    const service = new GenerateInsightReview({ list: async () => journals } as never, { list: async () => [], save: async (review: Review) => review } as never, { collect: async (messages: { content: string }[]) => { payload = messages[1].content; return '# 方向校准'; } }, tasks, () => '2026-08-13T10:00:00.000Z', { get: async () => ({ body: '准备转向前端', enabledForAi: true }) } as never);
+    const service = new GenerateInsightReview({ list: async () => journals } as never, { list: async () => [], save: async (review: Review) => review } as never, { collect: async (messages: { content: string }[]) => { system = messages[0].content; payload = messages[1].content; return '# 方向校准'; } }, tasks, () => '2026-08-13T10:00:00.000Z', { get: async () => ({ body: '准备转向前端', enabledForAi: true }) } as never);
     const input = { type: 'life-design' as const, start: '2026-08-01', end: '2026-08-13', topic: '下一份工作', model: 'fake' };
     const preview = await service.preview(input);
     const result = await service.execute({ ...input, previewToken: preview.token });
     expect(JSON.parse(payload)).toMatchObject({ topic: '下一份工作', profile: '准备转向前端' });
-    expect(result.promptVersion).toBe('life-design-v1');
+    expect(system).toContain('下次如何验证');
+    expect(result.promptVersion).toBe('life-design-v2');
+  });
+
+  it('requires six monthly reviews and carries the yearly escalation reminder contract', async () => {
+    const monthly = (index: number): Review => ({ schemaVersion: 1, id: `review_m${index}`, type: 'monthly', periodStart: `2026-${String(index + 1).padStart(2, '0')}-01`, periodEnd: `2026-${String(index + 1).padStart(2, '0')}-28`, sourceIds: [], projectId: null, provider: 'openai-compatible', model: 'fake', promptVersion: 'periodic-review-v4', createdAt: '2026-08-01T00:00:00.000Z', body: `月报 ${index}` });
+    let system = '';
+    const reviews = Array.from({ length: 6 }, (_, index) => monthly(index));
+    const service = new GenerateInsightReview({ list: async () => journals } as never, { list: async () => reviews, save: async (review: Review) => review } as never, { collect: async (messages: { content: string }[]) => { system = messages[0].content; return '# 年度回顾'; } }, tasks, () => '2026-08-13T10:00:00.000Z');
+    const input = { type: 'yearly' as const, start: '2026-01-01', end: '2026-12-31', model: 'fake' };
+    await expect(service.execute({ ...input, previewToken: 'missing' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    const preview = await service.preview(input);
+    const result = await service.execute({ ...input, previewToken: preview.token });
+    expect(result).toMatchObject({ type: 'yearly', promptVersion: 'yearly-review-v2' });
+    expect(system).toContain('长期方向冲突');
+    expect(system).toContain('方向校准');
+    expect(system).not.toContain('/life-design');
+    expect(system).not.toContain('自动生成');
   });
 });

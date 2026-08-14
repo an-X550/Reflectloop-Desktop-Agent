@@ -226,12 +226,12 @@ NavigationTarget = { view, intent? }
 | 文件 | 版本常量 | 要点 |
 |---|---|---|
 | `daily-review-v1.ts` | `daily-review-v3` | D0-D6 摘要、单洞察单行动、常规 260 字上限与例外 320 字（提示词软约束）、JSON 字段契约 |
-| `periodic-review-v1.ts` | `periodic-review-v3` | 按类型与等级生成系统提示；复盘六问一级标题结构与 Skill 侧 review-synthesis 契约同构（含回顾目标、聊天摘要、方向锚点五态缺席检查、质量自检，B/C 降级与空锚点披露由代码强制）；800 字上限；下游沉淀优先说明 |
-| `journal-coach-v2.ts` | `journal-coach-v2` | A-D 就绪度 + 六步法表格 + 一项低摩擦动作；`directionWarning` 需两类方向信号才填 |
+| `periodic-review-v1.ts` | `periodic-review-v4` | 按类型与等级生成系统提示；复盘六问一级标题结构与 Skill 侧 review-synthesis 契约同构（含回顾目标、聊天摘要、方向锚点五态缺席检查、质量自检，B/C 降级与空锚点披露由代码强制）；月报深度（主主题归并、下月规划假说、升级提醒）；800 字上限；下游沉淀优先说明 |
+| `journal-coach-v2.ts` | `journal-coach-v3` | A-D 就绪度 + 六步法表格（回忆事实/筛选重点/评估结果/洞察思考/行为改进/分享讨论） + 一项低摩擦动作；`directionWarning` 需四类方向信号中至少两类才填，单日低落或普通任务压力不触发 |
 | `topic-thinking-v1.ts` | `topic-thinking-v1` | 首稿/继续/归纳三套提示词；只归纳用户明确认可的判断 |
 | `verified-patterns-v1.ts` | `verified-patterns-v1` | 单篇复盘提取 0-3 条可验证行为假说候选 |
 | `intent-routing-v1.ts` | `intent-routing-v1` | 六值枚举选择器；不创建新流程 |
-| `insight-review-prompts.ts` | 按类型 | yearly/life-design 的系统提示词与版本 |
+| `insight-review-prompts.ts` | 按类型 | yearly（`yearly-review-v2`，含升级提醒触发条件）/life-design（`life-design-v2`，含下次如何验证）的系统提示词与版本 |
 
 规则：提示词语义变化必须递增版本常量（`xxx-vN`），并写入 Review 的 `promptVersion` 字段与兼容快照；渲染函数是输出格式的唯一真相，不要让模型直接产出最终 Markdown。
 
