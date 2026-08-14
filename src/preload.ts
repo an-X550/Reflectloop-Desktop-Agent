@@ -40,6 +40,11 @@ const api: ZhijiDesktopApi = {
     generateInsight: (input) => ipcRenderer.invoke('reviews:generate-insight', input),
     delete: (id) => ipcRenderer.invoke('reviews:delete', id),
   },
+  patterns: {
+    list: () => ipcRenderer.invoke('patterns:list'),
+    propose: (input) => ipcRenderer.invoke('patterns:propose', input),
+    confirm: (input) => ipcRenderer.invoke('patterns:confirm', input),
+  },
 };
 
 contextBridge.exposeInMainWorld('zhiji', api);

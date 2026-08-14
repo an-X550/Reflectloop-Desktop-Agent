@@ -1,5 +1,5 @@
-import type { DailyGenerationResult, Journal, PeriodicGenerationResult, Profile, Project, Review } from '../schemas/domain';
-import type { CreateJournalInput, CreateProjectInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, UpdateJournalInput } from '../schemas/ipc';
+import type { DailyGenerationResult, Journal, PeriodicGenerationResult, Profile, Project, Review, VerifiedPattern, VerifiedPatternCandidate } from '../schemas/domain';
+import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, UpdateJournalInput } from '../schemas/ipc';
 import type { PublicProviderConfig } from '../../main-process/infrastructure/ai/provider-config';
 import type { DataDirectoryInfo } from '../../main-process/infrastructure/data-directory/data-directory-service';
 
@@ -41,5 +41,10 @@ export interface ZhijiDesktopApi {
     previewInsight(input: InsightReviewPreviewInput): Promise<{ token: string; type: string; start: string; end: string; sources: { id: string; date: string; excerpt: string }[] }>;
     generateInsight(input: InsightReviewGenerateInput): Promise<Review>;
     delete(id: string): Promise<void>;
+  };
+  patterns: {
+    list(): Promise<VerifiedPattern[]>;
+    propose(input: ProposePatternsInput): Promise<VerifiedPatternCandidate[]>;
+    confirm(input: ConfirmPatternInput): Promise<VerifiedPattern>;
   };
 }

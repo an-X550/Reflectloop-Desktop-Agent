@@ -45,6 +45,27 @@ export const ReviewSchema = z.union([
 ]);
 export const ProfileSchema = z.object({ schemaVersion: z.literal(1), body: z.string().max(100_000), enabledForAi: z.boolean(), createdAt: IsoDateTime, updatedAt: IsoDateTime });
 
+const StablePatternId = z.string().regex(/^pattern_[a-z0-9]+$/);
+const StableReviewId = z.string().regex(/^review_[a-z0-9]+$/);
+export const VerifiedPatternSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: StablePatternId,
+  statement: z.string().trim().min(1).max(500),
+  evidenceSummary: z.string().trim().min(1).max(1000),
+  sourceReviewIds: z.array(StableReviewId).min(1).max(20),
+  createdAt: IsoDateTime,
+});
+export const VerifiedPatternSnapshotSchema = z.object({
+  schemaVersion: z.literal(1),
+  updatedAt: IsoDateTime,
+  patterns: z.array(VerifiedPatternSchema).max(500),
+});
+export const VerifiedPatternCandidateSchema = z.object({
+  statement: z.string().trim().min(1).max(500),
+  evidenceSummary: z.string().trim().min(1).max(1000),
+  sourceReviewIds: z.array(StableReviewId).min(1).max(20),
+}).strict();
+
 export type Journal = z.infer<typeof JournalSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
@@ -52,3 +73,6 @@ export type DailyGenerationResult = { kind: 'review'; review: Review } | { kind:
 export type PeriodicGenerationResult = { kind: 'review'; review: Review } | { kind: 'clarification'; question: string };
 export type InsightReviewType = Extract<Review['type'], 'coach' | 'yearly' | 'life-design'>;
 export type Profile = z.infer<typeof ProfileSchema>;
+export type VerifiedPattern = z.infer<typeof VerifiedPatternSchema>;
+export type VerifiedPatternSnapshot = z.infer<typeof VerifiedPatternSnapshotSchema>;
+export type VerifiedPatternCandidate = z.infer<typeof VerifiedPatternCandidateSchema>;

@@ -15,6 +15,8 @@ import { DataDirectoryService } from './infrastructure/data-directory/data-direc
 import { MarkdownProfileRepository } from './infrastructure/markdown/profile-repository';
 import { GenerateInsightReview } from './application/generate-insight-review';
 import { DailyAuditRecorder } from './skill-runtime/daily-audit-recorder';
+import { VerifiedPatternRepository } from './infrastructure/patterns/verified-pattern-repository';
+import { VerifiedPatternService } from './application/verified-patterns';
 
 export function bootstrap() {
   const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
@@ -29,7 +31,8 @@ export function bootstrap() {
   const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks, undefined, profile, new DailyAuditRecorder(dataRoot));
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
+  const verifiedPatterns = new VerifiedPatternService(reviews, new VerifiedPatternRepository(dataRoot), configureAi);
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
 }

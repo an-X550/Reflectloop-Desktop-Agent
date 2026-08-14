@@ -27,6 +27,15 @@
 | 正式复盘写入 | 原子写入并由仓储保存 | `generate-periodic-review.test.ts` | 已有，保留 |
 | 分发、提醒、飞书、滴答 | 不属于桌面第二阶段 | 不适用 | 排除 |
 
+## 第三阶段：验证模式沉淀
+
+| 已冻结规则能力 | 桌面端行为 | 验收测试 | 状态 |
+|---|---|---|---|
+| 模型只能提出候选 | 从单篇复盘提取 0-3 条可验证行为假说候选，严格 JSON Schema，不落库 | `verified-patterns.test.ts` | 本阶段实现 |
+| 用户确认/拒绝后才变更 | 确认后写入单一 JSON 快照；拒绝无任何持久化 | `pattern-panel.test.tsx`、`verified-patterns.test.ts` | 本阶段实现 |
+| 快照完整性 | 原子写入 + Zod 复读校验；快照损坏时报错而不是静默重置 | `verified-pattern-repository.test.ts` | 本阶段实现 |
+| 向量库、自动人格归纳、跨设备同步 | 不属于桌面第三阶段 | 不适用 | 排除 |
+
 ## 隔离规则
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v1`。

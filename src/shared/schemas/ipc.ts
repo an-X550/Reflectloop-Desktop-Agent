@@ -74,6 +74,16 @@ export const InsightReviewGenerateInputSchema = z.union([
 export type InsightReviewPreviewInput = z.infer<typeof InsightReviewPreviewInputSchema>;
 export type InsightReviewGenerateInput = z.infer<typeof InsightReviewGenerateInputSchema>;
 
+const StableReviewId = z.string().regex(/^review_[a-z0-9]+$/);
+export const ProposePatternsInputSchema = z.object({ reviewId: StableReviewId }).strict();
+export const ConfirmPatternInputSchema = z.object({
+  statement: z.string().trim().min(1).max(500),
+  evidenceSummary: z.string().trim().min(1).max(1000),
+  sourceReviewIds: z.array(StableReviewId).min(1).max(20),
+}).strict();
+export type ProposePatternsInput = z.infer<typeof ProposePatternsInputSchema>;
+export type ConfirmPatternInput = z.infer<typeof ConfirmPatternInputSchema>;
+
 export type CreateJournalInput = z.infer<typeof CreateJournalInputSchema>;
 export type UpdateJournalInput = z.infer<typeof UpdateJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;
