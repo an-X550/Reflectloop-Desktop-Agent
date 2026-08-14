@@ -68,7 +68,8 @@ describe('periodic-review-v3', () => {
   });
 
   it('rejects output missing the goal-review section', () => {
-    const { goalReview: _omitted, ...rest } = goldOutput;
+    const rest: Record<string, unknown> = { ...goldOutput };
+    delete rest.goalReview;
     expect(() => parsePeriodicReviewOutput(JSON.stringify(rest))).toThrow();
   });
 
