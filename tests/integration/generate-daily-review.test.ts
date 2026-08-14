@@ -9,7 +9,7 @@ import { ReviewTaskManager } from '../../src/main-process/domain/review-task';
 import { DAILY_REVIEW_PROMPT_VERSION, DAILY_REVIEW_SYSTEM_PROMPT, renderDailyReview } from '../../src/main-process/prompts/daily-review-v1';
 
 describe('GenerateDailyReview', () => {
-  it('returns a clarification without calling the model or saving a review for D-grade input', async () => {
+  it('returns a clarification after at most one grade-review call and never saves a review for D-grade input', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'zhiji-review-'));
     const journals = new MarkdownJournalRepository(root);
     const reviews = new MarkdownReviewRepository(root);
@@ -18,7 +18,7 @@ describe('GenerateDailyReview', () => {
     const audit = { record: vi.fn() };
     const result = await new GenerateDailyReview(journals, reviews, { collect }, new ReviewTaskManager(), undefined, undefined, audit).execute({ date: '2026-08-13', model: 'fake' });
     expect(result).toMatchObject({ kind: 'clarification', question: expect.any(String) });
-    expect(collect).not.toHaveBeenCalled();
+    expect(collect).toHaveBeenCalledTimes(1);
     expect(await reviews.list()).toEqual([]);
     expect(audit.record).toHaveBeenCalledWith({ date: '2026-08-13', sourceIds: ['journal_a1'], grade: 'D', outcome: 'clarification' });
   });

@@ -28,7 +28,8 @@ async function runtimeSources(folder = path.resolve(path.dirname(fileURLToPath(i
 
 describe('desktop daily feedback runtime', () => {
   it('uses a frozen desktop compatibility snapshot without reading .claude', () => {
-    expect(DAILY_FEEDBACK_COMPATIBILITY.id).toBe('desktop-daily-feedback-v2');
+    expect(DAILY_FEEDBACK_COMPATIBILITY.id).toBe('desktop-daily-feedback-v3');
+    expect(DAILY_FEEDBACK_COMPATIBILITY.supports).toContain('D-grade grading review (at most one short call)');
     expect(DAILY_FEEDBACK_COMPATIBILITY.materialCategories).toEqual([
       'target-journals',
       'previous-daily-review',
@@ -43,11 +44,52 @@ describe('desktop daily feedback runtime', () => {
     expect(sources).not.toContainEqual(expect.stringContaining('.claude'));
   });
 
-  it('stops D-grade input with one clarification before calling the model', async () => {
-    const collect = vi.fn();
+  it('runs exactly one grade-review call for D-grade input before falling back to clarification', async () => {
+    const collect = vi.fn().mockResolvedValue(JSON.stringify({
+      hasFacts: false,
+      hasStates: false,
+      hasInterpretations: false,
+      hasIntentions: false,
+      hasPersonalExperience: false,
+    }));
     const result = await runDailyFeedback({ journals: [journal('不知道。')], reviews: [], provider: { collect } });
     expect(result).toEqual({ kind: 'clarification', grade: 'D', question: expect.any(String) });
-    expect(collect).not.toHaveBeenCalled();
+    expect(collect).toHaveBeenCalledOnce();
+  });
+
+  it('promotes a regex-D short first-person evaluation to C after semantic review confirms personal experience', async () => {
+    const reviewOutput = JSON.stringify({
+      hasFacts: false,
+      hasStates: true,
+      hasInterpretations: true,
+      hasIntentions: false,
+      hasPersonalExperience: true,
+    });
+    const reviewBody = JSON.stringify({
+      priorAction: null,
+      insight: { quote: '期待多多交流', text: '你认可日志分享的价值。' },
+      patternConnection: null,
+      action: { step: '把想交流的一个问题写下来', prediction: '明天会带着问题继续分享。' },
+      newInsight: '分享意愿本身是动力。',
+    });
+    const collect = vi.fn().mockResolvedValueOnce(reviewOutput).mockResolvedValueOnce(reviewBody);
+    const result = await runDailyFeedback({ journals: [journal('日志分享是对的，期待多多交流。')], reviews: [], provider: { collect } });
+    expect(result).toMatchObject({ kind: 'review', grade: 'C' });
+    expect(collect).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the D-grade clarification when the review output is invalid', async () => {
+    const collect = vi.fn().mockResolvedValue('not-a-json');
+    const result = await runDailyFeedback({ journals: [journal('日志分享是对的，期待多多交流。')], reviews: [], provider: { collect } });
+    expect(result).toEqual({ kind: 'clarification', grade: 'D', question: expect.any(String) });
+    expect(collect).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the D-grade clarification when the review call fails', async () => {
+    const collect = vi.fn().mockRejectedValue(new Error('provider offline'));
+    const result = await runDailyFeedback({ journals: [journal('日志分享是对的，期待多多交流。')], reviews: [], provider: { collect } });
+    expect(result).toEqual({ kind: 'clarification', grade: 'D', question: expect.any(String) });
+    expect(collect).toHaveBeenCalledOnce();
   });
 
   it('routes evidence-ready input through the model once and renders a review', async () => {

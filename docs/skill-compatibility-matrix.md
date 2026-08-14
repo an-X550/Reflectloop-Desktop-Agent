@@ -8,7 +8,8 @@
 |---|---|---|---|
 | 最小材料 | 目标日志、最近前次日反馈、桌面端本地审计记录 | `daily-runtime.test.ts` | 本阶段实现 |
 | A-D 输入等级 | 程序生成证据卡并按等级限制模型行为 | `daily-evidence.test.ts` | 本阶段实现 |
-| D 级降级 | 仅提出一个补证问题；不调用模型、不保存反馈 | `daily-runtime.test.ts`、`generate-daily-review.test.ts` | 本阶段实现 |
+| D 级降级 | 仅提出一个补证问题；反馈生成不调用模型、不保存反馈；判级阶段允许至多一次语义复核短调用，确认本人经历则保守升至 C，失败回落原 D | `daily-runtime.test.ts`、`generate-daily-review.test.ts`、`daily-evidence-gold.test.ts` | 本阶段实现 |
+| A/B/C 级差 | 正则判级与语义判据在 B/C 边界存在级差（只影响反馈深度，不影响反馈有无），登记为已知差异，不修 | `daily-evidence-gold.test.ts` | 已知差异 |
 | 昨日闭环 | 读取最近前次日反馈；无明确反证时只能标记证据不足，并将闭环状态写入本地审计 | `generate-daily-review.test.ts`、`daily-audit-recorder.test.ts` | 本阶段实现 |
 | 单洞察、单行动与预测 | 使用严格 JSON Schema、确定性渲染；常规 260 字上限与例外 320 字写入提示词（不加代码硬校验） | `generate-daily-review.test.ts` | 已有，迁入 Runtime |
 | 正式反馈写入 | 原子写入并由仓储复读 | `generate-daily-review.test.ts` | 已有，保留 |
@@ -62,7 +63,7 @@
 
 ## 隔离规则
 
-- 日反馈兼容快照版本：`desktop-daily-feedback-v2`；提示词版本：`daily-review-v3`。
+- 日反馈兼容快照版本：`desktop-daily-feedback-v3`（增记 D 级判级复核）；提示词版本：`daily-review-v3`。
 - 周期复盘兼容快照版本：`desktop-periodic-review-v2`；提示词版本：`periodic-review-v3`。
 - 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
 - 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。

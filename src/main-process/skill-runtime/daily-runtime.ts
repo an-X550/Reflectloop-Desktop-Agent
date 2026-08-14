@@ -6,6 +6,7 @@ import { buildDailyContext } from '../domain/daily-context';
 import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
 import { DAILY_REVIEW_SYSTEM_PROMPT, parseDailyReviewOutput, renderDailyReview, type DailyReviewOutput } from '../prompts/daily-review-v1';
 import { buildDailyEvidence, type DailyEvidence, type DailyEvidenceGrade } from './daily-evidence';
+import { confirmPersonalExperience } from './daily-grade-review';
 
 export interface ProviderPort {
   collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
@@ -63,13 +64,24 @@ async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState
   return { result: { kind: 'review', grade: evidence.grade, body: renderDailyReview(normalized, date), output: normalized } };
 }
 
+async function reviewGrade(state: RuntimeState): Promise<Partial<RuntimeState>> {
+  const evidence = state.evidence;
+  if (!evidence || evidence.grade !== 'D') return {};
+  const confirmed = await confirmPersonalExperience(state.input.provider, state.input.journals, state.input.signal);
+  if (!confirmed) return {};
+  // 保守升级：只升到 C（镜像反射级），不跳 A/B，避免过度修正
+  return { evidence: { ...evidence, grade: 'C' } };
+}
+
 export async function runDailyFeedback(input: RuntimeInput): Promise<DailyRuntimeResult> {
   const graph = new StateGraph(DailyRuntimeState)
     .addNode('build_evidence', (state) => ({ evidence: buildDailyEvidence(state.input.journals) }))
+    .addNode('review_grade', reviewGrade)
     .addNode('clarify', (state) => ({ result: clarification(state.evidence ?? buildDailyEvidence(state.input.journals)) }))
     .addNode('generate', generateReview)
     .addEdge(START, 'build_evidence')
-    .addConditionalEdges('build_evidence', (state) => state.evidence?.grade === 'D' ? 'clarify' : 'generate')
+    .addConditionalEdges('build_evidence', (state) => state.evidence?.grade === 'D' ? 'review_grade' : 'generate')
+    .addConditionalEdges('review_grade', (state) => state.evidence?.grade === 'D' ? 'clarify' : 'generate')
     .addEdge('clarify', END)
     .addEdge('generate', END)
     .compile({ checkpointer: new MemorySaver() });

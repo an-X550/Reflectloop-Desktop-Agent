@@ -17,8 +17,8 @@
 
 | Skill 契约（`.claude/shared/contracts/`） | 桌面端载体 | 提示词版本 | 关系 |
 |---|---|---|---|
-| `daily-feedback.md` | `prompts/daily-review-v1.ts` + `skill-runtime/daily-runtime.ts` | `daily-review-v3`（快照 `desktop-daily-feedback-v2`） | 同源：输出五段模板、D0-D6、昨日闭环三态、单洞察单行动、常规 260/例外 320 字 |
-| `journal-input.md` | `skill-runtime/daily-evidence.ts` + `application/save-journal.ts` | 无提示词（代码实现） | 同源：A-D 证据判据（桌面端为正则实现，见契约审计 R2 对照证据）；日期由 UI 显式选择，场景消解 |
+| `daily-feedback.md` | `prompts/daily-review-v1.ts` + `skill-runtime/daily-runtime.ts` | `daily-review-v3`（快照 `desktop-daily-feedback-v3`） | 同源：输出五段模板、D0-D6、昨日闭环三态、单洞察单行动、常规 260/例外 320 字；快照增记 D 级判级复核 |
+| `journal-input.md` | `skill-runtime/daily-evidence.ts` + `skill-runtime/daily-grade-review.ts` + `application/save-journal.ts` | 无提示词（代码实现） | 同源：A-D 证据判据（桌面端为正则实现，见契约审计 R2 对照证据）；正则判 D 时经 D 级语义复核保守升 C；日期由 UI 显式选择，场景消解 |
 | `review-synthesis.md` | `prompts/periodic-review-v1.ts` + `skill-runtime/periodic-runtime.ts` | `periodic-review-v3`（快照 `desktop-periodic-review-v2`） | 同源：稳定结构（标题/聊天摘要/六问一级标题/方向锚点缺席检查/质量自检）、硬质量门、五态定义、周报深度；月报深度延后 |
 | `evidence-and-verification.md` | `prompts/verified-patterns-v1.ts` + `application/verified-patterns.ts` | `verified-patterns-v1` | 部分同源：确认后才沉淀的精神一致；六状态词流转与升级门槛未实现（有意差异） |
 | `topic-thinking.md` + `topic-thinking-persistence.md` | `prompts/topic-thinking-v1.ts` + `application/topic-thinking.ts` | `topic-thinking-v1` | 同源：首稿主线、事实/推断/价值/未知区分、确认后才写主题文件；持久化结构精简为三段 |
@@ -40,9 +40,11 @@
 | 未经确认不沉淀 | `你只提出候选，由用户决定是否沉淀` | verified-patterns-v1.ts | contract-prompt-mapping.test.ts |
 | 证据不足降级标注 | B/C 级降级披露由代码注入质量自检 | periodic-review-v1.ts（applyPeriodicQualityGates） | periodic-review-v1.test.ts、periodic-runtime.test.ts |
 | 模型不得创建新流程 | 六值枚举 + zod 失败回退澄清（代码强制） | intent-routing-v1.ts + intent-routing.ts | intent-routing.test.ts |
+| D 级判级复核纪律 | 至多一次复核短调用；确认本人经历只保守升 C；失败、超时或输出无效回落原 D（代码强制） | daily-grade-review.ts + daily-runtime.ts | daily-runtime.test.ts、daily-evidence-gold.test.ts |
 
 ## 未纳入断言的已知部分差异
 
+- 日反馈证据分级 A/B/C 级差：正则判级与语义判据在 B/C 边界存在级差，只影响反馈深度，登记为已知差异不修（R2 对照报告；金样本回归见 `daily-evidence-gold.test.ts`）。
 - 日反馈"禁止跨段重复同一判断"：桌面端靠结构化字段天然分隔，无显式提示词约束（契约审计 4.1）。
 - 主题"标题必须为判断性短句、禁止空栏目"：桌面端无对应提示词约束（契约审计 4.5）。
 - 上述两项若出现真实质量问题样本，再按必要性闸门评估是否补提示词约束。

@@ -1,5 +1,5 @@
 export const DAILY_FEEDBACK_COMPATIBILITY = Object.freeze({
-  id: 'desktop-daily-feedback-v2',
+  id: 'desktop-daily-feedback-v3',
   sourceRuleVersion: '2026-07-31',
   runtimeReadsClaudeDirectory: false,
   materialCategories: [
@@ -9,6 +9,7 @@ export const DAILY_FEEDBACK_COMPATIBILITY = Object.freeze({
   ] as const,
   supports: [
     'A-D evidence grading',
+    'D-grade grading review (at most one short call)',
     'prior-action closure',
     'single action',
     'regular 260-char cap with 320-char exception',
