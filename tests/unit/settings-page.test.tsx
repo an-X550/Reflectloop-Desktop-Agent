@@ -6,8 +6,10 @@ import { SettingsPage } from '../../src/renderer/pages/settings-page';
 beforeEach(() => {
   window.zhiji = {
     profile: { get: vi.fn(async () => null), save: vi.fn(async (input) => ({ schemaVersion: 1, ...input, createdAt: '2026-08-13T00:00:00.000Z', updatedAt: '2026-08-13T00:00:00.000Z' })), clear: vi.fn(async () => undefined) },
-    dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, profile: 0, settings: 0 } })), open: vi.fn(async () => undefined) },
+    dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, profile: 0, settings: 0 } })), open: vi.fn(async () => undefined), pickFolder: vi.fn(async () => ({ canceled: true })), changeLocation: vi.fn() },
     transfer: { exportBackup: vi.fn(async () => ({ canceled: true })), previewRestore: vi.fn(async () => ({ canceled: true })), restore: vi.fn(async () => ({ fileCount: 0 })) },
+    templates: { list: vi.fn(async () => []), get: vi.fn(), save: vi.fn(), delete: vi.fn() },
+    app: { getInfo: vi.fn(async () => ({ version: '1.27.0', updateUrl: null })), setUpdateUrl: vi.fn() },
     settings: {
       getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
       save: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: true })),
@@ -95,7 +97,7 @@ describe('SettingsPage', () => {
     render(<SettingsPage/>);
     expect(await screen.findByText('D:\\知己')).toBeInTheDocument();
     expect(screen.getByText(/6 个文件/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '打开数据文件夹' }));
+    fireEvent.click(screen.getByRole('button', { name: '打开文件夹' }));
     await waitFor(() => expect(window.zhiji.dataDirectory.open).toHaveBeenCalled());
   });
 

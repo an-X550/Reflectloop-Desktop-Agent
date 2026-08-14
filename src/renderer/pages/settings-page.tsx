@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import type { JournalTemplate } from '../../shared/schemas/domain';
 import type { SaveProviderConfigInput } from '../../shared/schemas/ipc';
 import { Button } from '../components/button';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { Field } from '../components/field';
+import { Modal } from '../components/modal';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
 import { ProviderCard } from '../features/settings/provider-card';
@@ -27,6 +29,17 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
   const [confirmClearKey, setConfirmClearKey] = useState(false);
   const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
   const changeTheme = (next: ThemePreference) => { setTheme(next); applyThemePreference(next); };
+  const [templates, setTemplates] = useState<JournalTemplate[]>([]);
+  const [editingTpl, setEditingTpl] = useState<{ name: string; body: string; original?: string } | null>(null);
+  const [tplMessage, setTplMessage] = useState('');
+  const [confirmDeleteTpl, setConfirmDeleteTpl] = useState<string | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [locationMessage, setLocationMessage] = useState('');
+  const [confirmChangeLocation, setConfirmChangeLocation] = useState<{ target: string; move: boolean } | null>(null);
+  const [appInfo, setAppInfo] = useState<{ version: string; updateUrl: string | null } | null>(null);
+  const [updateUrlInput, setUpdateUrlInput] = useState('');
+  const refreshTemplates = () => { void window.zhiji.templates.list().then(setTemplates).catch(() => undefined); };
+  useEffect(() => { refreshTemplates(); void window.zhiji.app.getInfo().then((info) => { setAppInfo(info); setUpdateUrlInput(info.updateUrl ?? ''); }); }, []);
 
   useEffect(() => { void Promise.all([window.zhiji.settings.getPublicConfig(), window.zhiji.dataDirectory.getInfo(), window.zhiji.profile.get()]).then(([{ hasApiKey: saved, ...config }, info, savedProfile]) => { setForm(config); setHasApiKey(saved); setDataInfo(info); if (savedProfile) setProfile({ body: savedProfile.body, enabledForAi: savedProfile.enabledForAi }); }); }, []);
   const updateProvider = (providerId: SaveProviderConfigInput['providerId']) => {
@@ -83,11 +96,14 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
       <ConfirmDialog open={confirmClearKey} title="移除已保存的 API Key？" description="移除后需要重新输入才能使用 AI 功能；其他设置保持不变。" confirmLabel="确认移除" onCancel={() => setConfirmClearKey(false)} onConfirm={() => { setConfirmClearKey(false); void clearApiKey(); }}/>
     </section>
     <section className="card transfer-panel">
-      <div className="section-heading"><div><h3>本地数据</h3><p>导出日志、复盘、项目与公开 AI 配置；API Key 和缓存不会进入备份。</p></div></div>
-      {dataInfo && <div className="data-location"><strong>{dataInfo.path}</strong><span>{dataInfo.writable ? '可写入' : '当前不可写'} · {dataInfo.fileCount} 个文件</span><Button onClick={() => void window.zhiji.dataDirectory.open()}>打开数据文件夹</Button></div>}
+      <div className="section-heading"><div><h3>本地数据</h3><p>管理数据存储位置、导出备份与恢复。更改位置后需要重启应用生效。</p></div></div>
+      {dataInfo && <div className="data-location"><strong>{dataInfo.path}</strong><span>{dataInfo.writable ? '可写入' : '当前不可写'} · {dataInfo.fileCount} 个文件</span><Button onClick={() => void window.zhiji.dataDirectory.open()}>打开文件夹</Button></div>}
+      <div className="transfer-actions"><Button loading={locationBusy} onClick={async () => { const result = await window.zhiji.dataDirectory.pickFolder(); if (result.canceled) return; setConfirmChangeLocation({ target: result.path, move: true }); }}>更改存储位置</Button></div>
+      {locationMessage && <StatusBanner tone={locationMessage.includes('失败') ? 'error' : 'success'}>{locationMessage}</StatusBanner>}
       <div className="transfer-actions"><Button loading={transferBusy === 'export'} onClick={() => void exportBackup()}>导出可验证备份</Button><Button loading={transferBusy === 'preview'} onClick={() => void previewBackup()}>选择备份并校验</Button></div>
       {restorePreview?.previewId && <div className="restore-preview"><strong>备份校验通过：{restorePreview.fileCount} 个文件</strong><p>{restorePreview.categories?.journals ?? 0} 篇日志 · {restorePreview.categories?.reviews ?? 0} 份复盘 · {restorePreview.categories?.projects ?? 0} 个项目</p><p className="muted">为避免覆盖，恢复只允许写入空数据目录。</p><Button variant="primary" loading={transferBusy === 'restore'} onClick={() => void restoreBackup()}>确认恢复</Button></div>}
       {transferMessage && <StatusBanner tone={transferMessage.includes('失败') ? 'error' : 'success'}>{transferMessage}</StatusBanner>}
+      <ConfirmDialog open={confirmChangeLocation !== null} title="更改数据存储位置？" description={confirmChangeLocation ? `将把数据位置更改为：${confirmChangeLocation.target}${confirmChangeLocation.move ? '（现有数据会被复制到新位置）' : '（不迁移现有数据）'}。更改后需要重启应用生效。` : ''} confirmLabel="确认更改" onCancel={() => setConfirmChangeLocation(null)} onConfirm={async () => { if (!confirmChangeLocation) return; const { target, move } = confirmChangeLocation; setLocationBusy(true); setLocationMessage(''); try { const result = await window.zhiji.dataDirectory.changeLocation({ target, move }); setConfirmChangeLocation(null); setLocationMessage(`已${result.moved ? '迁移数据并' : ''}更改位置到 ${result.to}，请重启应用生效。`); } catch (reason) { setLocationMessage(`更改失败：${reason instanceof Error ? reason.message : '请稍后重试'}`); } finally { setLocationBusy(false); } }}/>
     </section>
     <section className="card transfer-panel">
       <div className="section-heading"><div><h3>个人背景</h3><p>保存在 {dataInfo ? `${dataInfo.path}\\profile\\about-me.md` : '本地数据目录'}；不会从日志自动生成。</p></div></div>
@@ -96,5 +112,27 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
       <div className="settings-actions"><Button variant="danger" disabled={!profile.body} onClick={() => void window.zhiji.profile.clear().then(() => { setProfile({ body: '', enabledForAi: false }); setProfileMessage('个人背景已清空'); })}>清空个人背景</Button><Button variant="primary" disabled={!profile.body.trim()} onClick={() => void window.zhiji.profile.save({ body: profile.body, enabledForAi: profile.enabledForAi }).then(() => setProfileMessage('个人背景已保存'))}>保存个人背景</Button></div>
       {profileMessage && <StatusBanner tone="success">{profileMessage}</StatusBanner>}
     </section>
+    <section className="card transfer-panel">
+      <div className="section-heading"><div><h3>日志模板</h3><p>在写日志时一键插入预设结构；模板存放在本地数据目录的 templates 文件夹。</p></div><Button variant="secondary" onClick={() => setEditingTpl({ name: '', body: '' })}>新建模板</Button></div>
+      {templates.length === 0 ? <p className="muted">还没有模板。新建一个常用结构（如「每日回顾」「事件记录」），写日志时可直接套用。</p> : <ul className="topic-index">
+        {templates.map((tpl) => <li key={tpl.name}><button onClick={() => setEditingTpl({ name: tpl.name, body: tpl.body, original: tpl.name })}>{tpl.name}</button><span className="muted">{tpl.body.slice(0, 60)}{tpl.body.length > 60 ? '…' : ''}</span><div className="button-row" style={{ marginTop: 8 }}><Button variant="ghost" onClick={() => setConfirmDeleteTpl(tpl.name)}>删除</Button></div></li>)}
+      </ul>}
+      {tplMessage && <StatusBanner tone="success">{tplMessage}</StatusBanner>}
+    </section>
+    <section className="card transfer-panel">
+      <div className="section-heading"><div><h3>关于</h3><p>当前版本与更新检查。</p></div></div>
+      <div className="data-location"><strong>版本 {appInfo?.version ?? '—'}</strong><span>本地优先的 AI 日志复盘客户端</span></div>
+      <Field label="发布地址（可选）"><input aria-label="发布地址" value={updateUrlInput} placeholder="https://your-release-page.example.com" onChange={(event) => setUpdateUrlInput(event.target.value)}/><small>设置后「检查更新」会在浏览器打开此地址，方便获取最新安装包。</small></Field>
+      <div className="settings-actions"><Button variant="ghost" onClick={() => void window.zhiji.app.setUpdateUrl(updateUrlInput.trim() || null).then(() => setTplMessage('发布地址已保存'))}>保存地址</Button><Button variant="primary" disabled={!appInfo?.updateUrl} onClick={() => { if (appInfo?.updateUrl) window.open(appInfo.updateUrl, '_blank'); }}>检查更新</Button></div>
+      {tplMessage && <StatusBanner tone="success">{tplMessage}</StatusBanner>}
+    </section>
+    <Modal open={editingTpl !== null} title={editingTpl?.original ? '编辑模板' : '新建模板'} onClose={() => setEditingTpl(null)}>
+      <div>
+        <Field label="模板名称"><input autoFocus aria-label="模板名称" value={editingTpl?.name ?? ''} maxLength={40} onChange={(event) => setEditingTpl((old) => old ? { ...old, name: event.target.value } : old)} placeholder="例如：每日回顾"/></Field>
+        <Field label="模板正文"><textarea aria-label="模板正文" value={editingTpl?.body ?? ''} onChange={(event) => setEditingTpl((old) => old ? { ...old, body: event.target.value } : old)} placeholder="今天发生了什么？&#10;我做了什么？&#10;结果怎样？" style={{ minHeight: 180 }}/></Field>
+        <div className="button-row"><Button variant="ghost" onClick={() => setEditingTpl(null)}>取消</Button><Button variant="primary" disabled={!editingTpl?.name.trim() || !editingTpl?.body.trim()} onClick={() => { const t = editingTpl; if (!t) return; void window.zhiji.templates.save({ name: t.name.trim(), body: t.body }).then(() => { setEditingTpl(null); refreshTemplates(); setTplMessage(t.original ? '模板已更新' : '模板已创建'); }); }}>保存模板</Button></div>
+      </div>
+    </Modal>
+    <ConfirmDialog open={confirmDeleteTpl !== null} title="删除这个模板？" description={`「${confirmDeleteTpl ?? ''}」将被删除，已有日志不受影响。`} confirmLabel="确认删除" onCancel={() => setConfirmDeleteTpl(null)} onConfirm={() => { const name = confirmDeleteTpl; if (!name) return; void window.zhiji.templates.delete(name).then(() => { setConfirmDeleteTpl(null); refreshTemplates(); setTplMessage('模板已删除'); }); }}/>
   </div>;
 }

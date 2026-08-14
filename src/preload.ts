@@ -2,7 +2,22 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ZhijiDesktopApi } from './shared/contracts/desktop-api';
 
 const api: ZhijiDesktopApi = {
-  dataDirectory: { getInfo: () => ipcRenderer.invoke('data-directory:get-info'), open: () => ipcRenderer.invoke('data-directory:open') },
+  dataDirectory: {
+    getInfo: () => ipcRenderer.invoke('data-directory:get-info'),
+    open: () => ipcRenderer.invoke('data-directory:open'),
+    pickFolder: () => ipcRenderer.invoke('data-directory:pick-folder'),
+    changeLocation: (input) => ipcRenderer.invoke('data-directory:change-location', input),
+  },
+  templates: {
+    list: () => ipcRenderer.invoke('templates:list'),
+    get: (name) => ipcRenderer.invoke('templates:get', name),
+    save: (input) => ipcRenderer.invoke('templates:save', input),
+    delete: (name) => ipcRenderer.invoke('templates:delete', name),
+  },
+  app: {
+    getInfo: () => ipcRenderer.invoke('app:get-info'),
+    setUpdateUrl: (url) => ipcRenderer.invoke('app:set-update-url', url),
+  },
   profile: { get: () => ipcRenderer.invoke('profile:get'), save: (input) => ipcRenderer.invoke('profile:save', input), clear: () => ipcRenderer.invoke('profile:clear') },
   transfer: {
     exportBackup: () => ipcRenderer.invoke('transfer:export'),

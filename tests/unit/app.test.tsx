@@ -5,7 +5,7 @@ import { App } from '../../src/renderer/app/app';
 
 function api() {
   return {
-    dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 0, totalBytes: 0, categories: { journals: 0, reviews: 0, projects: 0, profile: 0, settings: 0 } })), open: vi.fn() },
+    dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 0, totalBytes: 0, categories: { journals: 0, reviews: 0, projects: 0, profile: 0, settings: 0 } })), open: vi.fn(), pickFolder: vi.fn(async () => ({ canceled: true })), changeLocation: vi.fn() },
     profile: { get: vi.fn(async () => null), save: vi.fn(), clear: vi.fn() },
     transfer: { exportBackup: vi.fn(), previewRestore: vi.fn(), restore: vi.fn() },
     journals: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), get: vi.fn() },
@@ -13,6 +13,8 @@ function api() {
     reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn(), onTaskPhase: vi.fn(() => () => undefined) },
     topics: { list: vi.fn(async () => []), sessions: vi.fn(async () => []), get: vi.fn(), start: vi.fn(), discuss: vi.fn(), propose: vi.fn(), confirm: vi.fn(), resume: vi.fn(), onStream: vi.fn(() => () => undefined) },
     web: { search: vi.fn(), readSource: vi.fn() },
+    templates: { list: vi.fn(async () => []), get: vi.fn(), save: vi.fn(), delete: vi.fn() },
+    app: { getInfo: vi.fn(async () => ({ version: '1.27.0', updateUrl: null })), setUpdateUrl: vi.fn() },
     settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
   } as unknown as Window['zhiji'];
 }

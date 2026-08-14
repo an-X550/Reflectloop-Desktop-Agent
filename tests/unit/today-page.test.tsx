@@ -12,6 +12,7 @@ beforeEach(() => {
   window.zhiji = {
     journals: { create: vi.fn(async (input) => ({ ...journal, ...input })), update: vi.fn(), delete: vi.fn(async () => undefined), list: vi.fn(), get: vi.fn() },
     reviews: { generateDaily: vi.fn(async () => ({}) as never), list: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn(), onTaskPhase: vi.fn(() => () => undefined) },
+    templates: { list: vi.fn(async () => []), get: vi.fn(), save: vi.fn(), delete: vi.fn() },
   } as unknown as Window['zhiji'];
 });
 

@@ -1,7 +1,7 @@
-import { ipcMain, type dialog as ElectronDialog } from 'electron';
+import { ipcMain, type dialog as ElectronDialog, shell } from 'electron';
 import { z } from 'zod';
 import { appError } from '../../shared/errors/app-error';
-import { ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, StartTopicInputSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
+import { ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, StartTopicInputSchema, TemplateNameSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -13,16 +13,33 @@ import type { ReviewTaskManager } from '../domain/review-task';
 import type { GeneratePeriodicReview } from '../application/generate-periodic-review';
 import type { DataTransferService } from '../infrastructure/transfer/data-transfer-service';
 import type { DataDirectoryService } from '../infrastructure/data-directory/data-directory-service';
+import type { DataRootHolder } from '../infrastructure/data-directory/data-root-holder';
+import type { DataRootConfig } from '../infrastructure/data-directory/data-root-config';
+import type { TemplateRepository } from '../infrastructure/templates/template-repository';
 import type { GenerateInsightReview } from '../application/generate-insight-review';
 import type { VerifiedPatternService } from '../application/verified-patterns';
 import type { TopicThinkingService } from '../application/topic-thinking';
 import type { WebSearchService } from '../infrastructure/web/web-search-service';
 
-export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; verifiedPatterns: VerifiedPatternService; topicThinking: TopicThinkingService; webSearch: WebSearchService; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
+export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; verifiedPatterns: VerifiedPatternService; topicThinking: TopicThinkingService; webSearch: WebSearchService; templates: TemplateRepository; dataRootHolder: DataRootHolder; dataRootConfig: DataRootConfig; appVersion: string; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
   /** 所有生成类通道共用：从公开配置取当前模型注入输入。 */
   const withModel = async <T extends object>(input: T): Promise<T & { model: string }> => ({ ...input, model: (await deps.configureAi.getPublicConfig()).model });
   ipcMain.handle('data-directory:get-info', () => deps.dataDirectory.getInfo());
   ipcMain.handle('data-directory:open', () => deps.dataDirectory.open());
+  ipcMain.handle('data-directory:pick-folder', async () => {
+    const result = await deps.dialog.showOpenDialog({ title: '选择数据存储位置', properties: ['openDirectory'] });
+    return result.canceled || !result.filePaths[0] ? { canceled: true } : { canceled: false, path: result.filePaths[0] };
+  });
+  ipcMain.handle('data-directory:change-location', async (_event, raw) => deps.dataRootHolder.changeLocation(ChangeDataRootInputSchema.parse(raw).target, { move: ChangeDataRootInputSchema.parse(raw).move }));
+  ipcMain.handle('templates:list', () => deps.templates.list());
+  ipcMain.handle('templates:get', (_event, raw) => deps.templates.get(TemplateNameSchema.parse(raw)));
+  ipcMain.handle('templates:save', (_event, raw) => deps.templates.save(SaveTemplateInputSchema.parse(raw)));
+  ipcMain.handle('templates:delete', (_event, raw) => deps.templates.delete(TemplateNameSchema.parse(raw)));
+  ipcMain.handle('app:get-info', async () => { const config = await deps.dataRootConfig.load(); return { version: deps.appVersion, updateUrl: config.updateUrl ?? null }; });
+  ipcMain.handle('app:set-update-url', async (_event, raw) => {
+    const url = raw === null || raw === '' ? null : z.string().url().parse(raw);
+    await deps.dataRootConfig.patch(url ? { updateUrl: url } : { updateUrl: undefined });
+  });
   ipcMain.handle('profile:get', () => deps.profile.get()); ipcMain.handle('profile:save', (_event, raw) => deps.profile.save(SaveProfileInputSchema.parse(raw))); ipcMain.handle('profile:clear', () => deps.profile.clear());
   ipcMain.handle('transfer:export', async () => {
     const result = await deps.dialog.showSaveDialog({ title: '导出知己备份', defaultPath: `知己备份-${new Date().toISOString().slice(0, 10)}.zhiji.zip`, filters: [{ name: '知己备份', extensions: ['zip'] }] });

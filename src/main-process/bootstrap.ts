@@ -12,6 +12,8 @@ import { GenerateDailyReview } from './application/generate-daily-review';
 import { GeneratePeriodicReview } from './application/generate-periodic-review';
 import { DataTransferService } from './infrastructure/transfer/data-transfer-service';
 import { DataDirectoryService } from './infrastructure/data-directory/data-directory-service';
+import { DataRootConfig } from './infrastructure/data-directory/data-root-config';
+import { DataRootHolder } from './infrastructure/data-directory/data-root-holder';
 import { MarkdownProfileRepository } from './infrastructure/markdown/profile-repository';
 import { GenerateInsightReview } from './application/generate-insight-review';
 import { DailyAuditRecorder } from './skill-runtime/daily-audit-recorder';
@@ -21,9 +23,13 @@ import { TopicRepository } from './infrastructure/topics/topic-repository';
 import { TopicSessionStore } from './infrastructure/topics/topic-session-store';
 import { TopicThinkingService } from './application/topic-thinking';
 import { WebSearchService } from './infrastructure/web/web-search-service';
+import { TemplateRepository } from './infrastructure/templates/template-repository';
 
-export function bootstrap() {
-  const dataRoot = process.env.ZHIJI_DATA_ROOT ?? path.join(app.getPath('documents'), '知己');
+export async function bootstrap() {
+  const config = new DataRootConfig();
+  const loaded = await config.load();
+  const dataRootHolder = new DataRootHolder(config, loaded.dataRoot);
+  const dataRoot = dataRootHolder.get();
   const trashItem = (target: string) => shell.trashItem(target);
   const journals = new MarkdownJournalRepository(dataRoot, trashItem);
   const projects = new JsonProjectRepository(dataRoot, trashItem);
@@ -32,6 +38,7 @@ export function bootstrap() {
   const reviews = new MarkdownReviewRepository(dataRoot, trashItem);
   const reviewTasks = new ReviewTaskManager();
   const profile = new MarkdownProfileRepository(dataRoot);
+  const templates = new TemplateRepository(dataRoot);
   const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks, undefined, profile, new DailyAuditRecorder(dataRoot));
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
@@ -40,5 +47,5 @@ export function bootstrap() {
   const webSearch = new WebSearchService();
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
 }

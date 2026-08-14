@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Journal, Project, Review } from '../../shared/schemas/domain';
+import type { Journal, JournalTemplate, Project, Review } from '../../shared/schemas/domain';
 import type { NavigationIntent, NavigationTarget } from '../app/navigation';
 import { Button } from '../components/button';
 import { ConfirmDialog } from '../components/confirm-dialog';
@@ -36,6 +36,7 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [taskPhase, setTaskPhase] = useState('');
   const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null);
+  const [templates, setTemplates] = useState<JournalTemplate[]>([]);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const dirty = Boolean(body.trim()) || Boolean(editing);
   // 未保存时先弹确认框，确认后才执行动作；干净时直接执行
@@ -50,6 +51,7 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
   }, [intent]);
   useEffect(() => { onDirtyChange?.(dirty); return () => onDirtyChange?.(false); }, [dirty, onDirtyChange]);
   useEffect(() => window.zhiji.reviews.onTaskPhase((phase) => setTaskPhase(TASK_PHASE_LABELS[phase] ?? '')), []);
+  useEffect(() => { void window.zhiji.templates.list().then(setTemplates).catch(() => undefined); }, []);
 
   const weekStart = useMemo(() => { const value = new Date(`${today}T12:00:00`); value.setDate(value.getDate() - ((value.getDay() || 7) - 1)); return value.toISOString().slice(0, 10); }, []);
   const weeklyJournals = journals.filter((item) => item.date >= weekStart && item.date <= today);
@@ -119,7 +121,18 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
         <section className="card editor-card">
           <Field label="日志日期"><input aria-label="日志日期" type="date" max={today} value={date} onChange={(event) => { setDate(event.target.value); setSaveState('idle'); }}/></Field>
           <Field label="关联项目（可选）"><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setSaveState('idle'); }}><option value="">不关联项目</option>{projects.filter((item) => item.status === 'active').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-          <Field label="日志内容"><textarea ref={editorRef} aria-label="日志内容" value={body} onChange={(event) => { setBody(event.target.value); setSaveState('idle'); }} placeholder="发生了什么？你做了什么？结果怎样？"/></Field>
+          <Field label="日志内容">
+            {templates.length > 0 && (
+              <div className="editor-meta" style={{ marginBottom: 8 }}>
+                <select aria-label="选择模板" value="" onChange={(event) => { if (event.target.value) { const tpl = templates.find((t) => t.name === event.target.value); if (tpl) setBody((old) => (old ? `${old}\n\n${tpl.body}` : tpl.body)); setSaveState('idle'); } event.target.value = ''; }}>
+                  <option value="">从模板开始…</option>
+                  {templates.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                </select>
+                <button type="button" className="reader-actions" style={{ border: 0, background: 'transparent', color: 'var(--accent)', font: 'var(--text-footnote)', fontWeight: 600, cursor: 'pointer' }} onClick={() => onNavigate({ view: 'settings' })}>管理模板</button>
+              </div>
+            )}
+            <textarea ref={editorRef} aria-label="日志内容" value={body} onChange={(event) => { setBody(event.target.value); setSaveState('idle'); }} placeholder={templates.length ? '选择模板或直接开始记录…' : '发生了什么？你做了什么？结果怎样？'}/>
+          </Field>
           <div className="editor-meta"><span className="tag">{date === today ? '今天' : date}</span><span className="tag">{body.length} 字</span></div>
           {date < today && <p className="muted">补写历史日志只保存，不会自动生成 AI 反馈。</p>}
           {saveMessage && <StatusBanner tone={saveState === 'error' ? 'error' : 'success'}>{saveMessage}</StatusBanner>}

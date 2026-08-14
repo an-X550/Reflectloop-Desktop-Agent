@@ -1,8 +1,27 @@
-import type { BackupExportOutcome, DailyGenerationResult, DataDirectoryInfo, Journal, PeriodicGenerationResult, Profile, Project, PublicProviderConfig, RestorePreviewOutcome, RestoreResult, Review, ReviewPreview, TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicProposal, TopicSession, TopicStartResult, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
-import type { ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
+import type { BackupExportOutcome, DailyGenerationResult, DataDirectoryInfo, Journal, JournalTemplate, PeriodicGenerationResult, Profile, Project, PublicProviderConfig, RestorePreviewOutcome, RestoreResult, Review, ReviewPreview, TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicProposal, TopicSession, TopicStartResult, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
+import type { ChangeDataRootInput, ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, SaveTemplateInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
 
 export interface ZhijiDesktopApi {
-  dataDirectory: { getInfo(): Promise<DataDirectoryInfo>; open(): Promise<void> };
+  dataDirectory: {
+    getInfo(): Promise<DataDirectoryInfo>;
+    open(): Promise<void>;
+    /** 弹出系统文件夹选择器，返回所选路径。 */
+    pickFolder(): Promise<{ canceled: true } | { canceled: false; path: string }>;
+    /** 更改数据存储位置；move=true 时把现有数据复制到新位置。需要重启生效。 */
+    changeLocation(input: ChangeDataRootInput): Promise<{ moved: boolean; from: string; to: string }>;
+  };
+  templates: {
+    list(): Promise<JournalTemplate[]>;
+    get(name: string): Promise<JournalTemplate>;
+    save(input: SaveTemplateInput): Promise<JournalTemplate>;
+    delete(name: string): Promise<void>;
+  };
+  app: {
+    /** 当前应用版本与构建信息（用于"关于"展示与更新检查）。 */
+    getInfo(): Promise<{ version: string; updateUrl: string | null }>;
+    /** 设置或清空发布地址（用于"检查更新"打开浏览器）。 */
+    setUpdateUrl(url: string | null): Promise<void>;
+  };
   profile: { get(): Promise<Profile | null>; save(input: SaveProfileInput): Promise<Profile>; clear(): Promise<void> };
   transfer: {
     exportBackup(): Promise<BackupExportOutcome>;

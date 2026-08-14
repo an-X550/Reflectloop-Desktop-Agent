@@ -107,3 +107,9 @@ export type JournalQuery = z.infer<typeof JournalQuerySchema>;
 export type CreateProjectInput = z.infer<typeof CreateProjectInputSchema>;
 export type RenameProjectInput = z.infer<typeof RenameProjectInputSchema>;
 export type SaveProviderConfigInput = z.infer<typeof SaveProviderConfigInputSchema>;
+
+export const TemplateNameSchema = z.string().trim().min(1).max(40).regex(/^[^/\\:*?"<>|]+$/, '模板名包含非法字符');
+export const SaveTemplateInputSchema = z.object({ name: TemplateNameSchema, body: z.string().trim().min(1).max(50_000) }).strict();
+export type SaveTemplateInput = z.infer<typeof SaveTemplateInputSchema>;
+export const ChangeDataRootInputSchema = z.object({ target: z.string().min(1), move: z.boolean() }).strict();
+export type ChangeDataRootInput = z.infer<typeof ChangeDataRootInputSchema>;

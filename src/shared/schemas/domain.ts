@@ -214,3 +214,6 @@ export const TopicConfirmResultSchema = z.object({ topic: z.string().min(1) }).s
 export type TopicConfirmResult = z.infer<typeof TopicConfirmResultSchema>;
 export const TopicContentSchema = z.object({ topic: z.string().min(1), body: z.string() }).strict();
 export type TopicContent = z.infer<typeof TopicContentSchema>;
+
+/** 日志模板：name 为模板名，body 为待插入正文。 */
+export interface JournalTemplate { name: string; body: string }
