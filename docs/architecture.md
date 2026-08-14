@@ -225,7 +225,7 @@ NavigationTarget = { view, intent? }
 
 | 文件 | 版本常量 | 要点 |
 |---|---|---|
-| `daily-review-v1.ts` | `daily-review-v2` | D0-D6 摘要、单洞察单行动、320 字上限、JSON 字段契约 |
+| `daily-review-v1.ts` | `daily-review-v3` | D0-D6 摘要、单洞察单行动、常规 260 字上限与例外 320 字（提示词软约束）、JSON 字段契约 |
 | `periodic-review-v1.ts` | `periodic-review-v3` | 按类型与等级生成系统提示；复盘六问一级标题结构与 Skill 侧 review-synthesis 契约同构（含回顾目标、聊天摘要、方向锚点五态缺席检查、质量自检，B/C 降级与空锚点披露由代码强制）；800 字上限；下游沉淀优先说明 |
 | `journal-coach-v2.ts` | `journal-coach-v2` | A-D 就绪度 + 六步法表格 + 一项低摩擦动作；`directionWarning` 需两类方向信号才填 |
 | `topic-thinking-v1.ts` | `topic-thinking-v1` | 首稿/继续/归纳三套提示词；只归纳用户明确认可的判断 |

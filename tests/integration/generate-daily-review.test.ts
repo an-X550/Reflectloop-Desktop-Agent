@@ -6,7 +6,7 @@ import { GenerateDailyReview } from '../../src/main-process/application/generate
 import { MarkdownJournalRepository } from '../../src/main-process/infrastructure/markdown/journal-repository';
 import { MarkdownReviewRepository } from '../../src/main-process/infrastructure/markdown/review-repository';
 import { ReviewTaskManager } from '../../src/main-process/domain/review-task';
-import { renderDailyReview } from '../../src/main-process/prompts/daily-review-v1';
+import { DAILY_REVIEW_PROMPT_VERSION, DAILY_REVIEW_SYSTEM_PROMPT, renderDailyReview } from '../../src/main-process/prompts/daily-review-v1';
 
 describe('GenerateDailyReview', () => {
   it('returns a clarification without calling the model or saving a review for D-grade input', async () => {
@@ -118,5 +118,11 @@ describe('GenerateDailyReview', () => {
     if (refreshedResult.kind !== 'review') throw new Error('expected a review');
     expect(refreshedResult.review.id).not.toBe(first.id);
     expect(calls).toBe(2);
+  });
+
+  it('states the regular 260-char cap with the 320-char exception in the prompt contract', () => {
+    expect(DAILY_REVIEW_PROMPT_VERSION).toBe('daily-review-v3');
+    expect(DAILY_REVIEW_SYSTEM_PROMPT).toContain('260');
+    expect(DAILY_REVIEW_SYSTEM_PROMPT).toContain('320');
   });
 });

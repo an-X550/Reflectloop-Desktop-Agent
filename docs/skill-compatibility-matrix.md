@@ -10,7 +10,7 @@
 | A-D 输入等级 | 程序生成证据卡并按等级限制模型行为 | `daily-evidence.test.ts` | 本阶段实现 |
 | D 级降级 | 仅提出一个补证问题；不调用模型、不保存反馈 | `daily-runtime.test.ts`、`generate-daily-review.test.ts` | 本阶段实现 |
 | 昨日闭环 | 读取最近前次日反馈；无明确反证时只能标记证据不足，并将闭环状态写入本地审计 | `generate-daily-review.test.ts`、`daily-audit-recorder.test.ts` | 本阶段实现 |
-| 单洞察、单行动与预测 | 使用严格 JSON Schema、确定性渲染 | `generate-daily-review.test.ts` | 已有，迁入 Runtime |
+| 单洞察、单行动与预测 | 使用严格 JSON Schema、确定性渲染；常规 260 字上限与例外 320 字写入提示词（不加代码硬校验） | `generate-daily-review.test.ts` | 已有，迁入 Runtime |
 | 正式反馈写入 | 原子写入并由仓储复读 | `generate-daily-review.test.ts` | 已有，保留 |
 | 验证沉淀写回 | JSONL 仅追加审计：记录证据等级、结果、昨日行动状态；不创建未经验证的长期模式 | `daily-audit-recorder.test.ts` | 本阶段实现 |
 | 分发、提醒、飞书、滴答 | 不属于桌面第一阶段 | 不适用 | 排除 |
@@ -62,7 +62,7 @@
 
 ## 隔离规则
 
-- 日反馈兼容快照版本：`desktop-daily-feedback-v1`。
+- 日反馈兼容快照版本：`desktop-daily-feedback-v2`；提示词版本：`daily-review-v3`。
 - 周期复盘兼容快照版本：`desktop-periodic-review-v2`；提示词版本：`periodic-review-v3`。
 - 主题思考提示词版本：`topic-thinking-v1`（自有快照，不读取 `.claude/shared/contracts/`）。
 - 意图路由提示词版本：`intent-routing-v1`（规则语义参考 `.claude/shared/contracts/codex-natural-language-routing.md`，运行不依赖它）。

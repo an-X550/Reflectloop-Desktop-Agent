@@ -28,7 +28,7 @@ async function runtimeSources(folder = path.resolve(path.dirname(fileURLToPath(i
 
 describe('desktop daily feedback runtime', () => {
   it('uses a frozen desktop compatibility snapshot without reading .claude', () => {
-    expect(DAILY_FEEDBACK_COMPATIBILITY.id).toBe('desktop-daily-feedback-v1');
+    expect(DAILY_FEEDBACK_COMPATIBILITY.id).toBe('desktop-daily-feedback-v2');
     expect(DAILY_FEEDBACK_COMPATIBILITY.materialCategories).toEqual([
       'target-journals',
       'previous-daily-review',
