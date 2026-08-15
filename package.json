@@ -1,7 +1,7 @@
 {
   "name": "zhiji-desktop",
   "productName": "知己",
-  "version": "1.27.0",
+  "version": "1.27.1",
   "description": "本地优先的 AI 日志复盘客户端",
   "main": ".vite/build/main.js",
   "private": true,

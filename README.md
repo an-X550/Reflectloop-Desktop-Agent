@@ -22,6 +22,9 @@
 - 日志历史归在日志页，可从任意历史日志直接生成对应日期的日反馈；全部复盘历史归在复盘页，从项目发起复盘时自动带入所选项目。
 - 日志和复盘可逐条移到 Windows 回收站且不会级联删除来源；项目名全局唯一，支持重命名、归档和恢复，只有无关联日志的项目可移到回收站。
 - 设置可移除当前服务商保存的 API Key；原生下拉控件保持系统行为，并统一了尺寸、圆角、箭头和聚焦反馈。
+- 数据存储位置可自定义：设置 → 本地数据 →「更改存储位置」，迁移现有数据到新目录后重启生效。
+- 日志支持自定义模板：设置 → 日志模板 新建/编辑/删除；写日志时「从模板开始」一键插入预设结构。
+- 设置 → 关于 显示当前版本号，可配置发布地址并通过「检查更新」打开浏览器获取最新安装包。
 - 个人背景固定保存在 `<数据目录>/profile/about-me.md`，可在设置中查看、编辑、启停和清空；不会自动生成画像，只有用户开启“允许 AI 使用”后才会注入复盘和方向校准。
 - 设置页支持带 SHA-256 清单和业务 Schema 校验的 `.zhiji.zip` 备份与空目录恢复；导出日志、复盘、项目、个人背景和公开配置，不包含 API Key 或缓存。
 - Renderer 禁用 Node 集成并启用上下文隔离和沙箱；文件、密钥和网络仅通过具名 IPC 访问。
@@ -32,6 +35,7 @@
 npm test
 npm run typecheck
 npm run package
+npm run make          # 产出安装包 Setup.exe（详见 docs/install-package-distribute.md）
 npm run test:e2e
 npm start
 ```
@@ -39,6 +43,8 @@ npm start
 `npm run test:e2e` 会先自动生成 Electron 构建入口，再启动隔离测试窗口；不要直接用 Electron 打开源码目录。
 
 依赖和缓存可放在 D 盘，项目中的 `node_modules` 可使用 Windows Junction 指向 D 盘目录。
+
+> 安装、打包、分发与文件职责的完整说明见 **[docs/install-package-distribute.md](docs/install-package-distribute.md)**。
 
 ## 当前发布边界
 
