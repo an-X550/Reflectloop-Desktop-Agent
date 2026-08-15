@@ -59,9 +59,33 @@ npm run make
 - `NODE_OPTIONS="--use-system-ca"`：去掉 WorkBuddy 注入的 safe-delete 拦截（它会拦截构建工具的 rm 并报错）。
 - 置空 `HTTP_PROXY/HTTPS_PROXY`：本机代理指向 `127.0.0.1:7897` 但 Clash 未开时，下载 Electron/Squirrel 工具会 `ECONNREFUSED`。
 
+### 镜像源（加速下载，已配置）
+
+项目根已加 `.npmrc`，使用**阿里云 npmmirror**（不用清华源）：
+
+```
+registry=https://registry.npmmirror.com
+electron_mirror=https://npmmirror.com/mirrors/electron/
+```
+
+首次在新机器 `npm install` 会走阿里云镜像，Electron 二进制也走镜像，速度快且不依赖 GitHub。若本机已有缓存，会自动复用，不会重复下载。
+
+### 复用已有 Electron 缓存（离线打包）
+
+Electron 二进制缓存于 `%LOCALAPPDATA%\electron\Cache\`。若发现 `node_modules\electron\dist\` 为空导致打包回退去下载，直接把缓存 zip 解压进去即可离线打包：
+
+```bash
+# 找到缓存 zip（例如 electron-v43.4.0-win32-x64.zip）
+ls "$LOCALAPPDATA/electron/Cache"/*/
+# 解压到本地 dist，之后 npm run package/make 不再联网下载 Electron
+unzip -oq "$LOCALAPPDATA/electron/Cache/<hash>/electron-v<版本>-win32-x64.zip" -d node_modules/electron/dist
+```
+
 ### 首次打包耗时
 
 `npm run make` 首次会下载 Squirrel 打包工具，可能耗时数十分钟；产物生成后即可用（`out/make/squirrel.windows/x64/` 下出现 `Setup.exe`、`zhiji-x.y.z-full.nupkg`、`RELEASES` 即成功）。之后再打包会快很多（工具已缓存）。
+
+> ⚠️ **中文路径导致的 rcedit 报错（可忽略）**：本项目路径含中文「知己」时，`make` 末尾给 `Setup.exe` 写版本信息（rcedit）会报 `Fatal error: Unable to load file` 并让 `make` 以非零码退出。**安装包已正常生成、可正常安装使用**，只是 `Setup.exe` 自身的「属性 → 详细信息」里版本字段缺失（安装进去的仍是正确版本）。如需彻底消除，把项目放到纯英文路径（如 `C:\projects\zhiji`）再打包。
 
 ---
 
