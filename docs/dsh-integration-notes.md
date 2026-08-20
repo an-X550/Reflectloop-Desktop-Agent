@@ -76,7 +76,7 @@
 - 发现损坏 JSONL 时，导出/恢复返回 `IMPORT_REJECTED`，运行时返回“会话数据损坏”并保留原文件；不静默删除、重置或降级成空会话。
 - 桌面端主题思考已移除：不再初始化 `TopicThinkingService`、`TopicSessionStore` 或主题仓储；已有 `topics/` 与 `runtime/topic-sessions/` 数据不主动删除，但桌面端不再读取或写入。每日分析、周复盘和月复盘不受影响。
 
-验证证据：`dsh-runtime.test.ts` 覆盖写入—重启—列表—resume 与损坏日志显式报错；`agent-facade.test.ts` 覆盖 snapshot 投影；`data-transfer.test.ts` 覆盖会话导出/恢复与损坏拒绝。主题范围清理后的全量回归为 `npm test` 51 files / 285 tests，Lint 为 0 error / 6 个既有 warning；D1 的 JSONL focused tests 继续通过。
+验证证据：`dsh-runtime.test.ts` 覆盖写入—重启—列表—resume 与损坏日志显式报错；`agent-facade.test.ts` 覆盖 snapshot 投影；`data-transfer.test.ts` 覆盖会话导出/恢复与损坏拒绝。主题范围清理后的全量回归为 `npm test` 51 files / 286 tests，Lint 为 0 error / 6 个既有 warning；D1 的 JSONL focused tests 继续通过。
 
 ## 主题思考当前裁决：从桌面端移除（2026-08-20）
 
@@ -94,10 +94,16 @@
 - Utility Process 只组合 DSH 的 LLM、session、system prompt、tool registry、agent registry 与 agent loop。未加载官方默认 bundle，因为它还会安装 Shell、文件系统、技能与联网工具；这不是永久排除知己领域能力，后续能力应通过 Main Process 受校验地复用既有服务、确认与正式写入链路。
 - 当前协议为 Main → Utility 的 `session.start/list/send/cancel`、`runtime.shutdown`、`model.delta/completed/failed/cancelled`，以及反向的 ready、session status/snapshot、消息流、模型请求/取消与运行错误；每条消息使用共享 Zod schema 并带 sessionId/requestId。
 - `tests/unit/dsh-runtime.test.ts` 使用真实 DSH Agent loop 与假模型 relay 验证启动、消息、流事件、完成和取消；`agent-facade.test.ts` 使用假 DSH 覆盖两轮消息、退出和崩溃中文降级；`agent-page.test.tsx` 和 schema 测试覆盖 Renderer 具名 API。
-- `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。主题范围清理后全量回归为 `npm test` 51 files / 285 tests；另有会话重启/损坏显式报错与备份拒绝 focused tests。
+- `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。主题范围清理后全量回归为 `npm test` 51 files / 286 tests；另有会话重启/损坏显式报错与备份拒绝 focused tests。
 
 ## 阶段 E 当前收敛证据
 
 - 生产 `app.asar` 保留 DSH 包自己的 `package.json` 相对解析，并带入 `@deepseek-ai/*`、`koffi` 与 `@koromix`；Koffi 的 `.node` 文件按 asar unpack 规则落到 `app.asar.unpacked`。这修复了启动时的 `../package.json` 与 `@deepseek-ai/dsh-session` 缺失错误。
 - Electron Utility Process 按运行时契约从 `process.parentPort` 接收端口；不依赖不存在的 `electron.parentPort`。`npm run test:e2e` 使用打包后的 `app.asar` 验证 Agent 页面、新建会话、日志写入、每日反馈、周复盘和历史阅读，结果为 1 passed。
 - 无 API Key 时，Main Process 仍只读取 safeStorage 中的凭证并返回中文错误；Agent 页面把该错误映射为“打开设置”动作，恢复路径仍是既有设置页，不新增密钥存储或 Renderer 读取 Key 的路径。
+
+## 阶段 F：API 凭据恢复（2026-08-20）
+
+- 真实截图错误对应 `safeStorage.decryptString` 无法解开旧密文（常见于切换 Electron `userData`、应用身份或 Windows 密钥环变化），不是 API 地址或模型响应错误。
+- `CredentialStore.read()` 仅捕获解密失败并返回 `null`；`credentials.json` 不删除、不搬入数据目录、不降级明文。`settings:get` 因此仍能返回服务商配置和 `hasApiKey: false`，用户可在既有设置页重新保存 API Key，让当前密钥环重新加密。
+- 回归：`credential-store.test.ts` 覆盖密文失配后的设置恢复语义；安全存储不可用仍返回明确错误，文件损坏仍不被静默吞掉。

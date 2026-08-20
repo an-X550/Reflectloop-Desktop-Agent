@@ -41,7 +41,7 @@
 
 ```text
 npm start          开发运行
-npm test           vitest run（当前 56 文件 / 326 测试，2026-08-20 实测）
+npm test           vitest run（当前 51 文件 / 286 测试，2026-08-20 实测）
 npm run typecheck  tsc --noEmit
 npm run lint       eslint（发布门要求 0 error）
 npm run package    electron-forge package（E2E 前置与发布门）
@@ -247,7 +247,7 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 
 - `ai/openai-compatible-provider.ts`：手写 SSE 流解析；HTTP 状态码映射结构化错误（401/403→INVALID_API_KEY、404→MODEL_NOT_FOUND、429→RATE_LIMITED）；`jsonObject` 选项启用 `response_format: json_object`。
 - `ai/provider-config.ts`：三预设（openai/deepseek/custom）+ HTTPS 校验（开发环境可放行 loopback HTTP）。
-- `credentials/credential-store.ts`：safeStorage 加密，`userData/credentials.json`，加密不可用时明确报错不降级明文。
+- `credentials/credential-store.ts`：safeStorage 加密，`userData/credentials.json`，加密不可用时明确报错不降级明文；旧密钥环导致密文无法解密时保留文件并按“未配置 API Key”恢复设置页。
 - `data-directory/data-directory-service.ts`：数据目录信息（路径、可写性、文件数、字节数、分类计数）与打开。
 - `transfer/data-transfer-service.ts` + `archive-manifest.ts` + `business-archive-validator.ts`：导出 `.zhiji.zip`（manifest 含 formatVersion/appVersion/逐文件 sha256）；恢复两段式——preview 校验（路径白名单、哈希、业务 schema）返回 previewId，restore 只允许写入空数据目录；API Key 与缓存不入包。
 - `agent/dsh-runtime.ts` + `@deepseek-ai/dsh-session-persistence-jsonl`：Agent 事件日志写入数据根 `agent/sessions/`；Main 负责路径、恢复列表和安全投影，Utility 负责 DSH session loop，不把领域正文复制进会话。

@@ -31,7 +31,13 @@ export class CredentialStore {
     const encrypted = (await this.readAll())[providerId];
     if (!encrypted) return null;
     if (!this.encryption.isEncryptionAvailable()) throw appError({ code: 'UNKNOWN', message: 'Windows 安全存储当前不可用。' });
-    return this.encryption.decryptString(Buffer.from(encrypted, 'base64'));
+    try {
+      return this.encryption.decryptString(Buffer.from(encrypted, 'base64'));
+    } catch {
+      // 密文可能来自另一份 Electron userData 密钥环；保留文件并按“未配置”恢复设置页。
+      // 这样不会把一个可重新保存的 API Key 问题误报成本地数据读取失败。
+      return null;
+    }
   }
 
   async delete(providerId: string): Promise<void> {

@@ -23,6 +23,22 @@ describe('CredentialStore', () => {
     const store = new CredentialStore(root, { isEncryptionAvailable: () => false, encryptString: () => Buffer.alloc(0), decryptString: () => '' });
     await expect(store.save('openai', 'secret')).rejects.toMatchObject({ code: 'UNKNOWN' });
   });
+
+  it('treats a ciphertext from another userData key ring as an unavailable key', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'zhiji-key-'));
+    const crypto = {
+      isEncryptionAvailable: () => true,
+      encryptString: () => Buffer.from('ciphertext'),
+      decryptString: () => { throw new Error('OS key ring mismatch'); },
+    };
+    const store = new CredentialStore(root, crypto);
+    await store.save('deepseek', 'test-secret-key');
+    const before = await readFile(path.join(root, 'credentials.json'), 'utf8');
+
+    await expect(store.read('deepseek')).resolves.toBeNull();
+    await expect(readFile(path.join(root, 'credentials.json'), 'utf8')).resolves.toBe(before);
+  });
+
   it('deletes only the selected provider credential', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'zhiji-key-'));
     const crypto = { isEncryptionAvailable: () => true, encryptString: (value: string) => Buffer.from(value), decryptString: (value: Buffer) => value.toString() };
