@@ -17,6 +17,7 @@ export const AgentUtilityCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session.list'), requestId: RequestIdSchema }).strict(),
   z.object({ type: z.literal('session.send'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, message: AgentTextSchema }).strict(),
   z.object({ type: z.literal('session.cancel'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema }).strict(),
+  z.object({ type: z.literal('session.delete'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema }).strict(),
   z.object({ type: z.literal('runtime.shutdown'), requestId: RequestIdSchema }).strict(),
   z.object({ type: z.literal('model.delta'), requestId: RequestIdSchema, delta: AgentTextSchema }).strict(),
   z.object({ type: z.literal('model.tool-call'), requestId: RequestIdSchema, index: z.number().int().nonnegative(), callId: z.string().trim().min(1).max(200), name: z.string().trim().min(1).max(200).optional(), argumentsDelta: z.string().max(20_000) }).strict(),

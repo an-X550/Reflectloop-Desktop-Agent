@@ -34,6 +34,7 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
   ipcMain.handle('agent:start', async (event, raw) => { ensureAgentSubscription(event.sender); return deps.agentFacade.start(AgentStartInputSchema.parse(raw).title); });
   ipcMain.handle('agent:send', async (event, raw) => { ensureAgentSubscription(event.sender); const input = AgentSendInputSchema.parse(raw); await deps.agentFacade.send(input.sessionId, input.message); });
   ipcMain.handle('agent:cancel', async (event, raw) => { ensureAgentSubscription(event.sender); await deps.agentFacade.cancel(AgentSessionInputSchema.parse(raw).sessionId); });
+  ipcMain.handle('agent:delete', async (event, raw) => { ensureAgentSubscription(event.sender); await deps.agentFacade.delete(AgentSessionInputSchema.parse(raw).sessionId); });
   ipcMain.handle('agent:confirm', async (event, raw) => { ensureAgentSubscription(event.sender); const input = AgentConfirmInputSchema.parse(raw); await deps.agentFacade.confirm(input.sessionId, input.approvalId); });
   ipcMain.handle('agent:list', async (event) => { ensureAgentSubscription(event.sender); return deps.agentFacade.list(); });
   ipcMain.handle('agent:get', (event, raw) => { ensureAgentSubscription(event.sender); return deps.agentFacade.get(AgentSessionInputSchema.parse(raw).sessionId); });

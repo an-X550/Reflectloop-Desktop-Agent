@@ -38,6 +38,7 @@ describe('DshRuntime', () => {
     port.receive({ type: 'session.send', requestId: crypto.randomUUID(), sessionId, message: '请用一句话回应' });
     const request = await port.next('model.request');
     expect(request.messages.at(-1)).toEqual({ role: 'user', content: '请用一句话回应' });
+    expect(request.system).toMatch(/知己桌面端当前本地日期是 \d{4}-\d{2}-\d{2}，今天是星期[日一二三四五六]/);
     port.receive({ type: 'model.delta', requestId: request.requestId, delta: '这是来自假模型的回复。' });
     port.receive({ type: 'model.completed', requestId: request.requestId });
     const completed = await port.next('message.completed');

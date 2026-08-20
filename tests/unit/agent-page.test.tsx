@@ -7,7 +7,7 @@ import type { AgentEvent } from '../../src/shared/schemas/agent';
 const session = { id: 'agent_abc123', title: '周复盘', status: 'idle' as const, messages: [], createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
 
 beforeEach(() => {
-  window.zhiji = { agent: { start: vi.fn(async () => session), send: vi.fn(), cancel: vi.fn(), confirm: vi.fn(), list: vi.fn(async () => [session]), get: vi.fn(), onEvent: vi.fn(() => () => undefined) } } as unknown as Window['zhiji'];
+  window.zhiji = { agent: { start: vi.fn(async () => session), send: vi.fn(), cancel: vi.fn(), delete: vi.fn(), confirm: vi.fn(), list: vi.fn(async () => [session]), get: vi.fn(), onEvent: vi.fn(() => () => undefined) } } as unknown as Window['zhiji'];
 });
 
 describe('AgentPage', () => {
@@ -17,6 +17,25 @@ describe('AgentPage', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '向知己 Agent 发送消息' }), { target: { value: '先整理本周' } });
     fireEvent.click(screen.getByRole('button', { name: '发送' }));
     await waitFor(() => expect(window.zhiji.agent.send).toHaveBeenCalledWith({ sessionId: 'agent_abc123', message: '先整理本周' }));
+  });
+
+  it('sends on Enter and preserves Shift+Enter for multiline input', async () => {
+    render(<AgentPage/>);
+    const textbox = await screen.findByRole('textbox', { name: '向知己 Agent 发送消息' });
+    fireEvent.change(textbox, { target: { value: '今天星期几' } });
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter' });
+    await waitFor(() => expect(window.zhiji.agent.send).toHaveBeenCalledWith({ sessionId: 'agent_abc123', message: '今天星期几' }));
+    fireEvent.change(textbox, { target: { value: '第一行' } });
+    fireEvent.keyDown(textbox, { key: 'Enter', code: 'Enter', shiftKey: true });
+    expect(window.zhiji.agent.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes a session only after explicit confirmation', async () => {
+    render(<AgentPage/>);
+    fireEvent.click(await screen.findByRole('button', { name: '删除会话' }));
+    expect(await screen.findByText('删除这个 Agent 会话？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+    await waitFor(() => expect(window.zhiji.agent.delete).toHaveBeenCalledWith({ sessionId: 'agent_abc123' }));
   });
 
   it('treats validated Agent navigation and result cards as data', async () => {

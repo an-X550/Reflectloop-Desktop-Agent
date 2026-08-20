@@ -26,6 +26,7 @@ export interface DshRuntimeOptions {
 }
 
 const ToolOutputSchema = { type: 'object' as const, additionalProperties: true };
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'] as const;
 const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; description: string; parameters: Record<string, unknown> }> = [
   { name: 'zhiji.journals.list', action: 'journals.list', label: '读取日志摘要', description: '读取经过脱敏的日志摘要，可按日期或项目筛选。', parameters: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' }, projectId: { type: 'string' } }, additionalProperties: false } },
   { name: 'zhiji.journals.get', action: 'journals.get', label: '读取日志摘要', description: '按日志 ID 读取经过脱敏的摘要。', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
@@ -159,7 +160,7 @@ export class DshRuntime {
       requestId,
       sessionId: String(options.sessionId ?? ''),
       messages,
-      ...(options.system ? { system: options.system } : {}),
+      system: [options.system, currentDateInstruction()].filter(Boolean).join('\n'),
       ...(options.tools?.length ? { tools: options.tools.map(({ name, description, parameters }) => ({ name, description, parameters })) } : {}),
     });
     try {
@@ -207,6 +208,12 @@ export class DshRuntime {
         agent.followup(createUserMessage({ content: [{ type: 'text', text: value.message }], source: { kind: 'user' } }));
       } else if (value.type === 'session.cancel') {
         this.getAgent(value.sessionId).cancel({ kind: 'user' });
+      } else if (value.type === 'session.delete') {
+        const handle = this.agents.get(value.sessionId);
+        if (handle) {
+          await handle.dispose();
+          this.agents.delete(value.sessionId);
+        }
       } else if (value.type === 'runtime.shutdown') {
         await this.dispose();
       }
@@ -342,6 +349,11 @@ export class DshRuntime {
     if (result.kind === 'ui.present') this.post({ type: 'ui.present', sessionId, card: result.card });
     return result;
   }
+}
+
+function currentDateInstruction(now = new Date()): string {
+  const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return `知己桌面端当前本地日期是 ${date}，今天是星期${WEEKDAYS[now.getDay()]}。涉及“今天、昨天、明天、本周、星期几”等日期问题时，必须以此为准直接回答，不要声称需要联网，也不要猜测其他日期。`;
 }
 
 function sessionSummary(meta: SessionHeader, events: readonly SessionEvent[]): AgentSession {

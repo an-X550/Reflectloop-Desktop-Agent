@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentFacade, type AgentRuntimePort } from '../../src/main-process/agent/agent-facade';
 import type { AgentModelTransport } from '../../src/main-process/agent/agent-model-transport';
@@ -58,6 +61,24 @@ describe('AgentFacade', () => {
     expect(dispatcher.approve).toHaveBeenCalledWith(session.id, 'approval_abc123');
     expect(runtime.commands.map((item) => item.type)).toEqual(['session.start', 'session.send']);
     expect(facade.get(session.id).messages.at(-1)?.content).toContain('确认执行');
+  });
+
+  it('deletes an idle session through the runtime and removes it from the facade', async () => {
+    const runtime = new FakeDshRuntime();
+    const model = { stream: vi.fn(), cancel: vi.fn(), dispose: vi.fn() } as unknown as AgentModelTransport;
+    const sessionRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-agent-delete-'));
+    const trashItem = vi.fn(async () => undefined);
+    const facade = new AgentFacade(runtime, model, undefined, { sessionRoot, trashItem });
+    const session = await facade.start('待删除');
+    const sessionPath = path.join(sessionRoot, '_no-cwd', session.id);
+    await mkdir(sessionPath, { recursive: true });
+    await facade.delete(session.id);
+
+    expect(runtime.commands.map((item) => item.type)).toEqual(['session.start', 'session.delete']);
+    expect(trashItem).toHaveBeenCalledWith(sessionPath);
+    expect(() => facade.get(session.id)).toThrow();
+    await facade.dispose();
+    await rm(sessionRoot, { recursive: true, force: true });
   });
 
   it('loads persisted DSH session snapshots through the normal Agent list call', async () => {

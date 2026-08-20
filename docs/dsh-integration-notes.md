@@ -37,7 +37,7 @@
 
 1. Renderer 只能经既有 Preload 具名 API 调用 Main Process；不导入 DSH、不会看到模型密钥。
 2. Main Process 创建 Electron Utility Process，并以 Electron `MessagePort` 建立双向协议。Utility Process 保有 DSH loop 和会话状态，不持有 API Key。
-3. Main → Utility：`session.start/list/send/cancel`、`runtime.shutdown` 与 `model.delta/completed/failed/cancelled`。Utility → Main：ready、session status/snapshot、消息流、模型请求/取消、`tool.request/tool.cancel` 与运行错误；工具结果走 `tool.result` 回传。每条消息带 sessionId/requestId，并由共享 Zod schema 解析。
+3. Main → Utility：`session.start/list/send/cancel/delete`、`runtime.shutdown` 与 `model.delta/completed/failed/cancelled`。Utility → Main：ready、session status/snapshot、消息流、模型请求/取消、`tool.request/tool.cancel` 与运行错误；工具结果走 `tool.result` 回传。每条消息带 sessionId/requestId，并由共享 Zod schema 解析。
 4. `cancel` 映射到 DSH `Agent.cancel` 并等待 `whenIdle()`；领域工作流的取消通过 `tool.cancel` 继续传递既有 `AbortSignal`。工具执行必须等待已启动操作静止后才返回，不能以遗留半写入换取快速停止。
 5. DSH 的 JSONL 持久化要求绝对 `root` 与每个 session 的绝对 `cwd`。阶段 A 的 Utility Process 冒烟测试必须证明 Electron Utility Process 的内嵌 Node 满足 DSH Node 要求，并验证 ESM/原生依赖在打包后可加载；失败时保持同一协议，改为受控 Node 子进程，仍不使用 Web UI。
 
@@ -92,7 +92,7 @@
 
 - 实际依赖为 `@deepseek-ai/cordis@4.0.1` 与 `@deepseek-ai/dsh-{agent,agent-loop,llm,session,system-prompt,tools,settings,scope,invariants}@0.1.0-rc.8`，均来自 npm 发布包；lockfile 不含外部源码 `file:` 路径。
 - Utility Process 只组合 DSH 的 LLM、session、system prompt、tool registry、agent registry 与 agent loop。未加载官方默认 bundle，因为它还会安装 Shell、文件系统、技能与联网工具；这不是永久排除知己领域能力，后续能力应通过 Main Process 受校验地复用既有服务、确认与正式写入链路。
-- 当前协议为 Main → Utility 的 `session.start/list/send/cancel`、`runtime.shutdown`、`model.delta/completed/failed/cancelled`，以及反向的 ready、session status/snapshot、消息流、模型请求/取消与运行错误；每条消息使用共享 Zod schema 并带 sessionId/requestId。
+- 当前协议为 Main → Utility 的 `session.start/list/send/cancel/delete`、`runtime.shutdown`、`model.delta/completed/failed/cancelled`，以及反向的 ready、session status/snapshot、消息流、模型请求/取消与运行错误；每条消息使用共享 Zod schema 并带 sessionId/requestId。
 - `tests/unit/dsh-runtime.test.ts` 使用真实 DSH Agent loop 与假模型 relay 验证启动、消息、流事件、完成和取消；`agent-facade.test.ts` 使用假 DSH 覆盖两轮消息、退出和崩溃中文降级；`agent-page.test.tsx` 和 schema 测试覆盖 Renderer 具名 API。
 - `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。主题范围清理后全量回归为 `npm test` 51 files / 286 tests；另有会话重启/损坏显式报错与备份拒绝 focused tests。
 
@@ -120,3 +120,9 @@
 - 修复边界：DSH 内部继续使用 `zhiji.journals.list` 等可读名称；`OpenAiCompatibleProvider` 发往兼容 API 时把非 `[A-Za-z0-9_-]` 字符转换为 `_`（并限制 64 字符），模型返回后按本次请求映射恢复内部名称，后续工具回合重新发回助手消息时也使用 API 名称。工具 action、Main Process dispatcher、权限和持久化会话不变。
 - DeepSeek V4 的工具思考回合需要回传 `reasoning_content`，而当前桌面桥接协议只保存文本和工具调用；DeepSeek Agent 因此显式使用 `thinking: { type: 'disabled' }`，避免在未实现完整 reasoning replay 前产生第二类 400。普通每日/周期复盘仍保留原有生成模式。
 - provider focused regression（16 tests）覆盖 API 合法工具名、内部名称恢复、后续助手工具回合和 DeepSeek Agent 非思考字段；实际 API 诊断确认转换后请求可返回 200。
+
+## 阶段 I：真实可用性收敛（2026-08-21）
+
+- 用户实测复现了三类问题：相对日期答案错误、会话无删除入口、Enter 只换行。
+- 修复：每轮 `model.request` 追加本地日期/星期事实；新增受控 `session.delete`，运行中拒绝，Main Process 在 Utility 释放后用 `shell.trashItem` 移入回收站；Renderer 显式确认；Enter/Shift+Enter 保持发送与多行输入语义。
+- focused DSH/Facade/Renderer tests 已覆盖这些行为；v2.0.4 打包版真实 API 冒烟通过：当前 API Key 可用，本机日期为 `2026-08-21` 时 Enter 日期问答返回“今天是星期五”，Agent 通过只读日志工具返回 2026-08-20、2026-08-15、2026-08-13 等真实摘要；确认删除后会话目录进入回收站，重启后不再列出，既有日志/复盘未改动。

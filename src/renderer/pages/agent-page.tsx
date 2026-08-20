@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AgentSession } from '../../shared/schemas/agent';
 import { AgentPresentationCardSchema, type AgentPresentationCard, type AgentWorkflowApproval } from '../../shared/schemas/agent-tools';
 import { Button } from '../components/button';
+import { ConfirmDialog } from '../components/confirm-dialog';
 import { MarkdownDocument } from '../components/markdown-document';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
@@ -17,6 +18,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
   const [cards, setCards] = useState<AgentPresentationCard[]>([]);
   const [approvals, setApprovals] = useState<Array<{ sessionId: string; approval: AgentWorkflowApproval }>>([]);
   const [needsApiKey, setNeedsApiKey] = useState(false);
+  const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     void window.zhiji.agent.list().then((items) => {
@@ -78,6 +80,22 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
     try { await window.zhiji.agent.cancel({ sessionId: selected.id }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '无法停止当前任务。'); }
   };
+  const removeSession = async () => {
+    const id = deleteSessionId;
+    if (!id) return;
+    try {
+      await window.zhiji.agent.delete({ sessionId: id });
+      const remaining = sessions.filter((item) => item.id !== id);
+      setSessions(remaining);
+      if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
+      setDeleteSessionId(null);
+      setStream(null);
+      setActivities([]);
+      setCards([]);
+      setApprovals((items) => items.filter((item) => item.sessionId !== id));
+      setError('');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '删除会话失败，请重试。'); }
+  };
   const confirmApproval = async (item: { sessionId: string; approval: AgentWorkflowApproval }) => {
     try {
       setError('');
@@ -97,7 +115,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
       <section className="agent-conversation card">
         {!selected && <div className="agent-empty"><h3>从一个目标开始</h3><p>例如：帮我梳理本周值得复盘的问题。</p><Button variant="primary" onClick={() => void createSession()}>开始对话</Button></div>}
         {selected && <>
-          <div className="agent-conversation__header"><div><h3>{selected.title}</h3><span className="muted">{selected.status === 'running' ? 'Agent 正在思考与组织回复' : selected.status === 'failed' ? '运行已停止，可新建会话继续' : '可以继续输入'}</span></div>{selected.status === 'running' && <Button variant="ghost" onClick={() => void stop()}>停止</Button>}</div>
+          <div className="agent-conversation__header"><div><h3>{selected.title}</h3><span className="muted">{selected.status === 'running' ? 'Agent 正在思考与组织回复' : selected.status === 'failed' ? '运行已停止，可新建会话继续' : '可以继续输入'}</span></div><div className="button-row">{selected.status === 'running' && <Button variant="ghost" onClick={() => void stop()}>停止</Button>}<Button variant="danger" disabled={selected.status === 'running'} onClick={() => setDeleteSessionId(selected.id)}>删除会话</Button></div></div>
           <div className="agent-messages">{selected.messages.map((item) => <article key={item.id} className={`agent-message agent-message--${item.role}`}><strong>{item.role === 'user' ? '你' : '知己 Agent'}</strong>{item.role === 'assistant' ? <MarkdownDocument>{item.content}</MarkdownDocument> : <p>{item.content}</p>}</article>)}
             {stream?.sessionId === selected.id && <article className="agent-message agent-message--assistant"><strong>知己 Agent</strong><MarkdownDocument>{stream.content}</MarkdownDocument><span className="stream-caret" aria-hidden="true"/></article>}
           </div>
@@ -106,10 +124,11 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
             {approvals.filter((item) => item.sessionId === selected.id).map((item) => <article className="agent-result-card" key={item.approval.approvalId}><h4>{item.approval.title}</h4><p>{item.approval.summary}</p><p className="muted">材料：{item.approval.preview.sources.length} 条；确认后才会写入正式复盘。</p><ul>{item.approval.preview.sources.slice(0, 8).map((source) => <li key={source.id}>{source.date}：{source.excerpt}</li>)}</ul><Button variant="primary" disabled={selected.status === 'running'} onClick={() => void confirmApproval(item)}>确认并继续</Button></article>)}
             {cards.map((card, index) => <article className="agent-result-card" key={`${card.title}-${index}`}><h4>{card.title}</h4><p>{card.summary}</p><div>{card.links.map((link, linkIndex) => <Button key={`${link.label}-${linkIndex}`} variant="secondary" onClick={() => { const target = agentNavigationTarget(link.target); if (target) onNavigate(target); else setError('结果链接无效，已拒绝打开。'); }}>{link.label}</Button>)}</div></article>)}
           </section>}
-          <div className="agent-composer"><textarea aria-label="向知己 Agent 发送消息" value={message} rows={3} placeholder="描述你的目标、补充材料或继续追问…" disabled={selected.status === 'running'} onChange={(event) => setMessage(event.target.value)}/><Button variant="primary" disabled={!message.trim() || selected.status === 'running'} onClick={() => void send()}>发送</Button></div>
+          <div className="agent-composer"><textarea aria-label="向知己 Agent 发送消息" value={message} rows={3} placeholder="描述你的目标、补充材料或继续追问…" disabled={selected.status === 'running'} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/><Button variant="primary" disabled={!message.trim() || selected.status === 'running'} onClick={() => void send()}>发送</Button></div>
         </>}
       </section>
     </div>
+    <ConfirmDialog open={deleteSessionId !== null} title="删除这个 Agent 会话？" description="会话消息会移入系统回收站，日志、复盘和其他会话不受影响。" confirmLabel="确认删除" onCancel={() => setDeleteSessionId(null)} onConfirm={() => void removeSession()}/>
     {error && <StatusBanner tone="error"><span>{error}</span>{needsApiKey && <Button variant="secondary" onClick={() => onNavigate({ view: 'settings' })}>打开设置</Button>}</StatusBanner>}
   </div>;
 }

@@ -342,6 +342,8 @@ bootstrap → dataRoot/agent/sessions/
 
 会话日志是 Agent 对话过程的权威，不取代日志、日反馈、周/月复盘和项目的 Markdown/JSON 仓储。数据目录迁移复用 `DataRootHolder` 的递归复制；备份路径白名单接纳 `agent/sessions/<project>/<agent>/session.jsonl`，业务校验用 DSH `Session.fromRestore` 验证 header、事件类型、顺序和序号。损坏日志以 `IMPORT_REJECTED` 或“会话数据损坏”明确失败，保留原文件，不静默重置。
 
+Agent 每轮模型请求会额外收到由桌面端本地时钟生成的当前日期/星期事实，避免把相对日期交给模型猜测；用户确认删除后，Utility 释放 live handle，Main Process 将对应会话目录移入系统回收站。Enter 发送、Shift+Enter 换行，运行中的会话不可删除。v2.0.4 打包版实测在当前 API Key 下按 Enter 询问“今天星期几”返回本机正确星期，并能通过只读工具读取真实日志摘要；删除后重启不会恢复该验收会话。
+
 主题思考不再属于桌面端运行时。已存在的 `topics/` 文件不会被删除，作为用户可自行处理的旧数据保留；桌面端不再提供主题页面、IPC、会话 checkpoint、主题仓储或 DSH 主题工具。Skill/CLI 侧的主题讨论契约不受影响；每日反馈、周复盘、月复盘和其他复盘页面不受影响。
 
 ### 9.4 已移除的桌面端主题思考

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { readdir, stat } from 'node:fs/promises';
 import { appError } from '../../shared/errors/app-error';
 import type { AgentEvent, AgentMessage, AgentSession } from '../../shared/schemas/agent';
 import type { AgentModelRequest, AgentRuntimeResponse, AgentUtilityCommand, AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
@@ -14,6 +16,11 @@ export interface AgentRuntimePort {
   stop(): Promise<void>;
 }
 
+export interface AgentSessionDeletionOptions {
+  sessionRoot?: string;
+  trashItem?: (target: string) => Promise<void>;
+}
+
 export class AgentFacade {
   private readonly sessions = new Map<string, AgentSession>();
   private readonly listeners = new Set<(event: AgentEvent) => void>();
@@ -22,7 +29,7 @@ export class AgentFacade {
   private readonly unsubscribeExit: () => void;
   private startup: Promise<void> | undefined;
 
-  constructor(private readonly runtime: AgentRuntimePort, private readonly modelTransport: AgentModelTransport, private readonly toolDispatcher?: AgentToolDispatcher) {
+  constructor(private readonly runtime: AgentRuntimePort, private readonly modelTransport: AgentModelTransport, private readonly toolDispatcher?: AgentToolDispatcher, private readonly deletionOptions: AgentSessionDeletionOptions = {}) {
     this.unsubscribeRuntime = runtime.onEvent((event) => this.handleRuntimeEvent(event));
     this.unsubscribeExit = runtime.onExit(() => this.handleRuntimeExit());
   }
@@ -55,6 +62,15 @@ export class AgentFacade {
     await this.ensureStarted();
     this.requireSession(sessionId);
     await this.runtime.request({ type: 'session.cancel', requestId: randomUUID(), sessionId });
+  }
+
+  async delete(sessionId: string): Promise<void> {
+    await this.ensureStarted();
+    const session = this.requireSession(sessionId);
+    if (session.status === 'running') throw appError({ code: 'INVALID_INPUT', message: '当前 Agent 正在运行，请先停止后再删除。' });
+    await this.runtime.request({ type: 'session.delete', requestId: randomUUID(), sessionId });
+    await this.trashPersistedSession(sessionId);
+    this.sessions.delete(sessionId);
   }
 
   async confirm(sessionId: string, approvalId: string): Promise<void> {
@@ -171,6 +187,27 @@ export class AgentFacade {
     const session = this.sessions.get(sessionId);
     if (!session) throw appError({ code: 'NOT_FOUND', entity: '这个 Agent 会话' });
     return session;
+  }
+
+  private async trashPersistedSession(sessionId: string): Promise<void> {
+    const { sessionRoot, trashItem } = this.deletionOptions;
+    if (!sessionRoot || !trashItem) return;
+    const projects = await readdir(sessionRoot, { withFileTypes: true }).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    });
+    for (const project of projects) {
+      if (!project.isDirectory()) continue;
+      const candidate = path.join(sessionRoot, project.name, sessionId);
+      try {
+        if (!(await stat(candidate)).isDirectory()) continue;
+        await trashItem(candidate);
+        return;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+        throw error;
+      }
+    }
   }
 
   private emit(event: AgentEvent): void {

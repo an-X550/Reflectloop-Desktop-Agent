@@ -7,6 +7,7 @@ export interface ZhijiDesktopApi {
     start(input?: AgentStartInput): Promise<AgentSession>;
     send(input: AgentSendInput): Promise<void>;
     cancel(input: AgentSessionInput): Promise<void>;
+    delete(input: AgentSessionInput): Promise<void>;
     confirm(input: AgentConfirmInput): Promise<void>;
     list(): Promise<AgentSession[]>;
     get(input: AgentSessionInput): Promise<AgentSession>;
