@@ -3,9 +3,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReviewsPage } from '../../src/renderer/pages/reviews-page';
 import type { Project, Review } from '../../src/shared/schemas/domain';
+import { getDefaultReviewRange } from '../../src/renderer/utils/date-defaults';
+import { toLocalDateString } from '../../src/renderer/utils/local-date';
 
 const project: Project = { schemaVersion: 1, id: 'project_a1', name: '知己客户端', status: 'active', createdAt: '2026-08-01T00:00:00.000Z', archivedAt: null };
 const historicalReview: Review = { schemaVersion: 1, id: 'review_history', type: 'monthly', periodStart: '2026-07-01', periodEnd: '2026-07-31', sourceIds: [], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'monthly-review-v1', createdAt: '2026-07-31T00:00:00.000Z', body: '七月复盘正文' };
+const expectedWeeklyRange = getDefaultReviewRange('weekly', toLocalDateString());
 
 beforeEach(() => { window.zhiji = { patterns: { list: vi.fn(async () => []), propose: vi.fn(async () => []), confirm: vi.fn() }, reviews: { preview: vi.fn(async () => ({ token: 'token', type: 'weekly', start: '2026-08-10', end: '2026-08-16', sources: [{ id: 'journal_a1', date: '2026-08-13', excerpt: '真实材料' }] })), generatePeriodic: vi.fn(async () => ({ kind: 'review', review: { schemaVersion: 1, id: 'review_a1', type: 'weekly', periodStart: '2026-08-10', periodEnd: '2026-08-16', sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'periodic-review-v1', createdAt: '2026-08-13T00:00:00.000Z', body: '本周有效行动' } })), previewInsight: vi.fn(async (input) => ({ token: 'insight-token', ...input, sources: [{ id: 'journal_a1', date: '2026-08-13', excerpt: '深度材料' }] })), generateInsight: vi.fn(async (input) => ({ schemaVersion: 1, id: 'review_insight', type: input.type, periodStart: input.start, periodEnd: input.end, sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: `${input.type}-v1`, createdAt: '2026-08-13T00:00:00.000Z', body: '深度洞察' })), delete: vi.fn(async () => undefined), cancel: vi.fn(), list: vi.fn(), generateDaily: vi.fn(), onTaskPhase: vi.fn(() => () => undefined) } } as unknown as Window['zhiji']; });
 
@@ -16,7 +19,7 @@ describe('ReviewsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '预览本周材料' }));
     expect(screen.queryByLabelText('开始日期')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '调整日期' }));
-    expect(screen.getByLabelText('开始日期')).toHaveValue('2026-08-10'); expect(screen.getByLabelText('结束日期')).toHaveValue('2026-08-16');
+    expect(screen.getByLabelText('开始日期')).toHaveValue(expectedWeeklyRange.start); expect(screen.getByLabelText('结束日期')).toHaveValue(expectedWeeklyRange.end);
   });
 
   it('invalidates a preview after range changes and enables generation only after preview', async () => {
