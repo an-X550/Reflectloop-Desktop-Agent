@@ -146,7 +146,7 @@ NavigationTarget = { view, intent? }
 | 页面 | 文件 | 职责与关键逻辑 |
 |---|---|---|
 | 开始 | `pages/start-page.tsx` | `resolveNextStep` 确定性建议卡；能力链接（做复盘/查看记录/管理项目）。原意图输入框已于 2026-08-14 下线删除 |
-| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、流式消息、安全 Markdown、运行状态与停止；阶段 B 可显示只读工具活动、受校验导航和结果卡片，不替代或写入现有领域产物 |
+| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、流式消息、安全 Markdown、运行状态与停止；阶段 B 的只读工具之外，阶段 C 可保存日志、生成每日反馈，或预览并经页面确认后生成周期/洞察复盘；正式产物仍由既有页面与服务负责 |
 | 日志 | `pages/today-page.tsx` | 写日志/过去日志两个 section；日期可选今天或过去（补写只保存不自动生成反馈）；"保存并生成今日反馈"会先保存再调 `reviews.generateDaily`；clarification 结果以 info 横幅展示；删除走确认条 + 回收站；复用 `RecordBrowser` 浏览历史并支持对过去日期"生成这一天的反馈" |
 | 复盘 | `pages/reviews-page.tsx` | 生成/历史两个 section；周/月/项目三卡 + "更多洞察"折叠区（coach/yearly/life-design）；固定流程：选类型 → 预览材料（拿 token）→ 确认并生成（带 previewToken）；结果用 `MarkdownDocument` 渲染并挂 `PatternPanel` |
 | 主题思考 | `pages/topics-page.tsx` | 讨论（start/discuss）、归纳提案（propose，更新模式展示旧正文差异）、确认沉淀（confirm）、主题列表与阅读、会话恢复、受控联网搜索与读源 |
@@ -190,16 +190,16 @@ NavigationTarget = { view, intent? }
 
 ### 7.1 组合根
 
-`bootstrap.ts` 手工装配（无 DI 容器）：数据根 `process.env.ZHIJI_DATA_ROOT ?? Documents/知己`；按“仓储 → 凭证 → AI 配置 → 任务管理 → 生成服务 → 领域服务 → 传输/目录服务”顺序构造，最后整体注入 `registerHandlers`。阶段 A 额外装配 `AgentFacade`：它启动独立 Utility Process 中的最小 DSH loop，并通过 `AgentModelTransport` 调用 `ConfigureAi.streamAgent()`；密钥仅在 Main Process 内解密和使用。阶段 B 的 `AgentToolDispatcher` 只允许经既有服务读取摘要、受控搜索/读源和页面意图。新增服务的装配只改这一个文件。
+`bootstrap.ts` 手工装配（无 DI 容器）：数据根 `process.env.ZHIJI_DATA_ROOT ?? Documents/知己`；按“仓储 → 凭证 → AI 配置 → 任务管理 → 生成服务 → 领域服务 → 传输/目录服务”顺序构造，最后整体注入 `registerHandlers`。阶段 A 额外装配 `AgentFacade`：它启动独立 Utility Process 中的最小 DSH loop，并通过 `AgentModelTransport` 调用 `ConfigureAi.streamAgent()`；密钥仅在 Main Process 内解密和使用。阶段 B/C 的 `AgentToolDispatcher` 只允许经既有服务读取摘要、受控搜索/读源，或调用高层日志/反馈/复盘用例；周期与洞察复盘的确认状态由 Main Process 持有，不能由模型文本冒充。新增服务的装配只改这一个文件。
 
 ### 7.2 application 层（用例）
 
 | 用例类 | 文件 | 职责 |
 |---|---|---|
 | `CreateJournal` / `UpdateJournal` | `save-journal.ts` | zod 校验 → 拒绝未来日期 → 生成 `journal_` id → 仓储写入；更新带 `expectedUpdatedAt` 乐观并发 |
-| `GenerateDailyReview` | `generate-daily-review.ts` | 快路径（sourceVersions 指纹未变且非 regenerate → 返回缓存）→ 任务状态机 → `runDailyFeedback` → 保存 Review(schemaVersion 2) → 审计记录 |
-| `GeneratePeriodicReview` | `generate-periodic-review.ts` | 预览（生成 uuid token + 材料 SHA-256 digest）→ 生成时校验 token 与 digest（材料变化则要求重新预览）→ `runPeriodicFeedback` → 保存 Review(schemaVersion 1) |
-| `GenerateInsightReview` | `generate-insight-review.ts` | coach/yearly/life-design 三种洞察工具；同样的预览-digest 确认门；coach 走 JSON 模式 + `renderJournalCoach`，其余为自由文本 |
+| `GenerateDailyReview` | `generate-daily-review.ts` | 快路径（sourceVersions 指纹未变且非 regenerate → 返回缓存）→ 任务状态机 → `runDailyFeedback` → 保存 Review(schemaVersion 2) → 审计记录；可接收 Agent 的外部 AbortSignal |
+| `GeneratePeriodicReview` | `generate-periodic-review.ts` | 预览（生成 uuid token + 材料 SHA-256 digest）→ 生成时校验 token 与 digest（材料变化则要求重新预览）→ `runPeriodicFeedback` → 保存 Review(schemaVersion 1)；Agent 生成前还需 Main Process 一次性页面确认，并转发取消信号 |
+| `GenerateInsightReview` | `generate-insight-review.ts` | coach/yearly/life-design 三种洞察工具；同样的预览-digest 确认门，Agent 复用页面确认；coach 走 JSON 模式 + `renderJournalCoach`，其余为自由文本 |
 | `VerifiedPatternService` | `verified-patterns.ts` | propose：从单篇复盘提取 ≤3 条候选（不落库）；confirm：确认后才写入 JSON 快照 |
 | `TopicThinkingService` | `topic-thinking.ts` | start（确定性主题召回 → 首稿）→ discuss（全历史进模型）→ proposeSummary（归纳 + create/update 判定）→ confirm（才写主题文件并删除会话）；会话文件型 checkpoint |
 | `ConfigureAi` | `configure-ai.ts` | settings.json 读写（原子写 + schema 复读校验）、Key 存凭证库、连接测试、`collect()` 适配器；非开发环境强制 HTTPS |
@@ -317,7 +317,23 @@ reviews:generate-periodic（带 previewToken）
 
 洞察工具（coach/yearly/life-design）同门，材料门槛见 7.3；coach 额外走 JSON schema 渲染。
 
-### 9.3 主题思考
+### 9.3 Agent 正式工作流（阶段 C）
+
+```text
+DSH tool.request
+→ Main Process AgentToolDispatcher 共享 Zod 校验
+→ journals.create/update：调用 CreateJournal / UpdateJournal，复用日期、ID 与乐观并发规则
+→ reviews.generate-daily：调用 GenerateDailyReview；D 级只返回补证问题，不保存残缺反馈
+→ reviews.preview-periodic / preview-insight：调用既有 preview，返回材料摘录 + previewToken
+→ Main Process 签发短期一次性 approvalId，Renderer 展示材料与“确认并继续”
+→ agent:confirm（Main 校验 sessionId + approvalId）→ Agent 继续一轮
+→ reviews.generate-periodic / generate-insight：校验 token、材料 digest 与 approvalId 后调用既有用例
+→ AgentFacade 把成功结果转换成受校验的正式结果卡；Renderer 只能导航既有日志/复盘页
+```
+
+`tool.cancel` 沿 MessagePort 反向传播为 Main Process 的 `AbortSignal`，再连接 `ReviewTaskManager`；取消发生在保存前时不会生成半写入正式复盘。确认状态只存在于 Main Process 的短期内存中，过期或进程退出后必须重新预览。
+
+### 9.4 主题思考
 
 ```text
 topics:start → findRelatedTopics（标题/别名/核心问题与提问的最长公共子串 ≥2 字符，最多 2 条）
@@ -330,7 +346,7 @@ topics:confirm → 才写主题文件 → 删除会话
 
 未经 confirm 不写任何主题文件；提案持久化在会话 checkpoint 文件内（topic-thinking-v2），重启后可恢复并 confirm。
 
-### 9.4 验证模式
+### 9.5 验证模式
 
 ```text
 patterns:propose（reviewId）→ 模型提 ≤3 条候选（仅返回，不落库）
@@ -338,7 +354,7 @@ patterns:confirm（候选）→ 生成 pattern_ id → 快照 add（原子写 + 
 拒绝：前端只移除列表项，后端无调用、无持久化
 ```
 
-### 9.5 备份与恢复
+### 9.6 备份与恢复
 
 导出：对话框选路径（强制 `.zhiji.zip` 后缀）→ 收集数据文件 → manifest（逐文件 sha256）→ adm-zip 写出。恢复：选包 → preview（校验 manifest、路径白名单、哈希、逐文件业务 schema；返回分类计数与 previewId）→ restore（uuid 校验 previewId；只允许空数据目录；提示重启）。
 

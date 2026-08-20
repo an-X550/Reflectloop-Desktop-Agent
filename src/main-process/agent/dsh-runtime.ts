@@ -28,6 +28,13 @@ const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; des
   { name: 'zhiji.patterns.list', action: 'patterns.list', label: '读取已验证模式', description: '读取用户已确认的验证模式。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'zhiji.web.search', action: 'web.search', label: '搜索公开来源', description: '通过受控搜索查找公开来源；结果只提供本次会话的 sourceId。', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'zhiji.web.read-source', action: 'web.read-source', label: '读取搜索来源', description: '只读取同一搜索会话返回的 sourceId 对应来源。', parameters: { type: 'object', properties: { searchSessionId: { type: 'string' }, sourceId: { type: 'string' } }, required: ['searchSessionId', 'sourceId'], additionalProperties: false } },
+  { name: 'zhiji.journals.create', action: 'journals.create', label: '保存日志', description: '在用户明确要求记录时，通过知己正式日志服务保存一条日志。', parameters: { type: 'object', properties: { date: { type: 'string' }, body: { type: 'string' }, projectIds: { type: 'array', items: { type: 'string' } } }, required: ['date', 'body'], additionalProperties: false } },
+  { name: 'zhiji.journals.update', action: 'journals.update', label: '更新日志', description: '在用户明确要求修改时，通过知己正式日志服务按乐观并发更新日志。', parameters: { type: 'object', properties: { id: { type: 'string' }, date: { type: 'string' }, body: { type: 'string' }, projectIds: { type: 'array', items: { type: 'string' } }, expectedUpdatedAt: { type: 'string' } }, required: ['id', 'date', 'body', 'expectedUpdatedAt'], additionalProperties: false } },
+  { name: 'zhiji.reviews.generate-daily', action: 'reviews.generate-daily', label: '生成每日反馈', description: '调用知己既有每日反馈服务；证据不足时只返回补证问题，不写入残缺反馈。', parameters: { type: 'object', properties: { date: { type: 'string' }, regenerate: { type: 'boolean' } }, required: ['date'], additionalProperties: false } },
+  { name: 'zhiji.reviews.preview-periodic', action: 'reviews.preview-periodic', label: '预览周期复盘材料', description: '预览周/月/项目复盘材料；必须等待用户在知己 Agent 页面确认后才能生成。', parameters: { type: 'object', properties: { type: { type: 'string', enum: ['weekly', 'monthly', 'project'] }, start: { type: 'string' }, end: { type: 'string' }, projectId: { type: 'string' } }, required: ['type', 'start', 'end'], additionalProperties: false } },
+  { name: 'zhiji.reviews.generate-periodic', action: 'reviews.generate-periodic', label: '生成周期复盘', description: '仅使用预览返回的 previewToken 和用户确认返回的 approvalId 生成正式周/月/项目复盘。', parameters: { type: 'object', properties: { type: { type: 'string', enum: ['weekly', 'monthly', 'project'] }, start: { type: 'string' }, end: { type: 'string' }, projectId: { type: 'string' }, previewToken: { type: 'string' }, approvalId: { type: 'string' } }, required: ['type', 'start', 'end', 'previewToken', 'approvalId'], additionalProperties: false } },
+  { name: 'zhiji.reviews.preview-insight', action: 'reviews.preview-insight', label: '预览洞察材料', description: '预览日志质量检查、年度回顾或方向校准材料；必须等待用户在知己 Agent 页面确认后才能生成。', parameters: { type: 'object', properties: { type: { type: 'string', enum: ['coach', 'yearly', 'life-design'] }, start: { type: 'string' }, end: { type: 'string' }, topic: { type: 'string' } }, required: ['type', 'start', 'end'], additionalProperties: false } },
+  { name: 'zhiji.reviews.generate-insight', action: 'reviews.generate-insight', label: '生成洞察复盘', description: '仅使用预览返回的 previewToken 和用户确认返回的 approvalId 生成正式洞察复盘。', parameters: { type: 'object', properties: { type: { type: 'string', enum: ['coach', 'yearly', 'life-design'] }, start: { type: 'string' }, end: { type: 'string' }, topic: { type: 'string' }, previewToken: { type: 'string' }, approvalId: { type: 'string' } }, required: ['type', 'start', 'end', 'previewToken', 'approvalId'], additionalProperties: false } },
   { name: 'zhiji.ui.navigate', action: 'ui.navigate', label: '打开产品页面', description: '请求打开一个经过验证的知己产品页面。', parameters: { type: 'object', properties: { target: { type: 'object' } }, required: ['target'], additionalProperties: false } },
   { name: 'zhiji.ui.present', action: 'ui.present', label: '展示结果卡片', description: '请求展示含受控产品页链接的结果卡片。', parameters: { type: 'object', properties: { title: { type: 'string' }, summary: { type: 'string' }, links: { type: 'array' } }, required: ['title', 'summary', 'links'], additionalProperties: false } },
 ];
@@ -66,8 +73,8 @@ class MainProcessModelAdapter extends LlmAdapter {
 }
 
 /**
- * The stage-A DSH composition used in Electron's Utility Process.
- * Domain tools are added only when they can reuse an existing validated product service.
+ * The DSH composition used in Electron's Utility Process.
+ * Domain tools are added only when they reuse an existing validated product service.
  */
 export class DshRuntime {
   private readonly ctx = new Context();
@@ -83,7 +90,7 @@ export class DshRuntime {
     if (this.started) return;
     await this.ctx.plugin(LlmRuntime);
     await this.ctx.plugin(SessionStore);
-    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；当前可读取经脱敏的日志、复盘、项目、主题和验证模式，并请求打开知己既有页面。不要声称已写入、生成、确认或删除正式内容；这些动作仍由既有校验与确认流程负责。' });
+    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目、主题和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。' });
     await this.ctx.plugin(ToolRuntime, {});
     for (const definition of TOOL_DEFINITIONS) this.ctx.tools.register(this.createTool(definition));
     await this.ctx.plugin(AgentRegistry);
@@ -245,7 +252,7 @@ export class DshRuntime {
     const requestId = randomUUID();
     this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'started', label });
     const result = await new Promise<AgentToolResult>((resolve, reject) => {
-      const abort = () => { this.toolRequests.delete(requestId); reject(new Error('已停止本次工具调用。')); };
+      const abort = () => { this.post({ type: 'tool.cancel', sessionId, requestId }); this.toolRequests.delete(requestId); reject(new Error('已停止本次工具调用。')); };
       exec.signal.addEventListener('abort', abort, { once: true });
       this.toolRequests.set(requestId, {
         resolve: (value) => { exec.signal.removeEventListener('abort', abort); resolve(value); },

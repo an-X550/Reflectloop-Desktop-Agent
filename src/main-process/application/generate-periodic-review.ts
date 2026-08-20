@@ -24,13 +24,16 @@ export class GeneratePeriodicReview {
     const { token } = this.previews.issue(input, materials);
     return { token, type: input.type, start: input.start, end: input.end, sources: materials.map((material) => { const item: Journal | Review = material; return { id: item.id, date: 'date' in item ? item.date : item.periodStart, excerpt: item.body.slice(0, 100) }; }) };
   }
-  async execute(input: Input & { previewToken: string }): Promise<PeriodicGenerationResult> {
+  async execute(input: Input & { previewToken: string }, externalSignal?: AbortSignal): Promise<PeriodicGenerationResult> {
     const preview = this.previews.peek(input.previewToken);
     if (!preview) throw appError({ code: 'INVALID_INPUT', message: '请先预览并确认材料。' });
     const materials = await this.materials(input);
     if (PreviewTokenStore.digest(materials) !== preview.digest) throw appError({ code: 'INVALID_INPUT', message: '材料已变化，请重新预览。' });
     this.previews.consume(input.previewToken);
     const task = this.tasks.start();
+    const abortExternal = () => task.controller.abort();
+    if (externalSignal?.aborted) task.controller.abort();
+    else externalSignal?.addEventListener('abort', abortExternal, { once: true });
     try {
       this.tasks.transition(task.taskId, 'generating');
       const profile = await this.profiles?.get();
@@ -50,6 +53,7 @@ export class GeneratePeriodicReview {
       const review: Review = { schemaVersion: 1, id: `review_${crypto.randomUUID().replace(/-/g, '')}`, type: input.type, periodStart: input.start, periodEnd: input.end, sourceIds: materials.map((x) => x.id), projectId: input.projectId ?? null, provider: 'openai-compatible', model: input.model, promptVersion: PERIODIC_REVIEW_PROMPT_VERSION, createdAt, body: runtime.body };
       this.tasks.transition(task.taskId, 'saving'); await this.reviews.save(review); this.tasks.transition(task.taskId, 'completed');
       return { kind: 'review', review };
-    } catch (error) { this.tasks.transition(task.taskId, task.controller.signal.aborted ? 'cancelled' : 'failed'); throw error; }
+    } catch (error) { this.tasks.transition(task.taskId, task.controller.signal.aborted || externalSignal?.aborted ? 'cancelled' : 'failed'); throw error; }
+    finally { externalSignal?.removeEventListener('abort', abortExternal); }
   }
 }

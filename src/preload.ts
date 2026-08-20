@@ -6,6 +6,7 @@ const api: ZhijiDesktopApi = {
     start: (input = {}) => ipcRenderer.invoke('agent:start', input),
     send: (input) => ipcRenderer.invoke('agent:send', input),
     cancel: (input) => ipcRenderer.invoke('agent:cancel', input),
+    confirm: (input) => ipcRenderer.invoke('agent:confirm', input),
     list: () => ipcRenderer.invoke('agent:list'),
     get: (input) => ipcRenderer.invoke('agent:get', input),
     onEvent: (listener) => {

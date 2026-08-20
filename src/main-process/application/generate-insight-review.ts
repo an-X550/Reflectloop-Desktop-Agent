@@ -25,13 +25,16 @@ export class GenerateInsightReview {
     return { token, type: input.type, start: input.start, end: input.end, sources: materials.map((item) => ({ id: item.id, date: 'date' in item ? item.date : item.periodStart, excerpt: item.body.slice(0, 100) })) };
   }
 
-  async execute(input: Input & { previewToken: string }): Promise<Review> {
+  async execute(input: Input & { previewToken: string }, externalSignal?: AbortSignal): Promise<Review> {
     const preview = this.previews.peek(input.previewToken);
     if (!preview || preview.input.type !== input.type) throw appError({ code: 'INVALID_INPUT', message: '请先预览并确认材料。' });
     const materials = await this.materials(input);
     if (PreviewTokenStore.digest(materials) !== preview.digest) throw appError({ code: 'INVALID_INPUT', message: '材料已变化，请重新预览。' });
     this.previews.consume(input.previewToken);
     const task = this.tasks.start();
+    const abortExternal = () => task.controller.abort();
+    if (externalSignal?.aborted) task.controller.abort();
+    else externalSignal?.addEventListener('abort', abortExternal, { once: true });
     try {
       this.tasks.transition(task.taskId, 'generating');
       const profile = await this.profiles?.get();
@@ -48,8 +51,8 @@ export class GenerateInsightReview {
       this.tasks.transition(task.taskId, 'completed');
       return review;
     } catch (error) {
-      this.tasks.transition(task.taskId, task.controller.signal.aborted ? 'cancelled' : 'failed');
+      this.tasks.transition(task.taskId, task.controller.signal.aborted || externalSignal?.aborted ? 'cancelled' : 'failed');
       throw error;
-    }
+    } finally { externalSignal?.removeEventListener('abort', abortExternal); }
   }
 }

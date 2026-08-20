@@ -15,13 +15,16 @@ export type DailyReviewResult = DailyGenerationResult;
 
 export class GenerateDailyReview {
   constructor(private readonly journals: MarkdownJournalRepository, private readonly reviews: MarkdownReviewRepository, private readonly provider: ProviderPort, private readonly tasks: ReviewTaskManager, private readonly now = () => new Date().toISOString(), private readonly profiles?: Pick<MarkdownProfileRepository, 'get'>, private readonly audit?: Pick<DailyAuditRecorder, 'record'>) {}
-  async execute(input: { date: string; model: string; regenerate?: boolean }): Promise<DailyReviewResult> {
+  async execute(input: { date: string; model: string; regenerate?: boolean }, externalSignal?: AbortSignal): Promise<DailyReviewResult> {
     const journals = (await this.journals.list()).filter((journal) => journal.date === input.date);
     if (!journals.length) throw appError({ code: 'NOT_FOUND', entity: input.date });
     const sourceVersions = toSourceVersions(journals);
     const existing = (await this.reviews.list()).filter((review) => review.type === 'daily' && review.periodStart === input.date).at(-1);
     if (isDailyReviewFresh(existing, input.date, sourceVersions) && !input.regenerate) return { kind: 'review', review: existing };
     const task = this.tasks.start();
+    const abortExternal = () => task.controller.abort();
+    if (externalSignal?.aborted) task.controller.abort();
+    else externalSignal?.addEventListener('abort', abortExternal, { once: true });
     try {
       this.tasks.transition(task.taskId, 'building_context');
       this.tasks.transition(task.taskId, 'generating');
@@ -40,6 +43,7 @@ export class GenerateDailyReview {
       await this.audit?.record({ date: input.date, sourceIds: review.sourceIds, grade: runtime.grade, outcome: 'review', ...(runtime.output.priorAction ? { priorActionStatus: runtime.output.priorAction.status } : {}) });
       this.tasks.transition(task.taskId, 'completed');
       return { kind: 'review', review };
-    } catch (error) { if (task.controller.signal.aborted) this.tasks.transition(task.taskId, 'cancelled'); else this.tasks.transition(task.taskId, 'failed'); throw error; }
+    } catch (error) { if (task.controller.signal.aborted || externalSignal?.aborted) this.tasks.transition(task.taskId, 'cancelled'); else this.tasks.transition(task.taskId, 'failed'); throw error; }
+    finally { externalSignal?.removeEventListener('abort', abortExternal); }
   }
 }

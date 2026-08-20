@@ -1,7 +1,7 @@
 import { ipcMain, type dialog as ElectronDialog, shell } from 'electron';
 import { z } from 'zod';
 import { appError } from '../../shared/errors/app-error';
-import { AgentSendInputSchema, AgentSessionInputSchema, AgentStartInputSchema, ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, StartTopicInputSchema, TemplateNameSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
+import { AgentConfirmInputSchema, AgentSendInputSchema, AgentSessionInputSchema, AgentStartInputSchema, ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, StartTopicInputSchema, TemplateNameSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -35,6 +35,7 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
   ipcMain.handle('agent:start', async (event, raw) => { ensureAgentSubscription(event.sender); return deps.agentFacade.start(AgentStartInputSchema.parse(raw).title); });
   ipcMain.handle('agent:send', async (event, raw) => { ensureAgentSubscription(event.sender); const input = AgentSendInputSchema.parse(raw); await deps.agentFacade.send(input.sessionId, input.message); });
   ipcMain.handle('agent:cancel', async (event, raw) => { ensureAgentSubscription(event.sender); await deps.agentFacade.cancel(AgentSessionInputSchema.parse(raw).sessionId); });
+  ipcMain.handle('agent:confirm', async (event, raw) => { ensureAgentSubscription(event.sender); const input = AgentConfirmInputSchema.parse(raw); await deps.agentFacade.confirm(input.sessionId, input.approvalId); });
   ipcMain.handle('agent:list', (event) => { ensureAgentSubscription(event.sender); return deps.agentFacade.list(); });
   ipcMain.handle('agent:get', (event, raw) => { ensureAgentSubscription(event.sender); return deps.agentFacade.get(AgentSessionInputSchema.parse(raw).sessionId); });
   ipcMain.handle('data-directory:get-info', () => deps.dataDirectory.getInfo());

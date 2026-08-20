@@ -1,7 +1,7 @@
-# DeepSeek Harness（DSH）阶段 A/B 接入核验
+# DeepSeek Harness（DSH）阶段 A/B/C 接入核验
 
 更新：2026-08-20
-范围：阶段 0 核验结论与阶段 A/B 实现记录；阶段 B 只接入受控只读工具与受校验的页面意图，不接入写入、生成、确认或持久化会话。
+范围：阶段 0 核验结论与阶段 A/B/C 实现记录；阶段 C 接入高层正式工作流，但不绕过既有 Schema、预览、确认、取消和仓储。
 
 ## 第一性原理结论
 
@@ -37,8 +37,8 @@
 
 1. Renderer 只能经既有 Preload 具名 API 调用 Main Process；不导入 DSH、不会看到模型密钥。
 2. Main Process 创建 Electron Utility Process，并以 Electron `MessagePort` 建立双向协议。Utility Process 保有 DSH loop 和会话状态，不持有 API Key。
-3. Main → Utility：`session.start/send/cancel`、`runtime.shutdown` 与 `model.delta/completed/failed/cancelled`。Utility → Main：ready、session status、消息流、模型请求/取消与运行错误。每条消息带 sessionId/requestId，并由共享 Zod schema 解析。
-4. `cancel` 映射到 DSH `Agent.cancel` 并等待 `whenIdle()`；进入领域工作流的取消继续传递既有 `AbortSignal`。工具执行必须等待已启动操作静止后才返回，不能以遗留半写入换取快速停止。
+3. Main → Utility：`session.start/send/cancel`、`runtime.shutdown` 与 `model.delta/completed/failed/cancelled`。Utility → Main：ready、session status、消息流、模型请求/取消、`tool.request/tool.cancel` 与运行错误；工具结果走 `tool.result` 回传。每条消息带 sessionId/requestId，并由共享 Zod schema 解析。
+4. `cancel` 映射到 DSH `Agent.cancel` 并等待 `whenIdle()`；领域工作流的取消通过 `tool.cancel` 继续传递既有 `AbortSignal`。工具执行必须等待已启动操作静止后才返回，不能以遗留半写入换取快速停止。
 5. DSH 的 JSONL 持久化要求绝对 `root` 与每个 session 的绝对 `cwd`。阶段 A 的 Utility Process 冒烟测试必须证明 Electron Utility Process 的内嵌 Node 满足 DSH Node 要求，并验证 ESM/原生依赖在打包后可加载；失败时保持同一协议，改为受控 Node 子进程，仍不使用 Web UI。
 
 ## 阶段 B：只读工具桥
@@ -47,6 +47,24 @@
 - 每个 `tool.request` 在 Main Process 由 `AgentToolDispatcher` 以共享严格 Zod schema 再次解析。dispatcher 只复用现有仓储/服务方法，返回固定长度的任务摘要；绝对路径、URL、凭证和原始实现错误不会跨回 Utility 或 Renderer。
 - `web.read-source` 只接收既有 `WebSearchService.search()` 返回的 `searchSessionId + sourceId`。浏览器 URL 保留在 Main 的搜索会话内，Agent 只得到标题、摘要与 sourceId。
 - 工具结果、失败、活动、导航和展示卡片均走同一 MessagePort schema。Renderer 再验证 `NavigationTarget`，只映射到既有产品页面；卡片链接不是 URL，也不执行任何内容。
+
+## 阶段 C：正式工作流桥
+
+第一性原理复核：用户需要的是“完成一次可验证的知己闭环”，不是让 DSH 获得直接文件写权限。因此 DSH 只调用 Main Process 中已有的高层用例，工具输入和结果仍经共享 Zod；正式日志/复盘的 Markdown 仓储继续是唯一权威。
+
+| 工具 | Main Process 委托 | 确认与安全边界 | 结果 |
+|---|---|---|---|
+| `zhiji.journals.create` / `journals.update` | `CreateJournal` / `UpdateJournal` | 用户明确要求后调用；复用未来日期拒绝、`journal_` ID、`expectedUpdatedAt` 乐观并发 | 仅返回日志摘要与既有日志页导航 |
+| `zhiji.reviews.generate-daily` | `GenerateDailyReview` | 复用 D0-D6 证据降级、快路径、审计和原子保存；D 级只返回补证问题 | 返回每日反馈摘要与日志记录页导航 |
+| `zhiji.reviews.preview-periodic` | `GeneratePeriodicReview.preview` | 返回材料摘录和 `previewToken`；Main 另签发 30 分钟内一次性 `approvalId` | Renderer 展示材料和确认按钮 |
+| `zhiji.reviews.generate-periodic` | `GeneratePeriodicReview.execute` | 必须匹配同一 session 的 `previewToken + approvalId`；材料 digest 变化时仍由既有服务拒绝 | 返回脱敏复盘摘要与既有复盘页导航 |
+| `zhiji.reviews.preview-insight` / `generate-insight` | `GenerateInsightReview.preview/execute` | 与周期复盘相同；模型或普通消息不能代替页面确认 | 返回脱敏洞察摘要与既有复盘页导航 |
+
+确认不是模型输出字段：Main 进程保存短期 pending approval，Renderer 通过具名 `agent:confirm` IPC 提交按钮动作，`AgentFacade` 才向 DSH 恢复下一轮。审批项过期、会话不匹配、重复使用或 Utility 崩溃都会要求重新预览。
+
+取消链路：DSH `ToolRunContext.signal` abort 时发送 `tool.cancel`；Main 为该 request 建立 `AbortController`，并把它连接到三类生成用例的 `ReviewTaskManager`。任务在 saving 前取消时，既有仓储不会收到保存调用；模型失败仍由既有错误和任务状态机处理。
+
+当前接入不是永久能力上限：后续若有真实使用证据，可以继续把主题归纳/确认等高层能力接入，但必须先复核其确认和数据生命周期边界；不开放通用文件、Shell、任意 URL 或批量删除。
 
 ## 发布包与源码构建的裁决
 

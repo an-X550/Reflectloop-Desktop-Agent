@@ -79,13 +79,16 @@
 |---|---|---|---|
 | 日志 `日志/YYYY-MM-DD.md`、复盘 `复盘/每日反馈/YYYY-MM-DD.md` 等（`.claude/shared/paths.md` 契约） | 日志 `journals/{年}/{日期}--{id}.md`、复盘 `reviews/{type}/...`（独立目录结构与 frontmatter 格式） | 双轨数据互不可消费：文件命名与格式完全非对称，同时使用两套系统时，任一侧的复盘/昨日闭环/材料选择都读不到另一侧记录，用户需重复录入；单轨使用无影响 | 已知差异（2026-08-14 登记）；若实际双轨使用，优先评估“桌面端导出→Skill 目录导入”单向只读桥，不做双向互通 |
 
-## DSH Agent 阶段 A/B
+## DSH Agent 阶段 A/B/C
 
 | 现有能力 | 当前 Agent 行为 | 后续接入方式 | 状态 |
 |---|---|---|---|
-| 日反馈、周/月/项目复盘、主题与项目 | 继续由既有页面、应用服务、Schema、预览确认与仓储负责 | DSH 以 Main Process Zod 校验的只读摘要工具读取日志/复盘/项目、已确认主题和已验证模式；不重写或绕过正式产物链路 | 阶段 B 只读接入 |
+| 日反馈、周/月/项目复盘、主题与项目 | 继续由既有页面、应用服务、Schema、预览确认与仓储负责 | DSH 以 Main Process Zod 校验的只读摘要工具读取日志/复盘/项目、已确认主题和已验证模式；阶段 C 另以高层工具调用日志保存、每日反馈及周期/洞察复盘，仍不重写或绕过正式产物链路 | 阶段 B 只读接入；阶段 C 已接入日志与正式复盘桥 |
 | 模型密钥 | Main Process `ConfigureAi` 流式代理 | Utility Process、Renderer、会话事件与数据目录均不接触 API Key | 阶段 A 实现 |
 | DSH 联网与 UI | 不加载官方默认 bundle 中的 Shell、文件系统、技能或任意联网工具 | 只复用 `WebSearchService` 的 search/sourceId 绑定；UI 只能请求既有页面和结果卡片，不能提供 URL、DOM 或脚本 | 阶段 B 实现 |
+| Agent 正式写入与确认 | 日志可按用户明确要求创建/更新；每日反馈可直接调用既有生成用例；周期/洞察复盘先预览后生成 | `AgentToolDispatcher` 只接受共享 Zod 输入；周期/洞察的 `previewToken` 还必须匹配 Main Process 签发且由 Renderer 页面按钮确认的一次性 `approvalId`；模型或普通文本不能冒充确认 | 阶段 C 实现 |
+| Agent 取消 | 既有 `ReviewTaskManager` 负责单任务状态机和 AbortSignal | DSH `tool.cancel` 经 MessagePort 传回 Main，连接到每日/周期/洞察用例；取消时不保存半成品 | 阶段 C 实现 |
+| Agent 结果 | 正式日志/复盘仍以 Markdown 仓储为权威 | Agent 只收到脱敏摘要；成功后由 Main 转成受校验结果卡，Renderer 通过既有日志/复盘页面查看，不把聊天文本当正式产物 | 阶段 C 实现 |
 
 ## 隔离规则
 

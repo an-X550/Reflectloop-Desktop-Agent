@@ -17,6 +17,7 @@ export interface AgentRuntimePort {
 export class AgentFacade {
   private readonly sessions = new Map<string, AgentSession>();
   private readonly listeners = new Set<(event: AgentEvent) => void>();
+  private readonly toolControllers = new Map<string, AbortController>();
   private readonly unsubscribeRuntime: () => void;
   private readonly unsubscribeExit: () => void;
   private startup: Promise<void> | undefined;
@@ -56,6 +57,15 @@ export class AgentFacade {
     await this.runtime.request({ type: 'session.cancel', requestId: randomUUID(), sessionId });
   }
 
+  async confirm(sessionId: string, approvalId: string): Promise<void> {
+    await this.ensureStarted();
+    const session = this.requireSession(sessionId);
+    if (session.status === 'running') throw appError({ code: 'INVALID_INPUT', message: '当前 Agent 仍在处理，请稍后再确认。' });
+    if (!this.toolDispatcher?.approve(sessionId, approvalId)) throw appError({ code: 'INVALID_INPUT', message: '确认已失效，请重新预览材料。' });
+    try { await this.send(sessionId, '我已在知己 Agent 页面确认执行刚才预览的正式工作流。'); }
+    catch (error) { this.toolDispatcher.revoke(sessionId, approvalId); throw error; }
+  }
+
   list(): AgentSession[] {
     return [...this.sessions.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
@@ -73,6 +83,8 @@ export class AgentFacade {
     this.unsubscribeRuntime();
     this.unsubscribeExit();
     this.modelTransport.dispose();
+    for (const controller of this.toolControllers.values()) controller.abort();
+    this.toolControllers.clear();
     await this.runtime.stop();
   }
 
@@ -86,6 +98,7 @@ export class AgentFacade {
     if (event.type === 'model.request') { void this.modelTransport.stream(event as AgentModelRequest, (command) => this.runtime.send(command)); return; }
     if (event.type === 'model.cancel') { this.modelTransport.cancel(event.requestId); return; }
     if (event.type === 'tool.request') { void this.dispatchTool(event); return; }
+    if (event.type === 'tool.cancel') { this.toolControllers.get(event.requestId)?.abort(); return; }
     if (event.type === 'session.status') {
       const session = this.sessions.get(event.sessionId);
       if (session) this.replaceSession({ ...session, status: event.status, updatedAt: new Date().toISOString() });
@@ -110,12 +123,24 @@ export class AgentFacade {
   }
 
   private async dispatchTool(event: Extract<AgentUtilityEvent, { type: 'tool.request' }>): Promise<void> {
-    const result = await (this.toolDispatcher?.dispatch(event) ?? Promise.resolve({ kind: 'error' as const, message: '知己工具当前不可用。' }));
-    this.runtime.send({ type: 'tool.result', requestId: event.requestId, result });
+    if (!this.sessions.has(event.sessionId)) { this.runtime.send({ type: 'tool.result', requestId: event.requestId, result: { kind: 'error', message: '知己 Agent 会话不存在，已拒绝工具调用。' } }); return; }
+    const controller = new AbortController();
+    this.toolControllers.set(event.requestId, controller);
+    try {
+      const result = await (this.toolDispatcher?.dispatch(event, controller.signal) ?? Promise.resolve({ kind: 'error' as const, message: '知己工具当前不可用。' }));
+      this.runtime.send({ type: 'tool.result', requestId: event.requestId, result });
+      if (result.kind === 'workflow.approval-required') this.emit({ type: 'workflow.approval', sessionId: event.sessionId, approval: result.approval });
+      if (result.kind === 'workflow.completed') {
+        const label = result.workflow === 'journals.create' ? '日志已保存' : result.workflow === 'journals.update' ? '日志已更新' : '正式复盘已保存';
+        this.emit({ type: 'ui.present', sessionId: event.sessionId, card: { title: label, summary: '正式内容已由知己既有服务校验并保存，可从原有页面继续查看。', links: [{ label: '打开正式结果', target: result.navigation }] } });
+      }
+    } finally { this.toolControllers.delete(event.requestId); }
   }
 
   private handleRuntimeExit(): void {
     this.startup = undefined;
+    for (const controller of this.toolControllers.values()) controller.abort();
+    this.toolControllers.clear();
     for (const session of this.sessions.values()) {
       if (session.status === 'running') this.markFailed(session.id, '知己 Agent 运行已停止；现有页面仍可继续使用。');
     }

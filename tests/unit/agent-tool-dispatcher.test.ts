@@ -17,7 +17,13 @@ function makeDispatcher() {
       return { title: '可信来源', url: 'https://example.com/private', publishedAt: null, excerpt: '来源正文' };
     }),
   };
-  return { dispatcher: new AgentToolDispatcher({ journals, reviews, projects, topicThinking, verifiedPatterns, webSearch }), journals, reviews, webSearch };
+  const createJournal = { execute: vi.fn(async (input: { date: string; body: string; projectIds: string[] }) => ({ schemaVersion: 1 as const, id: 'journal_created', date: input.date, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z', projectIds: input.projectIds, body: input.body })) };
+  const updateJournal = { execute: vi.fn(async (input: { id: string; date: string; body: string; projectIds: string[]; expectedUpdatedAt: string }) => ({ schemaVersion: 1 as const, id: input.id, date: input.date, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z', projectIds: input.projectIds, body: input.body })) };
+  const generateDailyReview = { execute: vi.fn() };
+  const generatePeriodicReview = { preview: vi.fn(), execute: vi.fn() };
+  const generateInsightReview = { preview: vi.fn(), execute: vi.fn() };
+  const configureAi = { getPublicConfig: vi.fn(async () => ({ providerId: 'custom' as const, baseUrl: 'https://example.test', model: 'test', hasApiKey: true })) };
+  return { dispatcher: new AgentToolDispatcher({ journals, reviews, projects, topicThinking, verifiedPatterns, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi }), journals, reviews, webSearch };
 }
 
 describe('AgentToolDispatcher', () => {
@@ -28,7 +34,7 @@ describe('AgentToolDispatcher', () => {
 
     expect(journals.list).toHaveBeenCalledOnce();
     expect(reviews.list).toHaveBeenCalledOnce();
-    expect(journalResult).toEqual({ kind: 'journals.list', journals: [{ id: 'journal_a1', date: '2026-08-20', projectIds: ['project_a1'], excerpt: '内容包含受保护位置，已省略。' }] });
+    expect(journalResult).toEqual({ kind: 'journals.list', journals: [{ id: 'journal_a1', date: '2026-08-20', projectIds: ['project_a1'], updatedAt: '2026-08-20T00:00:00.000Z', excerpt: '内容包含受保护位置，已省略。' }] });
     expect(JSON.stringify(reviewResult)).not.toMatch(/[A-Za-z]:[\\/]|https?:\/\//);
   });
 
@@ -60,5 +66,45 @@ describe('AgentToolDispatcher', () => {
 
     expect(valid).toEqual({ kind: 'ui.navigate', target: { view: 'reviews', intent: 'project', projectId: 'project_a1' } });
     expect(missing).toEqual({ kind: 'error', message: '知己工具暂时无法完成请求，请稍后重试。' });
+  });
+
+  it('routes journal writes and daily feedback through the existing application services', async () => {
+    const { dispatcher } = makeDispatcher();
+    const created = await dispatcher.dispatch(request('journals.create', { date: '2026-08-20', body: '记录一件已完成的事。', projectIds: ['project_a1'] }));
+    expect(created).toMatchObject({ kind: 'workflow.completed', workflow: 'journals.create', journal: { id: 'journal_created' }, navigation: { view: 'journal', intent: 'records' } });
+    const daily = (dispatcher as unknown as { deps: { generateDailyReview: { execute: ReturnType<typeof vi.fn> } } }).deps.generateDailyReview;
+    daily.execute.mockResolvedValue({ kind: 'review', review: { schemaVersion: 2, id: 'review_daily1', type: 'daily', periodStart: '2026-08-20', periodEnd: '2026-08-20', sourceIds: ['journal_created'], sourceVersions: { journal_created: 'v1' }, projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'daily-review-v3', createdAt: '2026-08-20T00:00:00.000Z', body: '今日反馈' } });
+    const feedback = await dispatcher.dispatch(request('reviews.generate-daily', { date: '2026-08-20' }));
+    expect(feedback).toMatchObject({ kind: 'workflow.completed', workflow: 'reviews.generate-daily', review: { id: 'review_daily1' }, navigation: { view: 'journal', intent: 'records' } });
+  });
+
+  it('requires a Main Process approval before a periodic review can be written', async () => {
+    const { dispatcher } = makeDispatcher();
+    const periodic = (dispatcher as unknown as { deps: { generatePeriodicReview: { preview: ReturnType<typeof vi.fn>; execute: ReturnType<typeof vi.fn> } } }).deps.generatePeriodicReview;
+    periodic.preview.mockResolvedValue({ token: '00000000-0000-4000-8000-000000000001', type: 'weekly', start: '2026-08-17', end: '2026-08-20', sources: [{ id: 'journal_a1', date: '2026-08-20', excerpt: '本周记录' }] });
+    periodic.execute.mockResolvedValue({ kind: 'review', review: { schemaVersion: 1, id: 'review_new1', type: 'weekly', periodStart: '2026-08-17', periodEnd: '2026-08-20', sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'periodic-review-v1', createdAt: '2026-08-20T00:00:00.000Z', body: '正式周复盘' } });
+    const preview = await dispatcher.dispatch(request('reviews.preview-periodic', { type: 'weekly', start: '2026-08-17', end: '2026-08-20' }));
+    expect(preview.kind).toBe('workflow.approval-required');
+    if (preview.kind !== 'workflow.approval-required') return;
+    const before = await dispatcher.dispatch(request('reviews.generate-periodic', { type: 'weekly', start: '2026-08-17', end: '2026-08-20', previewToken: preview.approval.preview.token, approvalId: preview.approval.approvalId }));
+    expect(before).toEqual({ kind: 'error', message: '请先在知己 Agent 页面确认预览材料，再生成正式内容。' });
+    expect(dispatcher.approve(sessionId, preview.approval.approvalId)).toBe(true);
+    const generated = await dispatcher.dispatch(request('reviews.generate-periodic', { type: 'weekly', start: '2026-08-17', end: '2026-08-20', previewToken: preview.approval.preview.token, approvalId: preview.approval.approvalId }));
+    expect(generated).toMatchObject({ kind: 'workflow.completed', workflow: 'reviews.generate-periodic', review: { id: 'review_new1' }, navigation: { view: 'reviews', intent: 'weekly' } });
+    expect(periodic.execute).toHaveBeenCalledOnce();
+    expect(dispatcher.approve(sessionId, preview.approval.approvalId)).toBe(false);
+  });
+
+  it('uses the same approval boundary for insight reviews', async () => {
+    const { dispatcher } = makeDispatcher();
+    const insight = (dispatcher as unknown as { deps: { generateInsightReview: { preview: ReturnType<typeof vi.fn>; execute: ReturnType<typeof vi.fn> } } }).deps.generateInsightReview;
+    insight.preview.mockResolvedValue({ token: '00000000-0000-4000-8000-000000000002', type: 'coach', start: '2026-08-01', end: '2026-08-20', sources: [{ id: 'journal_a1', date: '2026-08-20', excerpt: '记录' }] });
+    insight.execute.mockResolvedValue({ schemaVersion: 1, id: 'review_coach1', type: 'coach', periodStart: '2026-08-01', periodEnd: '2026-08-20', sourceIds: ['journal_a1'], projectId: null, provider: 'openai-compatible', model: 'test', promptVersion: 'journal-coach-v3', createdAt: '2026-08-20T00:00:00.000Z', body: '洞察结果' });
+    const preview = await dispatcher.dispatch(request('reviews.preview-insight', { type: 'coach', start: '2026-08-01', end: '2026-08-20' }));
+    expect(preview.kind).toBe('workflow.approval-required');
+    if (preview.kind !== 'workflow.approval-required') return;
+    expect(dispatcher.approve(sessionId, preview.approval.approvalId)).toBe(true);
+    const result = await dispatcher.dispatch(request('reviews.generate-insight', { type: 'coach', start: '2026-08-01', end: '2026-08-20', previewToken: preview.approval.preview.token, approvalId: preview.approval.approvalId }));
+    expect(result).toMatchObject({ kind: 'workflow.completed', workflow: 'reviews.generate-insight', review: { id: 'review_coach1' }, navigation: { view: 'reviews', intent: 'coach' } });
   });
 });

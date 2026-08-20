@@ -43,6 +43,8 @@ export async function bootstrap() {
   const reviewTasks = new ReviewTaskManager();
   const profile = new MarkdownProfileRepository(dataRoot);
   const templates = new TemplateRepository(dataRoot);
+  const createJournal = new CreateJournal(journals);
+  const updateJournal = new UpdateJournal(journals);
   const generateDailyReview = new GenerateDailyReview(journals, reviews, configureAi, reviewTasks, undefined, profile, new DailyAuditRecorder(dataRoot));
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
@@ -51,8 +53,8 @@ export async function bootstrap() {
   const webSearch = new WebSearchService();
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, topicThinking, verifiedPatterns, webSearch });
+  const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, topicThinking, verifiedPatterns, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi });
   const agentFacade = new AgentFacade(new ElectronAgentRuntime(), new AgentModelTransport(configureAi), agentToolDispatcher);
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog, agentFacade });
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal, updateJournal, configureAi, transfer, dataDirectory, dialog, agentFacade });
   return { agentFacade };
 }

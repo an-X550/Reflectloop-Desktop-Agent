@@ -81,4 +81,24 @@ describe('GeneratePeriodicReview', () => {
     current = '2026-08-13T10:31:00.000Z';
     await expect(service.execute({ ...input, previewToken: preview.token })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
+
+  it('propagates Agent cancellation before saving a formal review', async () => {
+    const save = vi.fn();
+    const provider = { collect: vi.fn((_messages: unknown, signal?: AbortSignal) => new Promise<string>((_resolve, reject) => { const abort = () => reject(Object.assign(new Error('aborted'), { code: 'CANCELLED' })); if (signal?.aborted) abort(); else signal?.addEventListener('abort', abort, { once: true }); })) };
+    const service = new GeneratePeriodicReview(
+      { list: async () => [journal] } as never,
+      { list: async () => [], save } as never,
+      provider as never,
+      { start: () => ({ taskId: 'x', controller: new AbortController(), phase: 'queued' }), transition: () => undefined } as never,
+      () => '2026-08-13T10:00:00.000Z',
+    );
+    const input = { type: 'project' as const, start: '2026-08-01', end: '2026-08-31', projectId: 'project_a1', model: 'fake' };
+    const preview = await service.preview(input);
+    const controller = new AbortController();
+    const pending = service.execute({ ...input, previewToken: preview.token }, controller.signal);
+    await Promise.resolve();
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
+    expect(save).not.toHaveBeenCalled();
+  });
 });

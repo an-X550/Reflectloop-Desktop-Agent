@@ -46,4 +46,17 @@ describe('AgentFacade', () => {
     await facade.dispose();
     expect(runtime.stop).toHaveBeenCalledOnce();
   });
+
+  it('resumes a pending workflow only after the Main Process approval is accepted', async () => {
+    const runtime = new FakeDshRuntime();
+    const model = { stream: vi.fn(), cancel: vi.fn(), dispose: vi.fn() } as unknown as AgentModelTransport;
+    const dispatcher = { approve: vi.fn(() => true), dispatch: vi.fn() };
+    const facade = new AgentFacade(runtime, model, dispatcher as never);
+    const session = await facade.start('生成周复盘');
+    await facade.confirm(session.id, 'approval_abc123');
+
+    expect(dispatcher.approve).toHaveBeenCalledWith(session.id, 'approval_abc123');
+    expect(runtime.commands.map((item) => item.type)).toEqual(['session.start', 'session.send']);
+    expect(facade.get(session.id).messages.at(-1)?.content).toContain('确认执行');
+  });
 });

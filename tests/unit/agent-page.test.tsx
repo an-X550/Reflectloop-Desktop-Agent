@@ -7,7 +7,7 @@ import type { AgentEvent } from '../../src/shared/schemas/agent';
 const session = { id: 'agent_abc123', title: '周复盘', status: 'idle' as const, messages: [], createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z' };
 
 beforeEach(() => {
-  window.zhiji = { agent: { start: vi.fn(async () => session), send: vi.fn(), cancel: vi.fn(), list: vi.fn(async () => [session]), get: vi.fn(), onEvent: vi.fn(() => () => undefined) } } as unknown as Window['zhiji'];
+  window.zhiji = { agent: { start: vi.fn(async () => session), send: vi.fn(), cancel: vi.fn(), confirm: vi.fn(), list: vi.fn(async () => [session]), get: vi.fn(), onEvent: vi.fn(() => () => undefined) } } as unknown as Window['zhiji'];
 });
 
 describe('AgentPage', () => {
@@ -32,5 +32,16 @@ describe('AgentPage', () => {
     expect(await screen.findByText('下一步')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '打开项目复盘' }));
     expect(onNavigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires an explicit page confirmation before resuming a formal workflow', async () => {
+    let listener: ((event: AgentEvent) => void) | undefined;
+    window.zhiji.agent.onEvent = vi.fn((next) => { listener = next; return () => undefined; });
+    render(<AgentPage/>);
+    await waitFor(() => expect(listener).toBeTypeOf('function'));
+    listener?.({ type: 'workflow.approval', sessionId: session.id, approval: { approvalId: 'approval_abc123', workflow: 'reviews.generate-periodic', title: '确认生成周期复盘', summary: '已找到 3 条材料，确认后才会写入正式复盘。', preview: { token: '00000000-0000-4000-8000-000000000001', type: 'weekly', start: '2026-08-17', end: '2026-08-20', sources: [{ id: 'journal_abc123', date: '2026-08-20', excerpt: '本周记录' }] } } });
+    expect(await screen.findByText('确认生成周期复盘')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '确认并继续' }));
+    await waitFor(() => expect(window.zhiji.agent.confirm).toHaveBeenCalledWith({ sessionId: session.id, approvalId: 'approval_abc123' }));
   });
 });

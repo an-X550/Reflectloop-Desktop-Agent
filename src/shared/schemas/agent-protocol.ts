@@ -38,6 +38,7 @@ export const AgentUtilityEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('runtime.stopped') }).strict(),
   AgentToolBridgeRequestSchema,
   z.object({ type: z.literal('tool.activity'), sessionId: AgentSessionIdSchema, callId: z.string().trim().min(1).max(200), phase: z.enum(['started', 'completed', 'failed']), label: z.string().trim().min(1).max(120) }).strict(),
+  z.object({ type: z.literal('tool.cancel'), sessionId: AgentSessionIdSchema, requestId: RequestIdSchema }).strict(),
   z.object({ type: z.literal('ui.navigate'), sessionId: AgentSessionIdSchema, target: AgentNavigationTargetSchema }).strict(),
   z.object({ type: z.literal('ui.present'), sessionId: AgentSessionIdSchema, card: AgentPresentationCardSchema }).strict(),
 ]);
