@@ -1,6 +1,6 @@
 # DeepSeek Harness（DSH）阶段 A/B/C/D1 接入核验
 
-更新：2026-08-20
+更新：2026-08-21
 范围：阶段 0 核验结论与阶段 A/B/C/D1 实现记录；阶段 C 接入高层正式工作流，阶段 D1 接入 Agent 会话生命周期，但不绕过既有 Schema、预览、确认、取消和仓储。
 
 ## 第一性原理结论
@@ -113,3 +113,10 @@
 - DeepSeek 官方当前 Chat Completions 模型清单为 `deepseek-v4-flash` / `deepseek-v4-pro`；桌面端默认切换到 `deepseek-v4-flash`，`deepseek-chat` / `deepseek-reasoner` 旧配置在 `ConfigureAi.readConfig()` 中迁移，避免用户换 Key 后仍请求停用模型。
 - 设置页“测试连接”现在使用 `stream: false`、`max_tokens: 1` 的短请求，只验证 API Key、模型和基础响应；正式复盘/Agent 的流式请求不变。
 - 验证依据：DeepSeek API 无 Key 网络请求在本机约 250ms 返回 401；provider、旧配置迁移和设置页 focused tests 覆盖状态。
+
+## 阶段 H：Agent 工具协议兼容（2026-08-21）
+
+- 复现证据：普通 `deepseek-v4-flash` 请求返回 200；携带桌面端原有工具定义时，DeepSeek 返回 400，明确拒绝 `tools[0].function.name` 中的 `.`。这是 Agent 失败而每日反馈成功的直接原因。
+- 修复边界：DSH 内部继续使用 `zhiji.journals.list` 等可读名称；`OpenAiCompatibleProvider` 发往兼容 API 时把非 `[A-Za-z0-9_-]` 字符转换为 `_`（并限制 64 字符），模型返回后按本次请求映射恢复内部名称，后续工具回合重新发回助手消息时也使用 API 名称。工具 action、Main Process dispatcher、权限和持久化会话不变。
+- DeepSeek V4 的工具思考回合需要回传 `reasoning_content`，而当前桌面桥接协议只保存文本和工具调用；DeepSeek Agent 因此显式使用 `thinking: { type: 'disabled' }`，避免在未实现完整 reasoning replay 前产生第二类 400。普通每日/周期复盘仍保留原有生成模式。
+- provider focused regression（16 tests）覆盖 API 合法工具名、内部名称恢复、后续助手工具回合和 DeepSeek Agent 非思考字段；实际 API 诊断确认转换后请求可返回 200。

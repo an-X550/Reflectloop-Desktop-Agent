@@ -1,6 +1,6 @@
 # 知己桌面端架构与逻辑文档（AI 修改与优化指南）
 
-> 更新日期：2026-08-20
+> 更新日期：2026-08-21
 >
 > 读者：需要修改或优化 `apps/zhiji-desktop/` 的 AI 代理与开发者
 >
@@ -245,7 +245,7 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 
 其他基础设施：
 
-- `ai/openai-compatible-provider.ts`：手写 SSE 流解析；HTTP 状态码映射结构化错误（401/403→INVALID_API_KEY、404→MODEL_NOT_FOUND、429→RATE_LIMITED）；`jsonObject` 选项启用 `response_format: json_object`。
+- `ai/openai-compatible-provider.ts`：手写 SSE 流解析；HTTP 状态码映射结构化错误（401/403→INVALID_API_KEY、404→MODEL_NOT_FOUND、429→RATE_LIMITED）；`jsonObject` 选项启用 `response_format: json_object`；Agent 工具名仅在外部 API 边界转换为合法格式并在返回时恢复内部名称，DeepSeek Agent 使用非思考模式。
 - `ai/provider-config.ts`：三预设（openai/deepseek/custom）+ HTTPS 校验（开发环境可放行 loopback HTTP）；DeepSeek 默认 `deepseek-v4-flash`，旧模型名由配置服务迁移。
 - `credentials/credential-store.ts`：safeStorage 加密，`userData/credentials.json`，加密不可用时明确报错不降级明文；旧密钥环导致密文无法解密时保留文件并按“未配置 API Key”恢复设置页。
 - `data-directory/data-directory-service.ts`：数据目录信息（路径、可写性、文件数、字节数、分类计数）与打开。

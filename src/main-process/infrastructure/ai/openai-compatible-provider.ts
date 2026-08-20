@@ -8,6 +8,19 @@ export interface CollectOptions { jsonObject?: boolean }
 export interface AgentToolSpec { name: string; description: string; parameters: Record<string, unknown> }
 export type AgentStreamDelta = { kind: 'text'; text: string } | { kind: 'tool-call'; index: number; callId: string; name?: string; argumentsDelta: string };
 
+function normalizeAgentToolName(name: string, used: Set<string>): string {
+  const base = (name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'tool').slice(0, 64);
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    const suffixText = `_${suffix}`;
+    candidate = `${base.slice(0, 64 - suffixText.length)}${suffixText}`;
+    suffix += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
 /** AI 请求 60 秒未返回视为超时；与调用方传入的取消信号合并。 */
 const AI_REQUEST_TIMEOUT_MS = 60_000;
 
@@ -25,20 +38,29 @@ function ensureSuccessfulResponse(response: Response, model: string): void {
 }
 
 export class OpenAiCompatibleProvider {
-  constructor(private readonly config: { baseUrl: string; model: string; apiKey: string }) {}
+  constructor(private readonly config: { providerId?: string; baseUrl: string; model: string; apiKey: string }) {}
 
   async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {
     for await (const delta of this.streamFrames(messages, signal, options)) if (delta.kind === 'text') yield delta.text;
   }
 
   async *streamAgent(messages: ChatMessage[], tools: AgentToolSpec[], signal?: AbortSignal): AsyncGenerator<AgentStreamDelta> {
-    yield* this.streamFrames(messages, signal, undefined, tools);
+    yield* this.streamFrames(messages, signal, undefined, tools, this.config.providerId === 'deepseek');
   }
 
-  private async *streamFrames(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions, tools?: AgentToolSpec[]): AsyncGenerator<AgentStreamDelta> {
+  private async *streamFrames(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions, tools?: AgentToolSpec[], disableThinking = false): AsyncGenerator<AgentStreamDelta> {
     const combined = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)])
       : AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
+    const apiToolNames = new Map<string, string>();
+    const internalToolNames = new Map<string, string>();
+    const usedApiToolNames = new Set<string>();
+    const apiTools = tools?.map((tool) => {
+      const apiName = normalizeAgentToolName(tool.name, usedApiToolNames);
+      apiToolNames.set(apiName, tool.name);
+      internalToolNames.set(tool.name, apiName);
+      return { ...tool, name: apiName };
+    });
     let response: Response;
     try {
       response = await fetch(`${this.config.baseUrl}/chat/completions`, {
@@ -47,8 +69,8 @@ export class OpenAiCompatibleProvider {
         body: JSON.stringify({ model: this.config.model, messages: messages.map((message) => message.role === 'tool'
           ? { role: 'tool', content: message.content, tool_call_id: message.toolCallId }
           : message.role === 'assistant' && message.toolCalls?.length
-            ? { role: 'assistant', content: message.content, tool_calls: message.toolCalls.map((call) => ({ id: call.id, type: 'function', function: { name: call.name, arguments: call.arguments } })) }
-            : { role: message.role, content: message.content }), stream: true, ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}), ...(tools?.length ? { tools: tools.map((tool) => ({ type: 'function', function: tool })) } : {}) }),
+            ? { role: 'assistant', content: message.content, tool_calls: message.toolCalls.map((call) => ({ id: call.id, type: 'function', function: { name: internalToolNames.get(call.name) ?? call.name, arguments: call.arguments } })) }
+            : { role: message.role, content: message.content }), stream: true, ...(disableThinking ? { thinking: { type: 'disabled' } } : {}), ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}), ...(apiTools?.length ? { tools: apiTools.map((tool) => ({ type: 'function', function: tool })) } : {}) }),
       });
     } catch {
       throw mapNetworkError(signal);
@@ -86,7 +108,7 @@ export class OpenAiCompatibleProvider {
             const callId = typeof call.id === 'string' ? call.id : toolCallIds.get(call.index);
             if (!callId) continue;
             toolCallIds.set(call.index, callId);
-            const name = typeof call.function?.name === 'string' ? call.function.name : undefined;
+            const name = typeof call.function?.name === 'string' ? (apiToolNames.get(call.function.name) ?? call.function.name) : undefined;
             const argumentsDelta = typeof call.function?.arguments === 'string' ? call.function.arguments : '';
             yield { kind: 'tool-call', index: call.index, callId, ...(name ? { name } : {}), argumentsDelta };
           }

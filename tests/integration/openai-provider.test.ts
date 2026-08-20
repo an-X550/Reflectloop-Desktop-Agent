@@ -30,6 +30,26 @@ async function inspectingEndpoint(onBody: (body: unknown) => void, responseBody:
   return `http://127.0.0.1:${address.port}/v1`;
 }
 
+async function sequencingEndpoint(onBody: (body: unknown) => void, responseBodies: string[]) {
+  let requestIndex = 0;
+  const server = createServer((request, response) => {
+    let raw = '';
+    request.on('data', (chunk) => { raw += chunk; });
+    request.on('end', () => {
+      onBody(JSON.parse(raw));
+      const responseBody = responseBodies[Math.min(requestIndex, responseBodies.length - 1)];
+      requestIndex += 1;
+      response.writeHead(200, { 'content-type': 'text/event-stream' });
+      response.end(responseBody);
+    });
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Missing test server port');
+  return `http://127.0.0.1:${address.port}/v1`;
+}
+
 async function inspectingJsonEndpoint(onBody: (body: unknown) => void) {
   const server = createServer((request, response) => {
     let raw = '';
@@ -65,15 +85,42 @@ describe('OpenAiCompatibleProvider', () => {
   });
 
   it('preserves streamed tool-call arguments when later frames omit the call id', async () => {
-    const body = 'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"zhiji.journals.get","arguments":"{\\"id\\":\\"journal_"}}]}}]}\n\ndata: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"a1\\"}"}}]}}]}\n\ndata: [DONE]\n\n';
-    const baseUrl = await endpoint(200, body, 'text/event-stream');
-    const provider = new OpenAiCompatibleProvider({ baseUrl, model: 'fake', apiKey: 'x' });
+    const body = 'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"zhiji_journals_get","arguments":"{\\"id\\":\\"journal_"}}]}}]}\n\ndata: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"a1\\"}"}}]}}]}\n\ndata: [DONE]\n\n';
+    let requestBody: unknown;
+    const baseUrl = await inspectingEndpoint((value) => { requestBody = value; }, body);
+    const provider = new OpenAiCompatibleProvider({ providerId: 'deepseek', baseUrl, model: 'fake', apiKey: 'x' });
     const frames = [];
     for await (const frame of provider.streamAgent([{ role: 'user', content: '读取日志' }], [{ name: 'zhiji.journals.get', description: '读取日志', parameters: { type: 'object' } }])) frames.push(frame);
+    expect(requestBody).toMatchObject({ thinking: { type: 'disabled' }, tools: [{ type: 'function', function: { name: 'zhiji_journals_get' } }] });
     expect(frames).toEqual([
       { kind: 'tool-call', index: 0, callId: 'call_1', name: 'zhiji.journals.get', argumentsDelta: '{"id":"journal_' },
       { kind: 'tool-call', index: 0, callId: 'call_1', argumentsDelta: 'a1"}' },
     ]);
+  });
+
+  it('uses API-safe names when replaying assistant tool calls', async () => {
+    const requestBodies: unknown[] = [];
+    const baseUrl = await sequencingEndpoint((body) => requestBodies.push(body), [
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"zhiji_journals_get","arguments":"{}"}}]}}]}\n\ndata: [DONE]\n\n',
+      'data: [DONE]\n\n',
+    ]);
+    const provider = new OpenAiCompatibleProvider({ providerId: 'deepseek', baseUrl, model: 'fake', apiKey: 'x' });
+    const tools = [{ name: 'zhiji.journals.get', description: '读取日志', parameters: { type: 'object' } }];
+    const firstFrames = [];
+    for await (const frame of provider.streamAgent([{ role: 'user', content: '读取日志' }], tools)) firstFrames.push(frame);
+    const secondFrames = [];
+    for await (const frame of provider.streamAgent([
+      { role: 'user', content: '读取日志' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'call_1', name: 'zhiji.journals.get', arguments: '{}' }] },
+      { role: 'tool', content: '{"items":[]}', toolCallId: 'call_1' },
+    ], tools)) secondFrames.push(frame);
+    expect(firstFrames).toHaveLength(1);
+    expect(secondFrames).toEqual([]);
+    expect(requestBodies[1]).toMatchObject({ messages: [
+      { role: 'user' },
+      { role: 'assistant', tool_calls: [{ function: { name: 'zhiji_journals_get' } }] },
+      { role: 'tool' },
+    ] });
   });
 
   it('requests JSON object mode only for structured generations', async () => {
