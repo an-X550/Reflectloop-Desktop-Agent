@@ -1,7 +1,7 @@
 import { ipcMain, type dialog as ElectronDialog, shell } from 'electron';
 import { z } from 'zod';
 import { appError } from '../../shared/errors/app-error';
-import { AgentConfirmInputSchema, AgentSendInputSchema, AgentSessionInputSchema, AgentStartInputSchema, ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, StartTopicInputSchema, TemplateNameSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
+import { AgentConfirmInputSchema, AgentSendInputSchema, AgentSessionInputSchema, AgentStartInputSchema, ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, TemplateNameSchema, UpdateJournalInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -18,11 +18,10 @@ import type { DataRootConfig } from '../infrastructure/data-directory/data-root-
 import type { TemplateRepository } from '../infrastructure/templates/template-repository';
 import type { GenerateInsightReview } from '../application/generate-insight-review';
 import type { VerifiedPatternService } from '../application/verified-patterns';
-import type { TopicThinkingService } from '../application/topic-thinking';
 import type { WebSearchService } from '../infrastructure/web/web-search-service';
 import type { AgentFacade } from '../agent/agent-facade';
 
-export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; verifiedPatterns: VerifiedPatternService; topicThinking: TopicThinkingService; webSearch: WebSearchService; templates: TemplateRepository; dataRootHolder: DataRootHolder; dataRootConfig: DataRootConfig; appVersion: string; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'>; agentFacade: AgentFacade }) {
+export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; verifiedPatterns: VerifiedPatternService; webSearch: WebSearchService; templates: TemplateRepository; dataRootHolder: DataRootHolder; dataRootConfig: DataRootConfig; appVersion: string; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'>; agentFacade: AgentFacade }) {
   /** 所有生成类通道共用：从公开配置取当前模型注入输入。 */
   const withModel = async <T extends object>(input: T): Promise<T & { model: string }> => ({ ...input, model: (await deps.configureAi.getPublicConfig()).model });
   const agentSubscriptions = new Map<number, () => void>();
@@ -100,14 +99,5 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
   ipcMain.handle('patterns:list', async () => (await deps.verifiedPatterns.list()).patterns);
   ipcMain.handle('patterns:propose', async (_event, raw) => { const input = ProposePatternsInputSchema.parse(raw); return deps.verifiedPatterns.propose(await withModel(input)); });
   ipcMain.handle('patterns:confirm', (_event, raw) => deps.verifiedPatterns.confirm(ConfirmPatternInputSchema.parse(raw)));
-  ipcMain.handle('topics:start', async (event, raw) => { const input = StartTopicInputSchema.parse(raw); return deps.topicThinking.start(await withModel(input), (delta) => { if (!event.sender.isDestroyed()) event.sender.send('topics:stream', { delta }); }); });
-  ipcMain.handle('topics:discuss', async (event, raw) => { const input = DiscussTopicInputSchema.parse(raw); return deps.topicThinking.discuss(await withModel(input), (delta) => { if (!event.sender.isDestroyed()) event.sender.send('topics:stream', { delta }); }); });
-  ipcMain.handle('topics:propose', async (_event, raw) => { const input = TopicSessionInputSchema.parse(raw); return deps.topicThinking.proposeSummary(await withModel(input)); });
-  ipcMain.handle('topics:confirm', (_event, raw) => deps.topicThinking.confirm(TopicSessionInputSchema.parse(raw)));
-  ipcMain.handle('topics:list', () => deps.topicThinking.list());
-  ipcMain.handle('topics:get', (_event, raw) => deps.topicThinking.get(TopicNameInputSchema.parse(raw)));
-  ipcMain.handle('topics:sessions', () => deps.topicThinking.listSessions());
-  ipcMain.handle('topics:resume', (_event, raw) => deps.topicThinking.resume(TopicSessionInputSchema.parse(raw)));
-  ipcMain.handle('web:search', (_event, raw) => deps.webSearch.search(WebSearchInputSchema.parse(raw)));
-  ipcMain.handle('web:read-source', (_event, raw) => deps.webSearch.readSource(ReadWebSourceInputSchema.parse(raw)));
+  // 联网搜索仅作为 DSH 的受控工具使用，不向 renderer 暴露通用网络能力。
 }

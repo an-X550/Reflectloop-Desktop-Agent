@@ -43,14 +43,13 @@
 | 快照完整性 | 原子写入 + Zod 复读校验；快照损坏时报错而不是静默重置 | `verified-pattern-repository.test.ts` | 本阶段实现 |
 | 向量库、自动人格归纳、跨设备同步 | 不属于桌面第三阶段 | 不适用 | 排除 |
 
-## 第四阶段：主题思考与受控联网
+## 第四阶段：主题思考（桌面端已移除）与受控联网
 
 | 已冻结规则能力 | 桌面端行为 | 验收测试 | 状态 |
 |---|---|---|---|
-| 讨论—展示差异—确认—沉淀 | 未经确认不写主题文件；更新既有主题时展示旧正文差异，提案记录生成时的主题版本，确认时条件写入并拒绝过期覆盖 | `topic-thinking.test.ts`、`topic-repository.test.ts`、`topics-page.test.tsx` | 本阶段实现 |
-| 文件型 checkpoint 恢复 | 会话逐轮原子写入 JSON，重启后可列出并恢复；损坏报错 | `topic-session-store.test.ts` | 本阶段实现 |
-| 主题名消毒与索引 | 标题移除路径分隔符等不安全字符；索引损坏报错不静默重置 | `topic-repository.test.ts` | 本阶段实现 |
-| 联网仅用户显式触发 | 搜索只由 UI 按钮发起；结果显示来源域名与检索日期 | `topics-page.test.tsx`、`web-search-service.test.ts` | 本阶段实现 |
+| 主题讨论—提案—确认—沉淀 | 桌面端不再提供页面、IPC、会话、仓储或 DSH 主题工具；既有 `topics/` 数据不删除，但不再读写 | 无（相关桌面端实现与测试已删除） | 已移除（2026-08-20） |
+| Skill 侧主题讨论 | 继续由 Skill/CLI 按需讨论并在用户确认后沉淀；不受桌面端裁决影响 | Skill 侧既有契约与测试 | 保留在桌面端范围之外 |
+| DSH 受控联网 | 搜索只能由 Agent 显式调用；结果在 Main Process 的搜索会话内绑定，Renderer 不获得通用 web API | `web-search-service.test.ts`、`agent-tool-dispatcher.test.ts` | 阶段 B 实现 |
 | sourceId 会话绑定 | readSource 校验搜索会话存在且 sourceId 属于该会话，拒绝伪造 ID；仅 http/https | `web-search-service.test.ts` | 本阶段实现 |
 | 向量检索、自动归档、任意 URL 执行 | 不属于桌面第四阶段 | 不适用 | 排除 |
 
@@ -83,10 +82,10 @@
 
 | 现有能力 | 当前 Agent 行为 | 后续接入方式 | 状态 |
 |---|---|---|---|
-| 日反馈、周/月/项目复盘、主题与项目 | 继续由既有页面、应用服务、Schema、预览确认与仓储负责 | DSH 以 Main Process Zod 校验的只读摘要工具读取日志/复盘/项目、已确认主题和已验证模式；阶段 C 另以高层工具调用日志保存、每日反馈及周期/洞察复盘，仍不重写或绕过正式产物链路 | 阶段 B 只读接入；阶段 C 已接入日志与正式复盘桥，D1 不改变既有专业入口 |
+| 日反馈、周/月/项目复盘、验证模式与项目 | 继续由既有页面、应用服务、Schema、预览确认与仓储负责 | DSH 以 Main Process Zod 校验的只读摘要工具读取日志/复盘/项目/验证模式；阶段 C 另以高层工具调用日志保存、每日反馈及周期/洞察复盘，仍不重写或绕过正式产物链路 | 阶段 B 只读接入；阶段 C 已接入日志与正式复盘桥，D1 不改变既有专业入口 |
 | Agent 会话与重启 | DSH 事件日志写入当前数据根 `agent/sessions/`，Agent 页列出并恢复会话 | Main 只传递数据根；Utility 使用官方 `JsonlSessionPersistence`，`session.list` 投影有限长度 snapshot，继续消息调用 `AgentRegistry.resume` | 阶段 D1 已实现 |
 | Agent 会话备份与迁移 | 会话随数据目录迁移，备份导出/恢复纳入业务校验 | 递归迁移沿用 `DataRootHolder`；备份白名单和 DSH `Session.fromRestore` 校验 JSONL，损坏拒绝且不静默清空 | 阶段 D1 已实现 |
-| 主题临时会话 | 继续由 `TopicSessionStore` 支撑讨论、提案、确认和恢复；确认写入带版本保护 | 待 DSH 同时具备提案/差异/确认工具且有真实使用证据证明能降低摩擦后，再评估旧 checkpoint 导入；本轮不强行迁移 | D2 为证据触发项，现有主题能力保留 |
+| 主题临时会话 | 桌面端已删除 `TopicSessionStore` 运行时；已有 `runtime/topic-sessions/` 文件不主动删除 | 不再推进 D2 迁移；主题讨论需要时回到 Skill/CLI 侧 | D2 取消（桌面端主题范围已删除） |
 | 模型密钥 | Main Process `ConfigureAi` 流式代理 | Utility Process、Renderer、会话事件与数据目录均不接触 API Key | 阶段 A 实现 |
 | DSH 联网与 UI | 不加载官方默认 bundle 中的 Shell、文件系统、技能或任意联网工具 | 只复用 `WebSearchService` 的 search/sourceId 绑定；UI 只能请求既有页面和结果卡片，不能提供 URL、DOM 或脚本 | 阶段 B 实现 |
 | Agent 正式写入与确认 | 日志可按用户明确要求创建/更新；每日反馈可直接调用既有生成用例；周期/洞察复盘先预览后生成 | `AgentToolDispatcher` 只接受共享 Zod 输入；周期/洞察的 `previewToken` 还必须匹配 Main Process 签发且由 Renderer 页面按钮确认的一次性 `approvalId`；模型或普通文本不能冒充确认 | 阶段 C 实现 |
@@ -97,7 +96,7 @@
 
 - 日反馈兼容快照版本：`desktop-daily-feedback-v3`（增记 D 级判级复核）；提示词版本：`daily-review-v3`。
 - 周期复盘兼容快照版本：`desktop-periodic-review-v3`（增记月报深度）；提示词版本：`periodic-review-v4`。
-- 主题思考提示词版本：`topic-thinking-v2`（自有快照，不读取 `.claude/shared/contracts/`）。
+- 主题思考：桌面端不再维护提示词或兼容快照；Skill/CLI 侧契约继续独立运行。
 - 意图路由已下线（2026-08-14 用户决策）：原 `intent-routing-v1` 提示词与相关实现已删除，Skill 侧 `codex-natural-language-routing.md` 契约（CLI 域）不受影响。
 - 洞察工具提示词版本：`journal-coach-v3`、`yearly-review-v2`、`life-design-v2`（语义参考 `.claude/agents/` 与 `.claude/commands/` 对应 command/agent，运行不依赖它们；设计性差异见洞察工具节与契约对照表）。
 - 桌面端运行时禁止依赖 `.claude` 路径。

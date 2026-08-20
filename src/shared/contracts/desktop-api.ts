@@ -1,6 +1,6 @@
-import type { BackupExportOutcome, DailyGenerationResult, DataDirectoryInfo, Journal, JournalTemplate, PeriodicGenerationResult, Profile, Project, PublicProviderConfig, RestorePreviewOutcome, RestoreResult, Review, ReviewPreview, TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicProposal, TopicSession, TopicStartResult, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
+import type { BackupExportOutcome, DailyGenerationResult, DataDirectoryInfo, Journal, JournalTemplate, PeriodicGenerationResult, Profile, Project, PublicProviderConfig, RestorePreviewOutcome, RestoreResult, Review, ReviewPreview, VerifiedPattern, VerifiedPatternCandidate } from '../schemas/domain';
 import type { AgentEvent, AgentSession } from '../schemas/agent';
-import type { AgentConfirmInput, AgentSendInput, AgentSessionInput, AgentStartInput, ChangeDataRootInput, ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, SaveTemplateInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
+import type { AgentConfirmInput, AgentSendInput, AgentSessionInput, AgentStartInput, ChangeDataRootInput, ConfirmPatternInput, CreateJournalInput, CreateProjectInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, SaveTemplateInput, UpdateJournalInput } from '../schemas/ipc';
 
 export interface ZhijiDesktopApi {
   agent: {
@@ -75,21 +75,5 @@ export interface ZhijiDesktopApi {
     list(): Promise<VerifiedPattern[]>;
     propose(input: ProposePatternsInput): Promise<VerifiedPatternCandidate[]>;
     confirm(input: ConfirmPatternInput): Promise<VerifiedPattern>;
-  };
-  topics: {
-    start(input: StartTopicInput): Promise<TopicStartResult>;
-    discuss(input: DiscussTopicInput): Promise<TopicDiscussResult>;
-    propose(input: TopicSessionInput): Promise<TopicProposal>;
-    confirm(input: TopicSessionInput): Promise<TopicConfirmResult>;
-    list(): Promise<TopicIndexEntry[]>;
-    get(input: TopicNameInput): Promise<TopicContent>;
-    sessions(): Promise<TopicSession[]>;
-    resume(input: TopicSessionInput): Promise<TopicSession>;
-    /** 订阅主题讨论的流式增量文本，返回取消订阅函数。 */
-    onStream(listener: (delta: string) => void): () => void;
-  };
-  web: {
-    search(input: WebSearchInput): Promise<{ searchSessionId: string; results: WebSearchResult[] }>;
-    readSource(input: ReadWebSourceInput): Promise<WebSourceContent>;
   };
 }

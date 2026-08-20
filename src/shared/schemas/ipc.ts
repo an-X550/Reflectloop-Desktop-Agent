@@ -85,23 +85,6 @@ export const ConfirmPatternInputSchema = z.object({
 export type ProposePatternsInput = z.infer<typeof ProposePatternsInputSchema>;
 export type ConfirmPatternInput = z.infer<typeof ConfirmPatternInputSchema>;
 
-const TopicSessionId = z.string().regex(/^topicsession_[a-z0-9]+$/);
-export const StartTopicInputSchema = z.object({ question: z.string().trim().min(1).max(2000), contextExcerpt: z.string().max(20_000).optional() }).strict();
-export const DiscussTopicInputSchema = z.object({ sessionId: TopicSessionId, message: z.string().trim().min(1).max(4000) }).strict();
-export const TopicSessionInputSchema = z.object({ sessionId: TopicSessionId }).strict();
-export const TopicNameInputSchema = z.object({ topic: z.string().trim().min(1).max(80) }).strict();
-export const WebSearchInputSchema = z.object({ query: z.string().trim().min(1).max(500) }).strict();
-export const ReadWebSourceInputSchema = z.object({
-  searchSessionId: z.string().regex(/^search_[a-z0-9]+$/),
-  sourceId: z.string().regex(/^source_[a-z0-9]+$/),
-}).strict();
-export type StartTopicInput = z.infer<typeof StartTopicInputSchema>;
-export type DiscussTopicInput = z.infer<typeof DiscussTopicInputSchema>;
-export type TopicSessionInput = z.infer<typeof TopicSessionInputSchema>;
-export type TopicNameInput = z.infer<typeof TopicNameInputSchema>;
-export type WebSearchInput = z.infer<typeof WebSearchInputSchema>;
-export type ReadWebSourceInput = z.infer<typeof ReadWebSourceInputSchema>;
-
 export type CreateJournalInput = z.infer<typeof CreateJournalInputSchema>;
 export type UpdateJournalInput = z.infer<typeof UpdateJournalInputSchema>;
 export type JournalQuery = z.infer<typeof JournalQuerySchema>;

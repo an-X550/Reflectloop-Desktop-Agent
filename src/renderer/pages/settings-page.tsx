@@ -114,7 +114,7 @@ export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) 
     </section>
     <section className="card transfer-panel">
       <div className="section-heading"><div><h3>日志模板</h3><p>在写日志时一键插入预设结构；模板存放在本地数据目录的 templates 文件夹。</p></div><Button variant="secondary" onClick={() => setEditingTpl({ name: '', body: '' })}>新建模板</Button></div>
-      {templates.length === 0 ? <p className="muted">还没有模板。新建一个常用结构（如「每日回顾」「事件记录」），写日志时可直接套用。</p> : <ul className="topic-index">
+      {templates.length === 0 ? <p className="muted">还没有模板。新建一个常用结构（如「每日回顾」「事件记录」），写日志时可直接套用。</p> : <ul className="template-index">
         {templates.map((tpl) => <li key={tpl.name}><button onClick={() => setEditingTpl({ name: tpl.name, body: tpl.body, original: tpl.name })}>{tpl.name}</button><span className="muted">{tpl.body.slice(0, 60)}{tpl.body.length > 60 ? '…' : ''}</span><div className="button-row" style={{ marginTop: 8 }}><Button variant="ghost" onClick={() => setConfirmDeleteTpl(tpl.name)}>删除</Button></div></li>)}
       </ul>}
       {tplMessage && <StatusBanner tone="success">{tplMessage}</StatusBanner>}

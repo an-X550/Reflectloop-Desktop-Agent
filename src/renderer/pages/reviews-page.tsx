@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { InsightReviewType, Project, Review } from '../../shared/schemas/domain';
-import type { NavigationIntent, NavigationTarget } from '../app/navigation';
+import type { NavigationIntent } from '../app/navigation';
 import { Button } from '../components/button';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { Field } from '../components/field';
@@ -13,7 +13,6 @@ import { ReviewTypeCard } from '../features/reviews/review-type-card';
 import { InsightTools } from '../features/reviews/insight-tools';
 import { getDefaultReviewRange } from '../utils/date-defaults';
 import { toLocalDateString } from '../utils/local-date';
-import { deriveTopicQuestion } from '../utils/topic-entry';
 import { RecordBrowser } from './history-page';
 
 const today = toLocalDateString();
@@ -28,7 +27,7 @@ const TASK_PHASE_LABELS: Record<string, string> = {
   saving: '正在保存到本机…',
 };
 
-export function ReviewsPage({ projects, reviews = [], intent, onRefresh = () => undefined, onNavigate }: { projects: Project[]; reviews?: Review[]; intent?: NavigationIntent; onRefresh?(): Promise<void> | void; onNavigate?(target: NavigationTarget): void }) {
+export function ReviewsPage({ projects, reviews = [], intent, onRefresh = () => undefined }: { projects: Project[]; reviews?: Review[]; intent?: NavigationIntent; onRefresh?(): Promise<void> | void }) {
   const initialType: SelectedType | null = intent?.type === 'review.weekly' ? 'weekly' : intent?.type === 'review.monthly' ? 'monthly' : intent?.type === 'review.yearly' ? 'yearly' : intent?.type === 'review.coach' ? 'coach' : intent?.type === 'review.project' ? 'project' : null;
   const [section, setSection] = useState<'create' | 'history'>('create');
   const [type, setType] = useState<SelectedType | null>(initialType);
@@ -74,7 +73,7 @@ export function ReviewsPage({ projects, reviews = [], intent, onRefresh = () => 
       <div className="insight-disclosure"><Button variant="ghost" onClick={() => setShowInsights((value) => !value)}>{showInsights ? '收起更多洞察' : '更多洞察'}</Button><span>低频工具，需要时再打开</span></div>
       {showInsights && <InsightTools onSelect={chooseInsight}/>}
       {type && <section className="card review-config"><h3>{type === 'weekly' ? '本周复盘' : type === 'monthly' ? '本月复盘' : type === 'project' ? '项目复盘' : type === 'coach' ? '日志质量检查' : type === 'yearly' ? '年度回顾' : '方向校准'}设置</h3>{type === 'project' && <Field label="项目（可选）"><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setPreview(null); }}><option value="">仅使用日期范围</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></Field>}{type === 'life-design' && <Field label="想校准的问题（可选）"><input value={topic} maxLength={120} onChange={(event) => { setTopic(event.target.value); setPreview(null); }}/></Field>}{!showDates && <Button variant="ghost" onClick={() => setShowDates(true)}>调整日期</Button>}{showDates && <div className="date-row"><Field label="开始日期"><input aria-label="开始日期" type="date" value={range.start} onChange={(event) => changeRange('start', event.target.value)}/></Field><Field label="结束日期"><input aria-label="结束日期" type="date" value={range.end} onChange={(event) => changeRange('end', event.target.value)}/></Field></div>}{(message || (state === 'loading' && preview)) && <StatusBanner tone={state === 'error' ? 'error' : state === 'success' ? 'success' : 'info'}>{state === 'loading' && preview ? (taskPhase || '正在生成复盘…') : message}</StatusBanner>}<div className="button-row"><Button variant="ghost" loading={state === 'loading' && !preview} onClick={() => void loadPreview()}>预览材料</Button><Button variant="primary" loading={state === 'loading' && Boolean(preview)} disabled={!preview || state === 'success'} onClick={() => void generate()}>确认并生成</Button>{state === 'success' && <Button variant="secondary" onClick={() => setSection('history')}>查看历史复盘</Button>}</div></section>}
-      {preview && <MaterialPreview sources={preview.sources}/>} {result && <article className="card inline-review"><h3>复盘结果</h3><MarkdownDocument>{result.body}</MarkdownDocument>{(result.type === 'weekly' || result.type === 'monthly') && onNavigate && <div className="button-row"><Button variant="ghost" onClick={() => onNavigate({ view: 'topics', intent: { type: 'topics.start', question: deriveTopicQuestion(result.body), contextExcerpt: result.body } })}>就这个深入探讨</Button></div>}</article>}{result && <PatternPanel review={result}/>}
+      {preview && <MaterialPreview sources={preview.sources}/>} {result && <article className="card inline-review"><h3>复盘结果</h3><MarkdownDocument>{result.body}</MarkdownDocument></article>}{result && <PatternPanel review={result}/>}
     </>}
   </>;
 }

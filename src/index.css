@@ -414,46 +414,16 @@ select:hover { border-color: var(--ink-tertiary); }
 .markdown-document th, .markdown-document td { padding: 9px 10px; border: 1px solid var(--separator); text-align: left; vertical-align: top; }
 .markdown-document th { background: var(--surface-secondary); font-weight: 600; }
 
-/* ---------------------------------------------------------------- 主题思考页 */
 .page-content { display: grid; gap: var(--space-5); align-content: start; }
-.topics-page { max-width: 860px; }
-.topic-sessions { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--separator); }
-.topic-sessions h4 { margin: 0 0 var(--space-2); font: var(--text-footnote); font-weight: 600; }
-.topic-sessions ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-.topic-sessions li {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
-  padding: 10px var(--space-3); border-radius: 10px; background: var(--surface-secondary);
-}
-.topic-sessions li button {
-  border: 0; background: transparent; color: var(--ink); padding: 0;
-  font: var(--text-footnote); text-align: left;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.topic-sessions li button:hover { color: var(--accent); }
-.topic-sessions li span { flex: 0 0 auto; font: var(--text-caption); }
-.topic-discussion h3 { letter-spacing: -.01em; }
-.topic-messages { display: grid; gap: var(--space-3); margin: var(--space-4) 0; }
-.topic-message { padding: var(--space-4); border-radius: var(--radius-m); font: var(--text-footnote); line-height: 1.65; animation: page-enter var(--dur-med) var(--ease-spring); }
-.topic-message > strong { display: block; margin-bottom: var(--space-1); font: var(--text-caption); letter-spacing: .04em; }
-.topic-message--user { background: var(--fill); }
-.topic-message--user > strong { color: var(--ink-tertiary); }
-.topic-message--assistant { background: var(--accent-soft); }
-.topic-message--assistant > strong { color: var(--accent); }
-.topic-message p { margin: 0; }
-.stream-caret { display: inline-block; width: 8px; height: 15px; margin-left: 2px; vertical-align: -2px; border-radius: 2px; background: var(--accent); animation: caret-blink 1s steps(2) infinite; }
-.topic-proposal { margin-top: var(--space-5); padding: var(--space-5); border: 1px solid var(--separator); border-radius: var(--radius-m); background: var(--surface-secondary); }
-.topic-proposal h4 { margin: 0 0 var(--space-2); font: var(--text-headline); }
-.topic-proposal details { margin: var(--space-3) 0; }
-.topic-proposal summary { cursor: pointer; color: var(--accent); font: var(--text-footnote); font-weight: 600; }
-.topic-index { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
-.topic-index li { padding: var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-m); background: var(--surface); }
-.topic-index li > button {
+.template-index { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.template-index li { padding: var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-m); background: var(--surface); }
+.template-index li > button {
   border: 0; background: transparent; padding: 0; color: var(--ink);
   font: var(--text-footnote); font-weight: 600; text-align: left;
 }
-.topic-index li > button:hover { color: var(--accent); }
-.topic-index li > span { display: block; margin-top: 2px; font: var(--text-caption); }
-.topic-index .markdown-document { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--separator); }
+.template-index li > button:hover { color: var(--accent); }
+.template-index li > span { display: block; margin-top: 2px; font: var(--text-caption); }
+.template-index .markdown-document { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--separator); }
 .web-results { list-style: none; margin: var(--space-4) 0 0; padding: 0; display: grid; gap: var(--space-3); }
 .web-results li { padding: var(--space-4); border: 1px solid var(--separator); border-radius: var(--radius-m); background: var(--surface); }
 .web-results li > strong { font: var(--text-footnote); font-weight: 600; }
@@ -486,6 +456,7 @@ select:hover { border-color: var(--ink-tertiary); }
 .agent-message--assistant { margin-right: 8%; background: var(--accent-soft); }
 .agent-message--assistant > strong { color: var(--accent); }
 .agent-message p { margin: 0; white-space: pre-wrap; }
+.stream-caret { display: inline-block; width: 8px; height: 15px; margin-left: 2px; vertical-align: -2px; border-radius: 2px; background: var(--accent); animation: caret-blink 1s steps(2) infinite; }
 .agent-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-3); align-items: end; padding-top: var(--space-4); border-top: 1px solid var(--separator); }
 .agent-composer textarea { width: 100%; padding: 10px var(--space-3); border: 1px solid var(--separator); border-radius: 10px; background: var(--surface); resize: vertical; line-height: 1.6; }
 .agent-empty { display: grid; place-items: center; min-height: 360px; text-align: center; color: var(--ink-secondary); }

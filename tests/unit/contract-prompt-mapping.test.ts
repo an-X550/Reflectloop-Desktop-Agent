@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { DAILY_REVIEW_SYSTEM_PROMPT } from '../../src/main-process/prompts/daily-review-v1';
 import { periodicSystemPrompt } from '../../src/main-process/prompts/periodic-review-v1';
-import { TOPIC_THINKING_PROMPT_VERSION, topicFirstDraftPrompt, topicSummaryPrompt } from '../../src/main-process/prompts/topic-thinking-v1';
 
 // 契约-提示词漂移防护（契约审计 R1）：关键禁令文本必须同时存在于桌面端提示词中。
 // 同源关系登记在 apps/zhiji-desktop/docs/contract-prompt-mapping.md；契约侧变更时先改对照表再改提示词。
@@ -32,24 +31,6 @@ describe('contract-prompt mapping (R1 drift guard)', () => {
 
   it('keeps the no-fabrication closure rule for prior actions', () => {
     expect(DAILY_REVIEW_SYSTEM_PROMPT).toContain('不能推断未做');
-  });
-
-  it('keeps topic-thinking prohibitions against labels, diagnosis and single answers', () => {
-    const prompt = `${topicFirstDraftPrompt()}\n${topicSummaryPrompt()}`;
-    for (const text of ['不得做人格标签、心理诊断', '唯一客观答案', '只归纳用户在对话中明确表达或认可的判断']) {
-      expect(prompt, `topic prompt missing: ${text}`).toContain(text);
-    }
-    expect(TOPIC_THINKING_PROMPT_VERSION).toBe('topic-thinking-v2');
-  });
-
-  it('marks the caller-provided context excerpt as quotable background in the first draft', () => {
-    expect(topicFirstDraftPrompt()).toContain('背景摘录');
-    expect(topicFirstDraftPrompt()).toContain('可回查引用');
-  });
-
-  it('instructs merged updates to reorganize the whole argument, not only append', () => {
-    expect(topicSummaryPrompt()).not.toContain('重组整篇当前论证');
-    expect(topicSummaryPrompt('# 既有正文')).toContain('重组整篇当前论证');
   });
 
   it('keeps the verification-candidate rule that only users confirm patterns', async () => {

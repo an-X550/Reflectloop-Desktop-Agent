@@ -5,7 +5,7 @@
 
 ## 第一性原理结论
 
-待解决的问题是让桌面端在不绕过既有领域服务、确认边界和本地数据保护的前提下，执行跨日志、复盘、主题和项目的连续任务。DSH 提供会话、Agent loop、模型—工具循环和事件流；密钥、领域校验与正式产物仍由知己 Main Process 持有。阶段 A 的最小路径是已发布核心包在 Electron Utility Process 内运行，通过 `MessagePort` 向 Main 请求模型流。阶段 B 起，现有每日反馈、周/月复盘等能力可按收益接入为领域工具，但必须复用既有校验、确认、取消与保存链路；不把当前阶段的工具空集误写成永久产品限制。
+待解决的问题是让桌面端在不绕过既有领域服务、确认边界和本地数据保护的前提下，执行跨日志、复盘和项目的连续任务。DSH 提供会话、Agent loop、模型—工具循环和事件流；密钥、领域校验与正式产物仍由知己 Main Process 持有。阶段 A 的最小路径是已发布核心包在 Electron Utility Process 内运行，通过 `MessagePort` 向 Main 请求模型流。阶段 B 起，现有每日反馈、周/月复盘等能力可按收益接入为领域工具，但必须复用既有校验、确认、取消与保存链路；不把当前阶段的工具空集误写成永久产品限制。主题讨论不再属于桌面端产品范围，继续由 Skill/CLI 按需承载。
 
 ## 已核验的源码与构建
 
@@ -43,7 +43,7 @@
 
 ## 阶段 B：只读工具桥
 
-- Utility Process 只注册 `zhiji.journals/reviews/projects/topics/patterns/web` 的高层只读工具，以及 `zhiji.ui.navigate` 与 `zhiji.ui.present`；没有 Shell、文件系统、任意 URL、工作区编辑或写入/工作流工具。
+- Utility Process 只注册 `zhiji.journals/reviews/projects/patterns/web` 的高层只读工具，以及 `zhiji.ui.navigate` 与 `zhiji.ui.present`；没有 Shell、文件系统、任意 URL、工作区编辑或写入/工作流工具。
 - 每个 `tool.request` 在 Main Process 由 `AgentToolDispatcher` 以共享严格 Zod schema 再次解析。dispatcher 只复用现有仓储/服务方法，返回固定长度的任务摘要；绝对路径、URL、凭证和原始实现错误不会跨回 Utility 或 Renderer。
 - `web.read-source` 只接收既有 `WebSearchService.search()` 返回的 `searchSessionId + sourceId`。浏览器 URL 保留在 Main 的搜索会话内，Agent 只得到标题、摘要与 sourceId。
 - 工具结果、失败、活动、导航和展示卡片均走同一 MessagePort schema。Renderer 再验证 `NavigationTarget`，只映射到既有产品页面；卡片链接不是 URL，也不执行任何内容。
@@ -64,25 +64,25 @@
 
 取消链路：DSH `ToolRunContext.signal` abort 时发送 `tool.cancel`；Main 为该 request 建立 `AbortController`，并把它连接到三类生成用例的 `ReviewTaskManager`。任务在 saving 前取消时，既有仓储不会收到保存调用；模型失败仍由既有错误和任务状态机处理。
 
-当前接入不是永久能力上限：后续若有真实使用证据，可以继续把主题归纳/确认等高层能力接入，但必须先复核其确认和数据生命周期边界；不开放通用文件、Shell、任意 URL 或批量删除。
+当前接入不是永久能力上限：后续若有新的核心复盘需求，可以继续把高层能力接入，但必须先复核其必要性、确认和数据生命周期边界；不开放通用文件、Shell、任意 URL 或批量删除。
 
 ## 阶段 D1：Agent 会话生命周期
 
-第一性原理复核：Agent 要能在重启后继续上下文，真正需要持久化的是 DSH 事件日志；正式日志、日反馈、周/月复盘、主题和项目仍由知己既有仓储负责。因而 D1 只增加会话日志的可靠生命周期，不复制领域正文，也不把主题 checkpoint 强行改成 DSH。
+第一性原理复核：Agent 要能在重启后继续上下文，真正需要持久化的是 DSH 事件日志；正式日志、日反馈、周/月复盘和项目仍由知己既有仓储负责。因而 D1 只增加会话日志的可靠生命周期，不复制领域正文。
 
 - Main Process 将 `dataRoot/agent/sessions/` 作为 `JsonlSessionPersistence.root` 传给 Utility Process；不会把 API Key 或凭证写入会话。
 - `session.list` 调用 DSH persistence 的 `list + inspect`，只向 Renderer 投影有限长度、脱敏的 `session.snapshot`；`session.send` 对不在内存的 ID 调用 `AgentRegistry.resume`。
 - `DataRootHolder.changeLocation` 已递归复制整个数据根，因此会话随数据目录迁移；`DataTransferService` 的便携路径白名单接纳 `agent/sessions/<project>/<agent>/session.jsonl`，业务校验用 DSH `Session.fromRestore` 检查 header、事件类型、顺序和序号。
 - 发现损坏 JSONL 时，导出/恢复返回 `IMPORT_REJECTED`，运行时返回“会话数据损坏”并保留原文件；不静默删除、重置或降级成空会话。
-- 主题旧 `TopicSessionStore` 本轮保留。当前 DSH 工具尚未覆盖主题提案、差异展示与 `topics:confirm` 的完整用户确认门，迁移会先破坏已有主题闭环，故作为 D2 单独验证；每日分析、周复盘和月复盘不受影响。
+- 桌面端主题思考已移除：不再初始化 `TopicThinkingService`、`TopicSessionStore` 或主题仓储；已有 `topics/` 与 `runtime/topic-sessions/` 数据不主动删除，但桌面端不再读取或写入。每日分析、周复盘和月复盘不受影响。
 
-验证证据：`dsh-runtime.test.ts` 覆盖写入—重启—列表—resume 与损坏日志显式报错；`agent-facade.test.ts` 覆盖 snapshot 投影；`data-transfer.test.ts` 覆盖会话导出/恢复与损坏拒绝；阶段 D1 全量回归为 `npm test` 56 files / 326 tests，Lint 为 0 error / 6 个既有 warning。
+验证证据：`dsh-runtime.test.ts` 覆盖写入—重启—列表—resume 与损坏日志显式报错；`agent-facade.test.ts` 覆盖 snapshot 投影；`data-transfer.test.ts` 覆盖会话导出/恢复与损坏拒绝。主题范围清理后的全量回归为 `npm test` 51 files / 285 tests，Lint 为 0 error / 6 个既有 warning；D1 的 JSONL focused tests 继续通过。
 
-## 主题思考当前裁决：高性价比优先（2026-08-20）
+## 主题思考当前裁决：从桌面端移除（2026-08-20）
 
-主题思考是复盘工具的辅助闭环，真实目标只有“与 AI 讨论后，由用户确认沉淀一条可回看的长期认识”。现有 `TopicThinkingService + TopicSessionStore + TopicRepository` 已经提供讨论、重启恢复、归纳提案、用户确认和主题索引；强行把它迁入 DSH 只为消除两个会话目录，会先新增一套提案、差异、确认和恢复协议，当前没有真实使用证据证明能降低摩擦。
+主题思考只是“与 AI 讨论后沉淀认识”的辅助便利，不是复盘工具的核心闭环。继续维护独立页面、会话、提案、差异、确认和 DSH 读工具，会增加运行时、IPC、测试和文档负担；当前没有证据证明它能改善日志复盘结果。
 
-本轮不实施 D2 迁移，也不删除现有主题入口：保留低摩擦的专业页面，继续由 DSH 只读已确认主题。为防止真实的数据事故，提案记录生成时的主题索引版本，确认写入在主题仓储的串行队列内做条件检查；其他窗口已更新主题时拒绝旧提案，按别名更新时仍写回规范主题文件。只有后续真实使用观察证明连续 Agent 会话明显降低讨论摩擦，并且 DSH 能复用同等提案—差异—确认语义，才重新评估 D2。
+本轮直接删除桌面端主题页面、IPC、提示词、服务、主题仓储、会话存储、主题 DSH 工具及复盘页跳转按钮。用户已有主题文件不删除，Skill/CLI 侧契约不修改；D2 不再适用于桌面端。这样把维护成本归零，同时保留用户通过 Skill 讨论和沉淀认识的路径。
 
 ## 发布包与源码构建的裁决
 
@@ -94,7 +94,7 @@
 - Utility Process 只组合 DSH 的 LLM、session、system prompt、tool registry、agent registry 与 agent loop。未加载官方默认 bundle，因为它还会安装 Shell、文件系统、技能与联网工具；这不是永久排除知己领域能力，后续能力应通过 Main Process 受校验地复用既有服务、确认与正式写入链路。
 - 当前协议为 Main → Utility 的 `session.start/list/send/cancel`、`runtime.shutdown`、`model.delta/completed/failed/cancelled`，以及反向的 ready、session status/snapshot、消息流、模型请求/取消与运行错误；每条消息使用共享 Zod schema 并带 sessionId/requestId。
 - `tests/unit/dsh-runtime.test.ts` 使用真实 DSH Agent loop 与假模型 relay 验证启动、消息、流事件、完成和取消；`agent-facade.test.ts` 使用假 DSH 覆盖两轮消息、退出和崩溃中文降级；`agent-page.test.tsx` 和 schema 测试覆盖 Renderer 具名 API。
-- `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。阶段 D1 全量回归为 `npm test` 56 files / 326 tests；另有会话重启/损坏显式报错与备份拒绝 focused tests。
+- `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。主题范围清理后全量回归为 `npm test` 51 files / 285 tests；另有会话重启/损坏显式报错与备份拒绝 focused tests。
 
 ## 阶段 E 当前收敛证据
 

@@ -134,10 +134,10 @@ Setup.exe                # 引导安装器
 | `projects/*.json` | 项目 | 项目名（全局唯一）、状态、时间；日志通过 `projectIds` 关联 |
 | `profile/about-me.md` | 个人背景 | 用户主动提供的背景，仅在开启「允许 AI 使用」后注入复盘 |
 | `patterns/verified-patterns.json` | 已验证模式快照 | 用户确认过的长期行为假说 |
-| `topics/index.json` + `topics/<名>.md` | 主题思考库 | 长期困惑/观点的索引与正文 |
+| `topics/index.json` + `topics/<名>.md` | 旧版主题数据 | 历史主题正文保留在数据目录，但桌面端不再读取、写入或导出 |
 | `templates/*.md` | 日志模板 | 写日志时一键插入的预设结构，文件名即模板名 |
 | `settings.json` | AI 公开配置 | 服务商 id、baseUrl、模型名（**不含 API Key**） |
-| `runtime/topic-sessions/*.json` | 主题讨论会话 | 与 AI 的对话记录、待确认提案 |
+| `runtime/topic-sessions/*.json` | 旧版主题 checkpoint | 不主动删除；桌面端已移除主题会话运行时，需继续讨论时使用 Skill/CLI |
 | `runtime/daily-feedback-audit.jsonl` | 日反馈审计摘要 | 追溯等级/结果/昨日行动，不含全文与 Key |
 
 ### 4.2 用户数据目录（`%APPDATA%\知己`，与数据目录分离）
@@ -153,7 +153,7 @@ Setup.exe                # 引导安装器
 | --- | --- |
 | `main.ts` | Electron 主进程入口：创建窗口、调用 bootstrap |
 | `main-process/bootstrap.ts` | 手工装配：读配置 → 建仓储/服务 → 注入 registerHandlers |
-| `main-process/application/` | 业务用例：保存日志、生成各类复盘、主题思考、验证模式、AI 配置 |
+| `main-process/application/` | 业务用例：保存日志、生成各类复盘、验证模式、AI 配置 |
 | `main-process/domain/` | 纯领域逻辑：任务状态机、材料选择、日反馈新鲜度等 |
 | `main-process/infrastructure/` | 落地实现：Markdown/JSON 仓储、AI 服务商、凭据、传输、数据目录、模板 |
 | `main-process/skill-runtime/` | Skill 行为的确定性复刻（LangGraph 编排 + 证据分级） |

@@ -6,7 +6,6 @@ import { TodayPage } from '../pages/today-page';
 import { ReviewsPage } from '../pages/reviews-page';
 import { SettingsPage } from '../pages/settings-page';
 import { ProjectsPage } from '../pages/projects-page';
-import { TopicsPage } from '../pages/topics-page';
 import { StartPage } from '../pages/start-page';
 import { Button } from '../components/button';
 import { ConfirmDialog } from '../components/confirm-dialog';
@@ -28,8 +27,7 @@ export function App() {
     {target.view === 'start' ? <StartPage journals={data.journals} reviews={data.reviews} hasApiKey={data.hasApiKey} onNavigate={navigate}/>
       : target.view === 'agent' ? <AgentPage onNavigate={navigate}/>
       : target.view === 'journal' ? <TodayPage journals={data.journals} projects={data.projects} reviews={data.reviews} intent={target.intent} hasApiKey={data.hasApiKey} onRefresh={data.refresh} onNavigate={navigate} onDirtyChange={setJournalDirty}/>
-      : target.view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')} reviews={data.reviews} intent={target.intent} onRefresh={data.refresh} onNavigate={navigate}/>
-      : target.view === 'topics' ? <TopicsPage intent={target.intent}/>
+      : target.view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')} reviews={data.reviews} intent={target.intent} onRefresh={data.refresh}/>
       : target.view === 'projects' ? <ProjectsPage projects={data.projects} journals={data.journals} onRefresh={data.refresh} onNavigate={navigate}/>
       : <SettingsPage onSaved={data.refresh}/>}
     <ConfirmDialog

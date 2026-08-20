@@ -35,13 +35,6 @@ describe('ReviewsPage', () => {
     expect(within(document.querySelector('.history-reader .markdown-document') as HTMLElement).getByText('本周有效行动')).toBeInTheDocument();
   });
 
-  it('offers to dive deeper from a weekly result with the body as prefilled context', async () => {
-    const onNavigate = vi.fn();
-    render(<ReviewsPage projects={[]} onNavigate={onNavigate}/>); fireEvent.click(screen.getByRole('button', { name: '预览本周材料' })); fireEvent.click(screen.getByRole('button', { name: '预览材料' })); await screen.findByText('真实材料'); fireEvent.click(screen.getByRole('button', { name: '确认并生成' }));
-    fireEvent.click(await screen.findByRole('button', { name: '就这个深入探讨' }));
-    expect(onNavigate).toHaveBeenCalledWith({ view: 'topics', intent: { type: 'topics.start', question: '本周有效行动', contextExcerpt: '本周有效行动' } });
-  });
-
   it('applies weekly and project navigation intents and keeps review history in this page', () => {
     const { rerender } = render(<ReviewsPage projects={[project]} reviews={[historicalReview]} intent={{ type: 'review.weekly' }}/>);
     expect(screen.getByRole('heading', { name: '本周复盘设置' })).toBeInTheDocument();

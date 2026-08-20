@@ -1,4 +1,4 @@
-export type AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'topics' | 'projects' | 'settings';
+export type AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'projects' | 'settings';
 
 export type NavigationIntent =
   | { type: 'journal.compose' }
@@ -8,8 +8,7 @@ export type NavigationIntent =
   | { type: 'review.monthly'; month?: string }
   | { type: 'review.yearly'; year?: string }
   | { type: 'review.coach' }
-  | { type: 'review.project'; projectId: string }
-  | { type: 'topics.start'; question?: string; contextExcerpt?: string };
+  | { type: 'review.project'; projectId: string };
 
 export type NavigationTarget = { view: AppView; intent?: NavigationIntent };
 
@@ -23,7 +22,6 @@ export function agentNavigationTarget(raw: unknown): NavigationTarget | null {
 function mapAgentTarget(target: AgentNavigationTarget): NavigationTarget {
   if (target.view === 'journal') return { view: 'journal', ...(target.intent === 'compose' ? { intent: { type: 'journal.compose' } } : target.intent === 'records' ? { intent: { type: 'records.journals' } } : target.intent === 'generate-daily' ? { intent: { type: 'journal.generate-daily' } } : {}) };
   if (target.view === 'reviews') return { view: 'reviews', ...(target.intent === 'weekly' ? { intent: { type: 'review.weekly' } } : target.intent === 'monthly' ? { intent: { type: 'review.monthly' } } : target.intent === 'yearly' ? { intent: { type: 'review.yearly' } } : target.intent === 'coach' ? { intent: { type: 'review.coach' } } : target.intent === 'project' ? { intent: { type: 'review.project', projectId: target.projectId } } : {}) };
-  if (target.view === 'topics') return { view: 'topics', ...(target.question ? { intent: { type: 'topics.start', question: target.question } } : {}) };
   return { view: target.view };
 }
 
@@ -32,7 +30,6 @@ export const APP_NAVIGATION: { id: AppView; label: string }[] = [
   { id: 'agent', label: '知己 Agent' },
   { id: 'journal', label: '日志' },
   { id: 'reviews', label: '复盘' },
-  { id: 'topics', label: '主题思考' },
   { id: 'projects', label: '项目' },
   { id: 'settings', label: '设置' },
 ];

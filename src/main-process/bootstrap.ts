@@ -19,9 +19,6 @@ import { GenerateInsightReview } from './application/generate-insight-review';
 import { DailyAuditRecorder } from './skill-runtime/daily-audit-recorder';
 import { VerifiedPatternRepository } from './infrastructure/patterns/verified-pattern-repository';
 import { VerifiedPatternService } from './application/verified-patterns';
-import { TopicRepository } from './infrastructure/topics/topic-repository';
-import { TopicSessionStore } from './infrastructure/topics/topic-session-store';
-import { TopicThinkingService } from './application/topic-thinking';
 import { WebSearchService } from './infrastructure/web/web-search-service';
 import { TemplateRepository } from './infrastructure/templates/template-repository';
 import { AgentFacade } from './agent/agent-facade';
@@ -49,12 +46,11 @@ export async function bootstrap() {
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const verifiedPatterns = new VerifiedPatternService(reviews, new VerifiedPatternRepository(dataRoot), configureAi);
-  const topicThinking = new TopicThinkingService(new TopicRepository(dataRoot), new TopicSessionStore(dataRoot), configureAi);
   const webSearch = new WebSearchService();
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, topicThinking, verifiedPatterns, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi });
+  const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, verifiedPatterns, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi });
   const agentFacade = new AgentFacade(new ElectronAgentRuntime({ sessionRoot: path.join(dataRoot, 'agent', 'sessions') }), new AgentModelTransport(configureAi), agentToolDispatcher);
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal, updateJournal, configureAi, transfer, dataDirectory, dialog, agentFacade });
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal, updateJournal, configureAi, transfer, dataDirectory, dialog, agentFacade });
   return { agentFacade };
 }

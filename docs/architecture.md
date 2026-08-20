@@ -19,7 +19,7 @@
 
 知己桌面端是本地优先的 AI 日志复盘客户端，把"记录 → 反馈 → 复盘 → 沉淀"收敛为可验证的行动闭环。
 
-在范围内：日志记录与补写、每日反馈、周/月/项目复盘、日志质量检查、年度回顾、快速方向校准（life-design 类型）、主题思考与受控联网、验证模式沉淀、意图路由、个人背景授权注入、可验证备份与恢复、项目管理。
+在范围内：日志记录与补写、每日反馈、周/月/项目复盘、日志质量检查、年度回顾、快速方向校准（life-design 类型）、受控联网、验证模式沉淀、意图路由、个人背景授权注入、可验证备份与恢复、项目管理。
 
 不在范围内（有意排除，勿当作缺失补上）：飞书/滴答分发、闭环缺口提醒投递、Claude Skill 运行时、云同步、多用户。详见兼容矩阵"排除"行。
 
@@ -90,7 +90,7 @@ src/
 ├── index.css                  全局样式（单文件，BEM 风格类名）
 ├── shared/                    前后端共享（类型 + zod schema + 错误模型 + 纯领域函数）
 │   ├── contracts/desktop-api.ts   ZhijiDesktopApi 接口（前端 API 总契约，返回类型引用 domain.ts 命名 schema）
-│   ├── schemas/domain.ts          Journal/Project/Review/Pattern/Topic 等域模型，及 ProviderConfig/DataDirectoryInfo/备份与预览与主题返回等契约类型
+│   ├── schemas/domain.ts          Journal/Project/Review/Pattern 等域模型，及 ProviderConfig/DataDirectoryInfo/备份与预览等契约类型
 │   ├── schemas/ipc.ts             所有 IPC 入参 schema
 │   ├── domain/daily-freshness.ts  日反馈新鲜度纯函数（前后端共用，S6 去重）
 │   └── errors/app-error.ts        AppError 判别联合 + appError() 工厂（带中文默认文案）
@@ -106,7 +106,7 @@ src/
 │   └── ipc/register-handlers.ts   IPC 注册（入参校验 + 委托）
 └── renderer/
     ├── app/                       App / AppShell / navigation 模型
-    ├── pages/                     七个一级页面（含知己 Agent；其余六页职责不变）
+    ├── pages/                     六个一级页面（含知己 Agent；其余五页职责不变）
     ├── features/                  跨页面复用功能块（history/patterns/reviews/settings/projects）
     ├── components/                基础组件（Button/Field/Modal/MarkdownDocument 等）
     ├── hooks/use-app-data.ts      启动数据加载与刷新
@@ -123,7 +123,7 @@ src/
 导航模型（app/navigation.ts）是前端最重要的契约之一：
 
 ```text
-AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'topics' | 'projects' | 'settings'
+AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'projects' | 'settings'
 NavigationIntent = journal.compose | journal.generate-daily | records.journals
                  | review.weekly | review.monthly{month?} | review.yearly{year?}
                  | review.coach | review.project{projectId}
@@ -149,7 +149,6 @@ NavigationTarget = { view, intent? }
 | 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、重启后恢复、流式消息、安全 Markdown、运行状态与停止；阶段 B 的只读工具之外，阶段 C 可保存日志、生成每日反馈，或预览并经页面确认后生成周期/洞察复盘；正式产物仍由既有页面与服务负责 |
 | 日志 | `pages/today-page.tsx` | 写日志/过去日志两个 section；日期可选今天或过去（补写只保存不自动生成反馈）；"保存并生成今日反馈"会先保存再调 `reviews.generateDaily`；clarification 结果以 info 横幅展示；删除走确认条 + 回收站；复用 `RecordBrowser` 浏览历史并支持对过去日期"生成这一天的反馈" |
 | 复盘 | `pages/reviews-page.tsx` | 生成/历史两个 section；周/月/项目三卡 + "更多洞察"折叠区（coach/yearly/life-design）；固定流程：选类型 → 预览材料（拿 token）→ 确认并生成（带 previewToken）；结果用 `MarkdownDocument` 渲染并挂 `PatternPanel` |
-| 主题思考 | `pages/topics-page.tsx` | 讨论（start/discuss）、归纳提案（propose，更新模式展示旧正文差异）、确认沉淀（confirm）、主题列表与阅读、会话恢复、受控联网搜索与读源 |
 | 项目 | `pages/projects-page.tsx` | 创建/重命名/归档/恢复/删除；有关联日志时删除被后端拒绝 |
 | 设置 | `pages/settings-page.tsx` | AI 服务（三预设卡 + custom，测试连接成功后自动保存）、本地数据（路径可见、打开文件夹、导出/校验/恢复备份）、个人背景（保存/授权开关/清空） |
 
@@ -180,7 +179,7 @@ NavigationTarget = { view, intent? }
 2. `preload.ts`——每个方法逐一映射到 `ipcRenderer.invoke('通道名')`；`contextBridge.exposeInMainWorld('zhiji', api)`。
 3. `ipc/register-handlers.ts`——`ipcMain.handle('通道名', ...)`，入参一律 zod schema `.parse(raw)` 后再委托服务。
 
-通道命名约定：`域:动作`（如 `reviews:generate-daily`、`topics:propose`）。入参 schema 全部在 `shared/schemas/ipc.ts`；ID 带前缀 refine（`journal_`/`project_`/`review_`）。返回值是域模型或判别联合（如 `DailyGenerationResult = {kind:'review'|'clarification'}`）。
+通道命名约定：`域:动作`（如 `reviews:generate-daily`）。入参 schema 全部在 `shared/schemas/ipc.ts`；ID 带前缀 refine（`journal_`/`project_`/`review_`）。返回值是域模型或判别联合（如 `DailyGenerationResult = {kind:'review'|'clarification'}`）。
 
 错误传播：Main Process 抛出的 `appError`（`shared/errors/app-error.ts`）序列化后在前端以 `reason instanceof Error ? reason.message : 兜底文案` 展示。新增错误必须扩展 `AppError` 联合而不是抛裸 Error（裸 Error 可抛但只用于内部断言）。
 
@@ -201,7 +200,6 @@ NavigationTarget = { view, intent? }
 | `GeneratePeriodicReview` | `generate-periodic-review.ts` | 预览（生成 uuid token + 材料 SHA-256 digest）→ 生成时校验 token 与 digest（材料变化则要求重新预览）→ `runPeriodicFeedback` → 保存 Review(schemaVersion 1)；Agent 生成前还需 Main Process 一次性页面确认，并转发取消信号 |
 | `GenerateInsightReview` | `generate-insight-review.ts` | coach/yearly/life-design 三种洞察工具；同样的预览-digest 确认门，Agent 复用页面确认；coach 走 JSON 模式 + `renderJournalCoach`，其余为自由文本 |
 | `VerifiedPatternService` | `verified-patterns.ts` | propose：从单篇复盘提取 ≤3 条候选（不落库）；confirm：确认后才写入 JSON 快照 |
-| `TopicThinkingService` | `topic-thinking.ts` | start（确定性主题召回 → 首稿）→ discuss（全历史进模型）→ proposeSummary（归纳 + create/update 判定）→ confirm（才写主题文件并删除会话）；会话文件型 checkpoint |
 | `ConfigureAi` | `configure-ai.ts` | settings.json 读写（原子写 + schema 复读校验）、Key 存凭证库、连接测试、`collect()` 适配器；非开发环境强制 HTTPS |
 
 ### 7.3 domain 层（纯逻辑，可单测）
@@ -230,7 +228,6 @@ NavigationTarget = { view, intent? }
 | `daily-review-v1.ts` | `daily-review-v3` | D0-D6 摘要、单洞察单行动、常规 260 字上限与例外 320 字（提示词软约束）、JSON 字段契约 |
 | `periodic-review-v1.ts` | `periodic-review-v4` | 按类型与等级生成系统提示；复盘六问一级标题结构与 Skill 侧 review-synthesis 契约同构（含回顾目标、聊天摘要、方向锚点五态缺席检查、质量自检，B/C 降级与空锚点披露由代码强制）；月报深度（主主题归并、下月规划假说、升级提醒）；800 字上限；下游沉淀优先说明 |
 | `journal-coach-v2.ts` | `journal-coach-v3` | A-D 就绪度 + 六步法表格（回忆事实/筛选重点/评估结果/洞察思考/行为改进/分享讨论） + 一项低摩擦动作；`directionWarning` 需四类方向信号中至少两类才填，单日低落或普通任务压力不触发 |
-| `topic-thinking-v1.ts` | `topic-thinking-v1` | 首稿/继续/归纳三套提示词；只归纳用户明确认可的判断 |
 | `verified-patterns-v1.ts` | `verified-patterns-v1` | 单篇复盘提取 0-3 条可验证行为假说候选 |
 | `insight-review-prompts.ts` | 按类型 | yearly（`yearly-review-v2`，含升级提醒触发条件）/life-design（`life-design-v2`，含下次如何验证）的系统提示词与版本 |
 
@@ -254,8 +251,6 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 - `data-directory/data-directory-service.ts`：数据目录信息（路径、可写性、文件数、字节数、分类计数）与打开。
 - `transfer/data-transfer-service.ts` + `archive-manifest.ts` + `business-archive-validator.ts`：导出 `.zhiji.zip`（manifest 含 formatVersion/appVersion/逐文件 sha256）；恢复两段式——preview 校验（路径白名单、哈希、业务 schema）返回 previewId，restore 只允许写入空数据目录；API Key 与缓存不入包。
 - `agent/dsh-runtime.ts` + `@deepseek-ai/dsh-session-persistence-jsonl`：Agent 事件日志写入数据根 `agent/sessions/`；Main 负责路径、恢复列表和安全投影，Utility 负责 DSH session loop，不把领域正文复制进会话。
-- `topics/topic-repository.ts`：主题索引 JSON + 主题 Markdown；`safeTopicName` 消毒标题（去路径分隔符等）。
-- `topics/topic-session-store.ts`：会话逐轮原子写 JSON（文件型 checkpoint），重启可列出/恢复，损坏报错不静默重置。
 - `patterns/verified-pattern-repository.ts`：单一 JSON 快照，原子写 + zod 复读；损坏报错。
 - `web/web-search-service.ts`：受控联网。DuckDuckGo HTML 端点解析 ≤8 条结果；结果绑定 `search_` 会话；`readSource` 只接受本会话返回过的 `sourceId`，只允许 http/https；正文去标签截断 2000 字。
 
@@ -266,7 +261,7 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 - `Journal`（schemaVersion 1）：`journal_` id、ISO 日期、body、projectIds、createdAt/updatedAt。
 - `Review` 联合：v1 无来源版本；v2 增加 `sourceVersions`（目前仅 daily 使用，支撑新鲜度快路径）。type 七值：daily/weekly/monthly/project/coach/yearly/life-design。必带 model/promptVersion 溯源字段。
 - `VerifiedPatternSnapshot`：≤500 条模式；候选不落库。
-- `TopicIndex/TopicSession`：索引 ≤500 条；会话 ≤200 条消息；referencedTopics ≤2。
+- 主题思考不再是桌面端域模型；历史 `topics/` 数据若已存在仍保留在数据根目录，但桌面端不再读取、写入或展示。
 
 数据目录（默认 `Documents/知己`，`ZHIJI_DATA_ROOT` 可覆盖）：
 
@@ -278,7 +273,7 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 ├── profile/about-me.md         个人背景
 ├── settings.json               公开 AI 配置（无 Key）
 ├── patterns/...                验证模式 JSON 快照
-├── topics/...                  主题索引 + 主题文件 + 会话 checkpoint
+├── topics/...                  旧版主题数据（保留但不再由桌面端读写）
 ├── audits/...                  日反馈 JSONL 审计
 └── agent/sessions/...          DSH Agent JSONL 事件日志（可迁移、可备份校验）
 userData/credentials.json       safeStorage 加密的 API Key（不入备份）
@@ -345,22 +340,13 @@ bootstrap → dataRoot/agent/sessions/
 → 重启后 agent:send → AgentRegistry.resume → 继续原事件历史
 ```
 
-会话日志是 Agent 对话过程的权威，不取代日志、日反馈、周/月复盘、主题和项目的 Markdown/JSON 仓储。数据目录迁移复用 `DataRootHolder` 的递归复制；备份路径白名单接纳 `agent/sessions/<project>/<agent>/session.jsonl`，业务校验用 DSH `Session.fromRestore` 验证 header、事件类型、顺序和序号。损坏日志以 `IMPORT_REJECTED` 或“会话数据损坏”明确失败，保留原文件，不静默重置。
+会话日志是 Agent 对话过程的权威，不取代日志、日反馈、周/月复盘和项目的 Markdown/JSON 仓储。数据目录迁移复用 `DataRootHolder` 的递归复制；备份路径白名单接纳 `agent/sessions/<project>/<agent>/session.jsonl`，业务校验用 DSH `Session.fromRestore` 验证 header、事件类型、顺序和序号。损坏日志以 `IMPORT_REJECTED` 或“会话数据损坏”明确失败，保留原文件，不静默重置。
 
-主题 `TopicSessionStore` 本轮继续保留：当前 DSH 工具未覆盖主题提案、差异展示与确认沉淀的完整门，强制迁移会破坏现有主题闭环；待 D2 具备同等确认语义且有真实使用证据证明能降低摩擦后再评估导入旧 checkpoint。当前主题确认已记录提案生成时的索引版本，并在仓储串行写队列内拒绝过期覆盖；每日分析、周复盘、月复盘和专业页面不因 D1 改变。
+主题思考不再属于桌面端运行时。已存在的 `topics/` 文件不会被删除，作为用户可自行处理的旧数据保留；桌面端不再提供主题页面、IPC、会话 checkpoint、主题仓储或 DSH 主题工具。Skill/CLI 侧的主题讨论契约不受影响；每日反馈、周复盘、月复盘和其他复盘页面不受影响。
 
-### 9.4 主题思考
+### 9.4 已移除的桌面端主题思考
 
-```text
-topics:start → findRelatedTopics（标题/别名/核心问题与提问的最长公共子串 ≥2 字符，最多 2 条）
-→ 首稿提示词 + 相关主题正文（≤2）→ 保存会话 checkpoint → 返回 draft
-topics:discuss → 全历史消息进模型 → 追加 checkpoint
-topics:propose → 归纳提示词（jsonObject）→ 与索引按 topic/title/别名匹配
-→ create 或 update 提案（update 将旧正文传入归纳提示词重组整篇论证，前端展示合并后全文，并记录生成时的主题版本）→ 提案写入会话 checkpoint
-topics:confirm → 主题仓储串行校验提案版本后才写规范主题文件 → 删除会话
-```
-
-未经 confirm 不写任何主题文件；提案持久化在会话 checkpoint 文件内（topic-thinking-v2），重启后可恢复并 confirm。
+主题思考原本只是“与 AI 讨论后沉淀认识”的辅助便利，不是日志复盘闭环的必要步骤。依据第一性原理，继续维护一套独立会话、提案、差异和确认协议的成本高于它对核心目标的贡献，因此从桌面端删除；需要该能力时仍可在 Skill/CLI 侧按需讨论和沉淀。
 
 ### 9.5 验证模式
 
@@ -405,7 +391,7 @@ patterns:confirm（候选）→ 生成 pattern_ id → 快照 add（原子写 + 
 ## 12. 约定速查（修改代码前必读）
 
 1. 日期一律 `YYYY-MM-DD` 字符串，比较直接用字典序（`start <= end`）。
-2. ID 前缀固定：`journal_`/`review_`/`project_`/`pattern_`/`topicsession_`/`search_`/`source_`，生成用 `crypto.randomUUID()` 去连字符。
+2. ID 前缀固定：`journal_`/`review_`/`project_`/`pattern_`/`search_`/`source_`，生成用 `crypto.randomUUID()` 去连字符。
 3. 所有落盘走 `atomicWriteUtf8` 并传复读校验回调；删除走回收站。
 4. 模型输出必须经 `parseXxxOutput` + zod strict；渲染必须经 `renderXxx`。
 5. 提示词语义变化 → 递增 `xxx-vN` 版本常量并更新兼容快照。
@@ -441,7 +427,7 @@ patterns:confirm（候选）→ 生成 pattern_ id → 快照 add（原子写 + 
 
 1. ~~**未使用依赖**~~：已于 2026-08-14 清理（移除五个未使用依赖与 react-query 死接线，lock 文件同步）。
 2. ~~**跨端重复的新鲜度逻辑**~~：已于 2026-08-14 抽至 `shared/domain/daily-freshness.ts`，双端对照单测见 `daily-freshness.test.ts`。
-3. **预览 Map 无回收**：`GeneratePeriodicReview`、`GenerateInsightReview` 的 previews 只在成功 execute 时删除；放弃的 token 常驻内存至进程退出。单用户场景影响小，但加 TTL 或上限是低成本加固。（TopicThinkingService 的 proposals 已随 topic-thinking-v2 持久化到会话 checkpoint，不再是内存 Map。）
+3. **预览 Map 无回收**：`GeneratePeriodicReview`、`GenerateInsightReview` 的 previews 只在成功 execute 时删除；放弃的 token 常驻内存至进程退出。单用户场景影响小，但加 TTL 或上限是低成本加固。
 4. **IPC 无 sender 校验**：2026-08-13 审计遗留项；当前单窗口场景风险低，做之前评估成本收益。
 5. **日反馈长度仅软约束**：提示词写 320 字但 zod 字段上限宽松且无渲染期校验；出现真实超长样本再加硬校验。
 6. **MarkdownDocument 无内联格式**：加粗/链接/行内代码不渲染；扩展须在安全渲染器内实现。

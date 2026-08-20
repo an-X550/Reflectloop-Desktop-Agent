@@ -77,45 +77,6 @@ export type VerifiedPattern = z.infer<typeof VerifiedPatternSchema>;
 export type VerifiedPatternSnapshot = z.infer<typeof VerifiedPatternSnapshotSchema>;
 export type VerifiedPatternCandidate = z.infer<typeof VerifiedPatternCandidateSchema>;
 
-export const TopicIndexEntrySchema = z.object({
-  topic: z.string().trim().min(1).max(80),
-  title: z.string().trim().min(1).max(120),
-  coreQuestion: z.string().trim().min(1).max(500),
-  aliases: z.array(z.string().trim().min(1).max(80)).max(10),
-  updatedAt: IsoDateTime,
-});
-export const TopicIndexSchema = z.object({
-  schemaVersion: z.literal(1),
-  entries: z.array(TopicIndexEntrySchema).max(500),
-});
-export const TopicMessageSchema = z.object({
-  role: z.enum(['user', 'assistant']),
-  content: z.string().min(1).max(20_000),
-  at: IsoDateTime,
-});
-export const TopicProposalSchema = z.object({
-  mode: z.enum(['create', 'update']),
-  targetTopic: z.string().trim().min(1).max(80).optional(),
-  /** 生成提案时对应的主题索引版本；确认时用于拒绝覆盖较新的认识。 */
-  expectedUpdatedAt: IsoDateTime.optional(),
-  existingBody: z.string().max(40_000).optional(),
-  summary: z.object({
-    title: z.string().trim().min(1).max(120),
-    coreQuestion: z.string().trim().min(1).max(500),
-    aliases: z.array(z.string().trim().min(1).max(80)).max(3),
-    body: z.string().trim().min(1).max(20_000),
-  }).strict(),
-}).strict();
-export const TopicSessionSchema = z.object({
-  schemaVersion: z.literal(1),
-  id: z.string().regex(/^topicsession_[a-z0-9]+$/),
-  question: z.string().trim().min(1).max(2000),
-  referencedTopics: z.array(z.string().trim().min(1).max(80)).max(2),
-  messages: z.array(TopicMessageSchema).max(200),
-  proposal: TopicProposalSchema.optional(),
-  createdAt: IsoDateTime,
-  updatedAt: IsoDateTime,
-});
 export const WebSearchResultSchema = z.object({
   sourceId: z.string().regex(/^source_[a-z0-9]+$/),
   title: z.string().trim().min(1).max(300),
@@ -124,11 +85,6 @@ export const WebSearchResultSchema = z.object({
   publishedAt: z.string().max(40).nullable(),
   retrievedAt: IsoDateTime,
 });
-export type TopicIndexEntry = z.infer<typeof TopicIndexEntrySchema>;
-export type TopicIndex = z.infer<typeof TopicIndexSchema>;
-export type TopicMessage = z.infer<typeof TopicMessageSchema>;
-export type TopicProposal = z.infer<typeof TopicProposalSchema>;
-export type TopicSession = z.infer<typeof TopicSessionSchema>;
 export type WebSearchResult = z.infer<typeof WebSearchResultSchema>;
 
 export const WebSourceContentSchema = z.object({
@@ -202,20 +158,6 @@ export const ReviewPreviewSchema = z.object({
   sources: z.array(z.object({ id: z.string().min(1), date: IsoDate, excerpt: z.string() })),
 }).strict();
 export type ReviewPreview = z.infer<typeof ReviewPreviewSchema>;
-
-export const TopicStartResultSchema = z.object({
-  sessionId: z.string().regex(/^topicsession_[a-z0-9]+$/),
-  draft: z.string().min(1),
-  referencedTopics: z.array(z.object({ topic: z.string().min(1), title: z.string().min(1) })),
-}).strict();
-export type TopicStartResult = z.infer<typeof TopicStartResultSchema>;
-
-export const TopicDiscussResultSchema = z.object({ reply: z.string().min(1) }).strict();
-export type TopicDiscussResult = z.infer<typeof TopicDiscussResultSchema>;
-export const TopicConfirmResultSchema = z.object({ topic: z.string().min(1) }).strict();
-export type TopicConfirmResult = z.infer<typeof TopicConfirmResultSchema>;
-export const TopicContentSchema = z.object({ topic: z.string().min(1), body: z.string() }).strict();
-export type TopicContent = z.infer<typeof TopicContentSchema>;
 
 /** 日志模板：name 为模板名，body 为待插入正文。 */
 export interface JournalTemplate { name: string; body: string }

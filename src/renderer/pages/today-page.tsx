@@ -10,7 +10,6 @@ import { StatusBanner } from '../components/status-banner';
 import { MarkdownDocument } from '../components/markdown-document';
 import { RecordBrowser } from './history-page';
 import { toLocalDateString } from '../utils/local-date';
-import { deriveTopicQuestion } from '../utils/topic-entry';
 
 const today = toLocalDateString();
 
@@ -144,7 +143,6 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
           {reviewState !== 'loading' && reviewMessage && <StatusBanner tone={reviewState === 'error' ? 'error' : reviewState === 'success' ? 'success' : 'info'}>{reviewMessage}</StatusBanner>}
           {dailyReviewBody && <article className="card inline-review">
             <MarkdownDocument>{dailyReviewBody}</MarkdownDocument>
-            <div className="button-row"><Button variant="ghost" onClick={() => onNavigate({ view: 'topics', intent: { type: 'topics.start', question: deriveTopicQuestion(dailyReviewBody), contextExcerpt: dailyReviewBody } })}>就这个深入探讨</Button></div>
           </article>}
         </section>
         <aside className="today-side">

@@ -32,8 +32,6 @@ const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; des
   { name: 'zhiji.reviews.list', action: 'reviews.list', label: '读取复盘摘要', description: '读取已有复盘的摘要列表。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'zhiji.reviews.get', action: 'reviews.get', label: '读取复盘摘要', description: '按复盘 ID 读取经过脱敏的摘要。', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
   { name: 'zhiji.projects.list', action: 'projects.list', label: '读取项目列表', description: '读取项目名称、状态和 ID。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'zhiji.topics.list', action: 'topics.list', label: '读取已确认主题', description: '读取已确认主题的索引摘要。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { name: 'zhiji.topics.get', action: 'topics.get', label: '读取主题摘要', description: '读取一个已确认主题的经过脱敏的摘要。', parameters: { type: 'object', properties: { topic: { type: 'string' } }, required: ['topic'], additionalProperties: false } },
   { name: 'zhiji.patterns.list', action: 'patterns.list', label: '读取已验证模式', description: '读取用户已确认的验证模式。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'zhiji.web.search', action: 'web.search', label: '搜索公开来源', description: '通过受控搜索查找公开来源；结果只提供本次会话的 sourceId。', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'zhiji.web.read-source', action: 'web.read-source', label: '读取搜索来源', description: '只读取同一搜索会话返回的 sourceId 对应来源。', parameters: { type: 'object', properties: { searchSessionId: { type: 'string' }, sourceId: { type: 'string' } }, required: ['searchSessionId', 'sourceId'], additionalProperties: false } },
@@ -106,7 +104,7 @@ export class DshRuntime {
         packChunks: false,
       });
     }
-    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目、主题和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。' });
+    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。' });
     await this.ctx.plugin(ToolRuntime, {});
     for (const definition of TOOL_DEFINITIONS) this.ctx.tools.register(this.createTool(definition));
     await this.ctx.plugin(AgentRegistry);

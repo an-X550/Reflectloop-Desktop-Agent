@@ -12,8 +12,6 @@ function api() {
     journals: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), get: vi.fn() },
     projects: { list: vi.fn(async () => []), create: vi.fn(), archive: vi.fn() },
     reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn(), onTaskPhase: vi.fn(() => () => undefined) },
-    topics: { list: vi.fn(async () => []), sessions: vi.fn(async () => []), get: vi.fn(), start: vi.fn(), discuss: vi.fn(), propose: vi.fn(), confirm: vi.fn(), resume: vi.fn(), onStream: vi.fn(() => () => undefined) },
-    web: { search: vi.fn(), readSource: vi.fn() },
     templates: { list: vi.fn(async () => []), get: vi.fn(), save: vi.fn(), delete: vi.fn() },
     app: { getInfo: vi.fn(async () => ({ version: '1.27.0', updateUrl: null })), setUpdateUrl: vi.fn() },
     settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
@@ -30,8 +28,6 @@ describe('App', () => {
       fireEvent.click(screen.getByRole('button', { name: nav }));
       expect(screen.getByRole('heading', { name: heading, level: 2 })).toBeInTheDocument();
     }
-    fireEvent.click(screen.getByRole('button', { name: '主题思考' }));
-    expect(screen.getByRole('heading', { name: '开始一场主题讨论', level: 3 })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '知己 Agent' }));
     expect(screen.getByRole('heading', { name: '知己 Agent', level: 2 })).toBeInTheDocument();
   });

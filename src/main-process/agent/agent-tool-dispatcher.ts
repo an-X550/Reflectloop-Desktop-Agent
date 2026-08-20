@@ -3,7 +3,6 @@ import { AgentToolBridgeRequestSchema, AgentToolResultSchema, type AgentNavigati
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
-import type { TopicThinkingService } from '../application/topic-thinking';
 import type { VerifiedPatternService } from '../application/verified-patterns';
 import type { WebSearchService } from '../infrastructure/web/web-search-service';
 import type { CreateJournal, UpdateJournal } from '../application/save-journal';
@@ -51,7 +50,6 @@ export class AgentToolDispatcher {
     journals: Pick<MarkdownJournalRepository, 'list' | 'get'>;
     reviews: Pick<MarkdownReviewRepository, 'list' | 'get'>;
     projects: Pick<JsonProjectRepository, 'list'>;
-    topicThinking: Pick<TopicThinkingService, 'list' | 'get'>;
     verifiedPatterns: Pick<VerifiedPatternService, 'list'>;
     webSearch: Pick<WebSearchService, 'search' | 'readSource'>;
     createJournal: Pick<CreateJournal, 'execute'>;
@@ -110,14 +108,6 @@ export class AgentToolDispatcher {
       case 'projects.list': {
         const projects = await this.deps.projects.list();
         return { kind: 'projects.list', projects: projects.slice(-100).map((item) => ({ id: item.id, name: safeText(item.name, 80), status: item.status })) };
-      }
-      case 'topics.list': {
-        const topics = await this.deps.topicThinking.list();
-        return { kind: 'topics.list', topics: topics.slice(-100).map((item) => ({ topic: item.topic, title: safeText(item.title, 120), coreQuestion: safeText(item.coreQuestion, 500), aliases: item.aliases.map((alias) => safeText(alias, 80)) })) };
-      }
-      case 'topics.get': {
-        const item = await this.deps.topicThinking.get(request.input);
-        return { kind: 'topics.get', topic: { topic: item.topic, excerpt: safeText(item.body) } };
       }
       case 'patterns.list': {
         const snapshot = await this.deps.verifiedPatterns.list();
