@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import AdmZip from 'adm-zip';
+import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DataTransferService } from '../../src/main-process/infrastructure/transfer/data-transfer-service';
 
@@ -79,5 +81,36 @@ describe('DataTransferService', () => {
     await writeFile(path.join(source, 'journals', '2026', '2026-08-13--journal_same.md'), content); await writeFile(path.join(source, 'journals', '2026', '2026-08-13.md'), content);
     const archive = path.join(await temp('zhiji-duplicate-archive-'), 'duplicate.zhiji.zip');
     await expect(new DataTransferService(source, '1.0.0').exportTo(archive)).rejects.toThrow(/业务数据无效/);
+  });
+
+  it('exports and restores durable DSH session logs, while rejecting a corrupted log', async () => {
+    const source = await temp('zhiji-agent-source-');
+    const sessionRoot = path.join(source, 'agent', 'sessions', '_no-cwd', 'agent_backup');
+    await mkdir(sessionRoot, { recursive: true });
+    const header = { version: 0, id: SessionId('agent_backup'), createdAt: Date.parse('2026-08-13T00:00:00.000Z'), delegationDepth: 0 };
+    const session = Session.create(header.id, [], header);
+    session.append('turn/start', { turn: 0 });
+    session.append('step/start', { turn: 0, step: 0 });
+    session.append('user/message', createUserMessage({ content: [{ type: 'text', text: '备份这段 Agent 对话' }], source: { kind: 'user' } }), { surfaceOp: 'append' });
+    session.append('assistant/message', { turn: 0, step: 0, message: createAssistantMessage({ content: [{ type: 'text', text: '已保留。' }], source: { provider: 'zhiji', model: 'fake' } }) }, { surfaceOp: 'append' });
+    session.append('step/end', { turn: 0, step: 0 });
+    session.append('turn/end', { turn: 0, reason: { kind: 'completed' } });
+    await writeFile(path.join(sessionRoot, 'session.jsonl'), `${JSON.stringify({ type: 'session', ...header })}\n${session.events.map((event) => JSON.stringify(event)).join('\n')}\n`, 'utf8');
+    const archive = path.join(await temp('zhiji-agent-archive-'), 'backup.zhiji.zip');
+    await new DataTransferService(source, '1.0.0').exportTo(archive);
+    const names = new AdmZip(archive).getEntries().map((entry) => entry.entryName);
+    expect(names).toContain('agent/sessions/_no-cwd/agent_backup/session.jsonl');
+
+    const target = await temp('zhiji-agent-target-');
+    const service = new DataTransferService(target, '1.0.0');
+    const preview = await service.preview(archive);
+    await service.restore(preview.previewId);
+    expect(await readFile(path.join(target, 'agent', 'sessions', '_no-cwd', 'agent_backup', 'session.jsonl'), 'utf8')).toContain('备份这段 Agent 对话');
+
+    const corruptSource = await temp('zhiji-agent-corrupt-');
+    const corruptPath = path.join(corruptSource, 'agent', 'sessions', '_no-cwd', 'agent_bad');
+    await mkdir(corruptPath, { recursive: true });
+    await writeFile(path.join(corruptPath, 'session.jsonl'), '{"type":"session","version":0,"id":"agent_bad","createdAt":0,"delegationDepth":0}\nnot-json\n', 'utf8');
+    await expect(new DataTransferService(corruptSource, '1.0.0').exportTo(path.join(await temp('zhiji-agent-corrupt-archive-'), 'bad.zhiji.zip'))).rejects.toThrow(/业务数据无效/);
   });
 });

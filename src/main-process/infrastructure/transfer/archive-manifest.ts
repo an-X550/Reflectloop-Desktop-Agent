@@ -9,6 +9,10 @@ const roots = ['journals/', 'reviews/', 'projects/', 'profile/'];
 export function isPortablePath(value: string): boolean {
   if (value === 'settings.json') return true;
   if (value.startsWith('profile/')) return value === 'profile/about-me.md';
+  if (value.startsWith('agent/sessions/')) {
+    const parts = value.split('/');
+    return parts.length === 5 && parts[0] === 'agent' && parts[1] === 'sessions' && parts[2].length > 0 && parts[3].length > 0 && parts[4] === 'session.jsonl' && !value.includes('\\') && !value.startsWith('/') && !parts.includes('..');
+  }
   return roots.some((root) => value.startsWith(root)) && !value.includes('\\') && !value.split('/').includes('..') && !value.startsWith('/');
 }
 

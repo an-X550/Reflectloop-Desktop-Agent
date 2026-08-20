@@ -54,7 +54,7 @@ export async function bootstrap() {
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
   const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, topicThinking, verifiedPatterns, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi });
-  const agentFacade = new AgentFacade(new ElectronAgentRuntime(), new AgentModelTransport(configureAi), agentToolDispatcher);
+  const agentFacade = new AgentFacade(new ElectronAgentRuntime({ sessionRoot: path.join(dataRoot, 'agent', 'sessions') }), new AgentModelTransport(configureAi), agentToolDispatcher);
   registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal, updateJournal, configureAi, transfer, dataDirectory, dialog, agentFacade });
   return { agentFacade };
 }

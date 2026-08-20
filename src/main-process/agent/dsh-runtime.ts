@@ -1,19 +1,28 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import { Context } from '@deepseek-ai/cordis';
+import { readFile, readdir } from 'node:fs/promises';
 import { AgentRegistry, type Agent, type AgentHandle } from '@deepseek-ai/dsh-agent';
 import { AgentLoop } from '@deepseek-ai/dsh-agent-loop';
 import { LlmRuntime, LlmAdapter, type GenerateOptions, type StreamChunk, createUserMessage } from '@deepseek-ai/dsh-llm';
-import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session';
+import { SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session';
 import { SessionStore } from '@deepseek-ai/dsh-session';
+import { JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { AgentUtilityCommandSchema, type AgentModelRequest, type AgentModelResponse, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
+import type { AgentMessage, AgentSession } from '../../shared/schemas/agent';
 import type { AgentToolResult } from '../../shared/schemas/agent-tools';
 
 export interface UtilityMessagePort {
   postMessage(message: AgentUtilityEvent): void;
   on(event: 'message', listener: (event: { data: unknown }) => void): unknown;
   start?(): void;
+}
+
+export interface DshRuntimeOptions {
+  /** The data-root-owned directory for durable DSH session logs. */
+  sessionRoot?: string;
 }
 
 const ToolOutputSchema = { type: 'object' as const, additionalProperties: true };
@@ -84,12 +93,19 @@ export class DshRuntime {
   private readonly assistantMessageIds = new Map<string, string>();
   private started = false;
 
-  constructor(private readonly port: UtilityMessagePort) {}
+  constructor(private readonly port: UtilityMessagePort, private readonly options: DshRuntimeOptions = {}) {}
 
   async start(): Promise<void> {
     if (this.started) return;
     await this.ctx.plugin(LlmRuntime);
     await this.ctx.plugin(SessionStore);
+    if (this.options.sessionRoot) {
+      await this.ctx.plugin(JsonlSessionPersistence, {
+        root: this.options.sessionRoot,
+        compression: 'none',
+        packChunks: false,
+      });
+    }
     await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目、主题和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。' });
     await this.ctx.plugin(ToolRuntime, {});
     for (const definition of TOOL_DEFINITIONS) this.ctx.tools.register(this.createTool(definition));
@@ -186,8 +202,10 @@ export class DshRuntime {
       if (value.type === 'session.start') {
         const handle = await this.ctx.agents.create({ sessionId: SessionId(value.sessionId), agentOptions: { provider: 'zhiji', model: 'configured-by-main-process' } });
         this.agents.set(value.sessionId, handle);
+      } else if (value.type === 'session.list') {
+        await this.emitPersistedSessions();
       } else if (value.type === 'session.send') {
-        const agent = this.getAgent(value.sessionId);
+        const agent = await this.ensureAgent(value.sessionId);
         agent.followup(createUserMessage({ content: [{ type: 'text', text: value.message }], source: { kind: 'user' } }));
       } else if (value.type === 'session.cancel') {
         this.getAgent(value.sessionId).cancel({ kind: 'user' });
@@ -234,6 +252,63 @@ export class DshRuntime {
     return handle.agent;
   }
 
+  private async ensureAgent(sessionId: string): Promise<Agent> {
+    const live = this.agents.get(sessionId);
+    if (live) return live.agent;
+    if (!this.options.sessionRoot) throw new Error('Agent 会话不存在。');
+    const handle = await this.ctx.agents.resume({ resumeSessionId: SessionId(sessionId), agentOptions: { provider: 'zhiji', model: 'configured-by-main-process' } });
+    this.agents.set(sessionId, handle);
+    return handle.agent;
+  }
+
+  private async emitPersistedSessions(): Promise<void> {
+    if (!this.options.sessionRoot) return;
+    const persistence = this.ctx.get('sessionPersistence');
+    if (!persistence) return;
+    await this.assertPersistedSessionsReadable(persistence);
+    for (const header of await persistence.list()) {
+      const inspection = await persistence.inspect(header.id);
+      this.post({ type: 'session.snapshot', session: sessionSummary(inspection.meta, inspection.events) });
+    }
+  }
+
+  /**
+   * The official list() intentionally omits files whose first line is not a
+   * valid header so a picker can stay cheap. For a user-facing recovery list,
+   * silently omitting such a file would look like data loss; inspect the
+   * expected artifact slots and surface a runtime error instead.
+   */
+  private async assertPersistedSessionsReadable(persistence: { inspect(id: SessionId): Promise<{ meta: SessionHeader; events: readonly SessionEvent[] }> }): Promise<void> {
+    const root = this.options.sessionRoot;
+    if (!root) return;
+    for (const project of await readdir(root, { withFileTypes: true }).catch((error) => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw error;
+    })) {
+      if (!project.isDirectory()) continue;
+      const projectPath = path.join(root, project.name);
+      for (const sessionDirectory of await readdir(projectPath, { withFileTypes: true })) {
+        if (!sessionDirectory.isDirectory()) continue;
+        const sessionPath = path.join(projectPath, sessionDirectory.name);
+        const artifacts = await readdir(sessionPath, { withFileTypes: true });
+        for (const artifact of artifacts) {
+          if (!artifact.isFile() || !artifact.name.startsWith('session.jsonl')) continue;
+          if (artifact.name !== 'session.jsonl') throw new Error('corrupt session log: compressed artifacts are not enabled');
+          const filePath = path.join(sessionPath, artifact.name);
+          const firstLine = (await readFile(filePath, 'utf8')).split(/\r?\n/, 1)[0];
+          let header: unknown;
+          try { header = JSON.parse(firstLine); }
+          catch { throw new Error(`corrupt session log: header line is not valid JSON (${filePath})`); }
+          if (!header || typeof header !== 'object' || (header as { type?: unknown }).type !== 'session') throw new Error(`corrupt session log: first line is not a session header (${filePath})`);
+          const id = (header as { id?: unknown }).id;
+          if (typeof id !== 'string' || !/^agent_[a-z0-9]+$/.test(id)) throw new Error(`corrupt session log: invalid session id (${filePath})`);
+          if (sessionDirectory.name !== id) throw new Error(`corrupt session log: path does not match session id (${filePath})`);
+          await persistence.inspect(SessionId(id));
+        }
+      }
+    }
+  }
+
   private post(event: AgentUtilityEvent): void { this.port.postMessage(event); }
 
   private createTool(definition: typeof TOOL_DEFINITIONS[number]): ToolDefinition {
@@ -271,8 +346,39 @@ export class DshRuntime {
   }
 }
 
+function sessionSummary(meta: SessionHeader, events: readonly SessionEvent[]): AgentSession {
+  const id = String(meta.id);
+  if (!/^agent_[a-z0-9]+$/.test(id)) throw new Error('Agent 会话数据损坏：会话 ID 无效。');
+  const messages: AgentMessage[] = [];
+  let latestAt = meta.createdAt;
+  for (const event of events) {
+    latestAt = Math.max(latestAt, event.time);
+    const message = event.type === 'user/message' ? event.data : event.type === 'assistant/message' ? event.data.message : undefined;
+    if (!message) continue;
+    const content = message.content.filter((block) => block.type === 'text').map((block) => block.text).join('').trim();
+    if (!content) continue;
+    const messageId = String(message.id);
+    messages.push({
+      id: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(messageId) ? messageId : randomUUID(),
+      role: message.role === 'assistant' ? 'assistant' : 'user',
+      content: content.slice(0, 20_000),
+      at: new Date(event.time).toISOString(),
+    });
+  }
+  const firstUser = messages.find((message) => message.role === 'user');
+  return {
+    id,
+    title: firstUser?.content.slice(0, 80) || '已恢复对话',
+    status: 'idle',
+    messages: messages.slice(-200),
+    createdAt: new Date(meta.createdAt).toISOString(),
+    updatedAt: new Date(latestAt).toISOString(),
+  };
+}
+
 function toChineseRuntimeError(error: unknown): string {
   const message = error instanceof Error ? error.message : '';
+  if (message.includes('会话数据损坏') || message.includes('corrupt session') || message.includes('corrupt Zstandard')) return 'Agent 会话数据损坏，未清理；请从备份恢复或新建会话。';
   if (message.includes('不存在')) return message;
   if (message.includes('取消')) return '已停止本次 Agent 请求。';
   return '知己 Agent 运行失败；请重试，其他页面不受影响。';

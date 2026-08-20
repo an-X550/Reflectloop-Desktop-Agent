@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { DshRuntime, type UtilityMessagePort } from '../../src/main-process/agent/dsh-runtime';
 import type { AgentRuntimeResponse, AgentUtilityCommand, AgentUtilityEvent } from '../../src/shared/schemas/agent-protocol';
@@ -21,7 +24,8 @@ class FakePort implements UtilityMessagePort {
 
 describe('DshRuntime', () => {
   let runtime: DshRuntime | undefined;
-  afterEach(async () => { await runtime?.dispose(); runtime = undefined; });
+  let sessionRoot: string | undefined;
+  afterEach(async () => { await runtime?.dispose(); runtime = undefined; if (sessionRoot) await rm(sessionRoot, { recursive: true, force: true }); sessionRoot = undefined; });
 
   it('runs a real DSH agent loop through the fake model relay without any product tool', async () => {
     const port = new FakePort();
@@ -78,5 +82,51 @@ describe('DshRuntime', () => {
     port.receive({ type: 'model.delta', requestId: secondRequest.requestId, delta: '我已结合两类材料。' });
     port.receive({ type: 'model.completed', requestId: secondRequest.requestId });
     expect((await port.next('message.completed')).message.content).toBe('我已结合两类材料。');
+  });
+
+  it('persists a session, lists it after restart, and resumes its event history', async () => {
+    sessionRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-dsh-sessions-'));
+    const firstPort = new FakePort();
+    runtime = new DshRuntime(firstPort, { sessionRoot });
+    await runtime.start();
+    const sessionId = 'agent_persisted';
+    firstPort.receive({ type: 'session.start', requestId: crypto.randomUUID(), sessionId });
+    await firstPort.next('command.completed');
+    firstPort.receive({ type: 'session.send', requestId: crypto.randomUUID(), sessionId, message: '保留这段对话' });
+    const firstRequest = await firstPort.next('model.request');
+    firstPort.receive({ type: 'model.delta', requestId: firstRequest.requestId, delta: '已保存。' });
+    firstPort.receive({ type: 'model.completed', requestId: firstRequest.requestId });
+    await firstPort.next('message.completed');
+    await runtime.dispose();
+    runtime = undefined;
+
+    const secondPort = new FakePort();
+    runtime = new DshRuntime(secondPort, { sessionRoot });
+    await runtime.start();
+    secondPort.receive({ type: 'session.list', requestId: crypto.randomUUID() });
+    const snapshot = await secondPort.next('session.snapshot');
+    expect(snapshot.session.id).toBe(sessionId);
+    expect(snapshot.session.messages.map((message) => message.content)).toEqual(['保留这段对话', '已保存。']);
+    secondPort.receive({ type: 'session.send', requestId: crypto.randomUUID(), sessionId, message: '继续这段对话' });
+    const resumedRequest = await secondPort.next('model.request');
+    expect(resumedRequest.messages.map((message) => message.content)).toContain('已保存。');
+    secondPort.receive({ type: 'model.delta', requestId: resumedRequest.requestId, delta: '继续完成。' });
+    secondPort.receive({ type: 'model.completed', requestId: resumedRequest.requestId });
+    expect((await secondPort.next('message.completed')).message.content).toBe('继续完成。');
+  });
+
+  it('reports a damaged persisted session instead of silently resetting it', async () => {
+    sessionRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-dsh-corrupt-'));
+    const sessionPath = path.join(sessionRoot, '_no-cwd', 'agent_corrupt', 'session.jsonl');
+    await mkdir(path.dirname(sessionPath), { recursive: true });
+    await writeFile(sessionPath, 'not-json\n', 'utf8');
+    const port = new FakePort();
+    runtime = new DshRuntime(port, { sessionRoot });
+    await runtime.start();
+    const requestId = crypto.randomUUID();
+    port.receive({ type: 'session.list', requestId });
+    const failed = await port.next('command.failed');
+    expect(failed.requestId).toBe(requestId);
+    expect(failed.message).toContain('会话数据损坏');
   });
 });

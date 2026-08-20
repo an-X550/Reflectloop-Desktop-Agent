@@ -41,7 +41,7 @@
 
 ```text
 npm start          开发运行
-npm test           vitest run（当前 54 文件 / 308 测试，2026-08-14 实测）
+npm test           vitest run（当前 56 文件 / 326 测试，2026-08-20 实测）
 npm run typecheck  tsc --noEmit
 npm run lint       eslint（发布门要求 0 error）
 npm run package    electron-forge package（E2E 前置与发布门）
@@ -146,7 +146,7 @@ NavigationTarget = { view, intent? }
 | 页面 | 文件 | 职责与关键逻辑 |
 |---|---|---|
 | 开始 | `pages/start-page.tsx` | `resolveNextStep` 确定性建议卡；能力链接（做复盘/查看记录/管理项目）。原意图输入框已于 2026-08-14 下线删除 |
-| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、流式消息、安全 Markdown、运行状态与停止；阶段 B 的只读工具之外，阶段 C 可保存日志、生成每日反馈，或预览并经页面确认后生成周期/洞察复盘；正式产物仍由既有页面与服务负责 |
+| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、重启后恢复、流式消息、安全 Markdown、运行状态与停止；阶段 B 的只读工具之外，阶段 C 可保存日志、生成每日反馈，或预览并经页面确认后生成周期/洞察复盘；正式产物仍由既有页面与服务负责 |
 | 日志 | `pages/today-page.tsx` | 写日志/过去日志两个 section；日期可选今天或过去（补写只保存不自动生成反馈）；"保存并生成今日反馈"会先保存再调 `reviews.generateDaily`；clarification 结果以 info 横幅展示；删除走确认条 + 回收站；复用 `RecordBrowser` 浏览历史并支持对过去日期"生成这一天的反馈" |
 | 复盘 | `pages/reviews-page.tsx` | 生成/历史两个 section；周/月/项目三卡 + "更多洞察"折叠区（coach/yearly/life-design）；固定流程：选类型 → 预览材料（拿 token）→ 确认并生成（带 previewToken）；结果用 `MarkdownDocument` 渲染并挂 `PatternPanel` |
 | 主题思考 | `pages/topics-page.tsx` | 讨论（start/discuss）、归纳提案（propose，更新模式展示旧正文差异）、确认沉淀（confirm）、主题列表与阅读、会话恢复、受控联网搜索与读源 |
@@ -253,6 +253,7 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 - `credentials/credential-store.ts`：safeStorage 加密，`userData/credentials.json`，加密不可用时明确报错不降级明文。
 - `data-directory/data-directory-service.ts`：数据目录信息（路径、可写性、文件数、字节数、分类计数）与打开。
 - `transfer/data-transfer-service.ts` + `archive-manifest.ts` + `business-archive-validator.ts`：导出 `.zhiji.zip`（manifest 含 formatVersion/appVersion/逐文件 sha256）；恢复两段式——preview 校验（路径白名单、哈希、业务 schema）返回 previewId，restore 只允许写入空数据目录；API Key 与缓存不入包。
+- `agent/dsh-runtime.ts` + `@deepseek-ai/dsh-session-persistence-jsonl`：Agent 事件日志写入数据根 `agent/sessions/`；Main 负责路径、恢复列表和安全投影，Utility 负责 DSH session loop，不把领域正文复制进会话。
 - `topics/topic-repository.ts`：主题索引 JSON + 主题 Markdown；`safeTopicName` 消毒标题（去路径分隔符等）。
 - `topics/topic-session-store.ts`：会话逐轮原子写 JSON（文件型 checkpoint），重启可列出/恢复，损坏报错不静默重置。
 - `patterns/verified-pattern-repository.ts`：单一 JSON 快照，原子写 + zod 复读；损坏报错。
@@ -278,7 +279,8 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 ├── settings.json               公开 AI 配置（无 Key）
 ├── patterns/...                验证模式 JSON 快照
 ├── topics/...                  主题索引 + 主题文件 + 会话 checkpoint
-└── audits/...                  日反馈 JSONL 审计
+├── audits/...                  日反馈 JSONL 审计
+└── agent/sessions/...          DSH Agent JSONL 事件日志（可迁移、可备份校验）
 userData/credentials.json       safeStorage 加密的 API Key（不入备份）
 ```
 
@@ -332,6 +334,20 @@ DSH tool.request
 ```
 
 `tool.cancel` 沿 MessagePort 反向传播为 Main Process 的 `AbortSignal`，再连接 `ReviewTaskManager`；取消发生在保存前时不会生成半写入正式复盘。确认状态只存在于 Main Process 的短期内存中，过期或进程退出后必须重新预览。
+
+### 9.3.1 Agent 会话持久化与数据生命周期（阶段 D1）
+
+```text
+bootstrap → dataRoot/agent/sessions/
+→ Main 将绝对 root 传给 Utility
+→ DSH JsonlSessionPersistence（compression=none）追加 session events
+→ agent:list → session.list → list + inspect → 有限长度 session.snapshot
+→ 重启后 agent:send → AgentRegistry.resume → 继续原事件历史
+```
+
+会话日志是 Agent 对话过程的权威，不取代日志、日反馈、周/月复盘、主题和项目的 Markdown/JSON 仓储。数据目录迁移复用 `DataRootHolder` 的递归复制；备份路径白名单接纳 `agent/sessions/<project>/<agent>/session.jsonl`，业务校验用 DSH `Session.fromRestore` 验证 header、事件类型、顺序和序号。损坏日志以 `IMPORT_REJECTED` 或“会话数据损坏”明确失败，保留原文件，不静默重置。
+
+主题 `TopicSessionStore` 本轮继续保留：当前 DSH 工具未覆盖主题提案、差异展示与确认沉淀的完整门，强制迁移会破坏现有主题闭环；待 D2 具备同等确认语义且有真实使用证据后再导入旧 checkpoint。每日分析、周复盘、月复盘和专业页面不因 D1 改变。
 
 ### 9.4 主题思考
 

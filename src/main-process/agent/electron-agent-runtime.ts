@@ -4,6 +4,10 @@ import { AgentUtilityEventSchema, type AgentRuntimeResponse, type AgentUtilityCo
 import type { AgentRuntimePort } from './agent-facade';
 
 type PendingCommand = { resolve(): void; reject(error: Error): void };
+export interface ElectronAgentRuntimeOptions {
+  utilityEntry?: string;
+  sessionRoot?: string;
+}
 
 /** Electron-only owner for the Utility Process and its one structured MessagePort. */
 export class ElectronAgentRuntime implements AgentRuntimePort {
@@ -18,7 +22,11 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
   private resolveStartup: (() => void) | undefined;
   private rejectStartup: ((error: Error) => void) | undefined;
 
-  constructor(private readonly utilityEntry: string = path.join(__dirname, 'utility.js')) {}
+  private readonly options: ElectronAgentRuntimeOptions;
+
+  constructor(options: ElectronAgentRuntimeOptions | string = {}) {
+    this.options = typeof options === 'string' ? { utilityEntry: options } : options;
+  }
 
   async start(): Promise<void> {
     this.startup ??= this.launch();
@@ -64,7 +72,7 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
 
   private launch(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const child = utilityProcess.fork(this.utilityEntry, [], { stdio: 'pipe' });
+      const child = utilityProcess.fork(this.options.utilityEntry ?? path.join(__dirname, 'utility.js'), [], { stdio: 'pipe' });
       const channel = new MessageChannelMain();
       this.child = child;
       this.port = channel.port1;
@@ -74,7 +82,7 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
       this.rejectStartup = reject;
       channel.port1.on('message', (event) => this.handleMessage(event.data));
       channel.port1.start();
-      child.once('spawn', () => child.postMessage({ type: 'agent-port' }, [channel.port2]));
+      child.once('spawn', () => child.postMessage({ type: 'agent-port', ...(this.options.sessionRoot ? { sessionRoot: this.options.sessionRoot } : {}) }, [channel.port2]));
       child.on('exit', () => this.handleExit());
       child.on('error', () => this.handleExit());
     });

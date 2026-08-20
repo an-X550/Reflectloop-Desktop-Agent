@@ -59,4 +59,16 @@ describe('AgentFacade', () => {
     expect(runtime.commands.map((item) => item.type)).toEqual(['session.start', 'session.send']);
     expect(facade.get(session.id).messages.at(-1)?.content).toContain('确认执行');
   });
+
+  it('loads persisted DSH session snapshots through the normal Agent list call', async () => {
+    const runtime = new FakeDshRuntime();
+    const model = { stream: vi.fn(), cancel: vi.fn(), dispose: vi.fn() } as unknown as AgentModelTransport;
+    const facade = new AgentFacade(runtime, model);
+    const listPromise = facade.list();
+    await Promise.resolve();
+    runtime.emit({ type: 'session.snapshot', session: { id: 'agent_recovered', title: '恢复的对话', status: 'idle', messages: [{ id: crypto.randomUUID(), role: 'user', content: '继续', at: new Date().toISOString() }], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } });
+    expect(await listPromise).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'agent_recovered', title: '恢复的对话' })]));
+    expect(runtime.commands.map((item) => item.type)).toEqual(['session.list']);
+    await facade.dispose();
+  });
 });

@@ -66,7 +66,9 @@ export class AgentFacade {
     catch (error) { this.toolDispatcher.revoke(sessionId, approvalId); throw error; }
   }
 
-  list(): AgentSession[] {
+  async list(): Promise<AgentSession[]> {
+    await this.ensureStarted();
+    await this.runtime.request({ type: 'session.list', requestId: randomUUID() });
     return [...this.sessions.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
@@ -99,6 +101,12 @@ export class AgentFacade {
     if (event.type === 'model.cancel') { this.modelTransport.cancel(event.requestId); return; }
     if (event.type === 'tool.request') { void this.dispatchTool(event); return; }
     if (event.type === 'tool.cancel') { this.toolControllers.get(event.requestId)?.abort(); return; }
+    if (event.type === 'session.snapshot') {
+      const current = this.sessions.get(event.session.id);
+      if (current?.status === 'running') return;
+      this.replaceSession(event.session);
+      return;
+    }
     if (event.type === 'session.status') {
       const session = this.sessions.get(event.sessionId);
       if (session) this.replaceSession({ ...session, status: event.status, updatedAt: new Date().toISOString() });
