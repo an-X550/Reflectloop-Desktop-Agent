@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
 import type { AgentEvent, AgentMessage, AgentSession } from '../../shared/schemas/agent';
-import type { AgentModelRequest, AgentModelResponse, AgentUtilityCommand, AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
+import type { AgentModelRequest, AgentRuntimeResponse, AgentUtilityCommand, AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
 import type { AgentModelTransport } from './agent-model-transport';
+import type { AgentToolDispatcher } from './agent-tool-dispatcher';
 
 export interface AgentRuntimePort {
   start(): Promise<void>;
   request(command: Exclude<AgentUtilityCommand, { type: 'model.delta' | 'model.completed' | 'model.failed' | 'model.cancelled' }>): Promise<void>;
-  send(command: AgentModelResponse): void;
+  send(command: AgentRuntimeResponse): void;
   onEvent(listener: (event: AgentUtilityEvent) => void): () => void;
   onExit(listener: () => void): () => void;
   stop(): Promise<void>;
@@ -20,7 +21,7 @@ export class AgentFacade {
   private readonly unsubscribeExit: () => void;
   private startup: Promise<void> | undefined;
 
-  constructor(private readonly runtime: AgentRuntimePort, private readonly modelTransport: AgentModelTransport) {
+  constructor(private readonly runtime: AgentRuntimePort, private readonly modelTransport: AgentModelTransport, private readonly toolDispatcher?: AgentToolDispatcher) {
     this.unsubscribeRuntime = runtime.onEvent((event) => this.handleRuntimeEvent(event));
     this.unsubscribeExit = runtime.onExit(() => this.handleRuntimeExit());
   }
@@ -84,6 +85,7 @@ export class AgentFacade {
   private handleRuntimeEvent(event: AgentUtilityEvent): void {
     if (event.type === 'model.request') { void this.modelTransport.stream(event as AgentModelRequest, (command) => this.runtime.send(command)); return; }
     if (event.type === 'model.cancel') { this.modelTransport.cancel(event.requestId); return; }
+    if (event.type === 'tool.request') { void this.dispatchTool(event); return; }
     if (event.type === 'session.status') {
       const session = this.sessions.get(event.sessionId);
       if (session) this.replaceSession({ ...session, status: event.status, updatedAt: new Date().toISOString() });
@@ -100,7 +102,16 @@ export class AgentFacade {
       this.emit({ type: 'message.completed', sessionId: event.sessionId, message: event.message });
       return;
     }
+    if (event.type === 'tool.activity' || event.type === 'ui.navigate' || event.type === 'ui.present') {
+      this.emit(event);
+      return;
+    }
     if (event.type === 'runtime.error') this.markFailed(event.sessionId, event.message);
+  }
+
+  private async dispatchTool(event: Extract<AgentUtilityEvent, { type: 'tool.request' }>): Promise<void> {
+    const result = await (this.toolDispatcher?.dispatch(event) ?? Promise.resolve({ kind: 'error' as const, message: '知己工具当前不可用。' }));
+    this.runtime.send({ type: 'tool.result', requestId: event.requestId, result });
   }
 
   private handleRuntimeExit(): void {

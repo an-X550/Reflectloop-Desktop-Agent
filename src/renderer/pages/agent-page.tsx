@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AgentSession } from '../../shared/schemas/agent';
+import { AgentPresentationCardSchema, type AgentPresentationCard } from '../../shared/schemas/agent-tools';
 import { Button } from '../components/button';
 import { MarkdownDocument } from '../components/markdown-document';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
+import { agentNavigationTarget, type NavigationTarget } from '../app/navigation';
 
-export function AgentPage() {
+export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (target: NavigationTarget) => void }) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [stream, setStream] = useState<{ sessionId: string; messageId: string; content: string } | null>(null);
   const [error, setError] = useState('');
+  const [activities, setActivities] = useState<Array<{ id: string; label: string; phase: 'started' | 'completed' | 'failed' }>>([]);
+  const [cards, setCards] = useState<AgentPresentationCard[]>([]);
 
   useEffect(() => {
     void window.zhiji.agent.list().then((items) => {
@@ -24,6 +28,17 @@ export function AgentPage() {
       }
       if (event.type === 'message.delta') setStream((current) => current?.messageId === event.messageId ? { ...current, content: current.content + event.delta } : { sessionId: event.sessionId, messageId: event.messageId, content: event.delta });
       if (event.type === 'message.completed') setStream((current) => current?.messageId === event.message.id ? null : current);
+      if (event.type === 'tool.activity') setActivities((items) => [{ id: event.callId, label: event.label, phase: event.phase }, ...items.filter((item) => item.id !== event.callId)].slice(0, 8));
+      if (event.type === 'ui.navigate') {
+        const target = agentNavigationTarget(event.target);
+        if (target) onNavigate(target);
+        else setError('Agent 请求的页面无效，已拒绝打开。');
+      }
+      if (event.type === 'ui.present') {
+        const card = AgentPresentationCardSchema.safeParse(event.card);
+        if (card.success) setCards((items) => [card.data, ...items].slice(0, 6));
+        else setError('Agent 请求的结果卡片无效，已拒绝展示。');
+      }
       if (event.type === 'error') setError(event.message);
     });
   }, []);
@@ -71,6 +86,10 @@ export function AgentPage() {
           <div className="agent-messages">{selected.messages.map((item) => <article key={item.id} className={`agent-message agent-message--${item.role}`}><strong>{item.role === 'user' ? '你' : '知己 Agent'}</strong>{item.role === 'assistant' ? <MarkdownDocument>{item.content}</MarkdownDocument> : <p>{item.content}</p>}</article>)}
             {stream?.sessionId === selected.id && <article className="agent-message agent-message--assistant"><strong>知己 Agent</strong><MarkdownDocument>{stream.content}</MarkdownDocument><span className="stream-caret" aria-hidden="true"/></article>}
           </div>
+          {(activities.length > 0 || cards.length > 0) && <section className="agent-tool-results" aria-label="Agent 工具活动">
+            {activities.map((item) => <p key={item.id} className={`agent-tool-results__activity agent-tool-results__activity--${item.phase}`}>{item.phase === 'started' ? '正在' : item.phase === 'completed' ? '已完成' : '未完成'}：{item.label}</p>)}
+            {cards.map((card, index) => <article className="agent-result-card" key={`${card.title}-${index}`}><h4>{card.title}</h4><p>{card.summary}</p><div>{card.links.map((link, linkIndex) => <Button key={`${link.label}-${linkIndex}`} variant="secondary" onClick={() => { const target = agentNavigationTarget(link.target); if (target) onNavigate(target); else setError('结果链接无效，已拒绝打开。'); }}>{link.label}</Button>)}</div></article>)}
+          </section>}
           <div className="agent-composer"><textarea aria-label="向知己 Agent 发送消息" value={message} rows={3} placeholder="描述你的目标、补充材料或继续追问…" disabled={selected.status === 'running'} onChange={(event) => setMessage(event.target.value)}/><Button variant="primary" disabled={!message.trim() || selected.status === 'running'} onClick={() => void send()}>发送</Button></div>
         </>}
       </section>

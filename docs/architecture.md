@@ -146,7 +146,7 @@ NavigationTarget = { view, intent? }
 | 页面 | 文件 | 职责与关键逻辑 |
 |---|---|---|
 | 开始 | `pages/start-page.tsx` | `resolveNextStep` 确定性建议卡；能力链接（做复盘/查看记录/管理项目）。原意图输入框已于 2026-08-14 下线删除 |
-| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、流式消息、安全 Markdown、运行状态与停止；阶段 A 只建立会话与模型桥，不替代或写入现有领域产物 |
+| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、流式消息、安全 Markdown、运行状态与停止；阶段 B 可显示只读工具活动、受校验导航和结果卡片，不替代或写入现有领域产物 |
 | 日志 | `pages/today-page.tsx` | 写日志/过去日志两个 section；日期可选今天或过去（补写只保存不自动生成反馈）；"保存并生成今日反馈"会先保存再调 `reviews.generateDaily`；clarification 结果以 info 横幅展示；删除走确认条 + 回收站；复用 `RecordBrowser` 浏览历史并支持对过去日期"生成这一天的反馈" |
 | 复盘 | `pages/reviews-page.tsx` | 生成/历史两个 section；周/月/项目三卡 + "更多洞察"折叠区（coach/yearly/life-design）；固定流程：选类型 → 预览材料（拿 token）→ 确认并生成（带 previewToken）；结果用 `MarkdownDocument` 渲染并挂 `PatternPanel` |
 | 主题思考 | `pages/topics-page.tsx` | 讨论（start/discuss）、归纳提案（propose，更新模式展示旧正文差异）、确认沉淀（confirm）、主题列表与阅读、会话恢复、受控联网搜索与读源 |
@@ -190,7 +190,7 @@ NavigationTarget = { view, intent? }
 
 ### 7.1 组合根
 
-`bootstrap.ts` 手工装配（无 DI 容器）：数据根 `process.env.ZHIJI_DATA_ROOT ?? Documents/知己`；按“仓储 → 凭证 → AI 配置 → 任务管理 → 生成服务 → 领域服务 → 传输/目录服务”顺序构造，最后整体注入 `registerHandlers`。阶段 A 额外装配 `AgentFacade`：它启动独立 Utility Process 中的最小 DSH loop，并通过 `AgentModelTransport` 调用 `ConfigureAi.stream()`；密钥仅在 Main Process 内解密和使用。新增服务的装配只改这一个文件。
+`bootstrap.ts` 手工装配（无 DI 容器）：数据根 `process.env.ZHIJI_DATA_ROOT ?? Documents/知己`；按“仓储 → 凭证 → AI 配置 → 任务管理 → 生成服务 → 领域服务 → 传输/目录服务”顺序构造，最后整体注入 `registerHandlers`。阶段 A 额外装配 `AgentFacade`：它启动独立 Utility Process 中的最小 DSH loop，并通过 `AgentModelTransport` 调用 `ConfigureAi.streamAgent()`；密钥仅在 Main Process 内解密和使用。阶段 B 的 `AgentToolDispatcher` 只允许经既有服务读取摘要、受控搜索/读源和页面意图。新增服务的装配只改这一个文件。
 
 ### 7.2 application 层（用例）
 

@@ -6,14 +6,31 @@ import { LlmRuntime, LlmAdapter, type GenerateOptions, type StreamChunk, createU
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session';
 import { SessionStore } from '@deepseek-ai/dsh-session';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
-import { ToolRuntime } from '@deepseek-ai/dsh-tools';
-import { AgentUtilityCommandSchema, type AgentModelResponse, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
+import { ToolRuntime, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';
+import { AgentUtilityCommandSchema, type AgentModelRequest, type AgentModelResponse, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
+import type { AgentToolResult } from '../../shared/schemas/agent-tools';
 
 export interface UtilityMessagePort {
   postMessage(message: AgentUtilityEvent): void;
   on(event: 'message', listener: (event: { data: unknown }) => void): unknown;
   start?(): void;
 }
+
+const ToolOutputSchema = { type: 'object' as const, additionalProperties: true };
+const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; description: string; parameters: Record<string, unknown> }> = [
+  { name: 'zhiji.journals.list', action: 'journals.list', label: '读取日志摘要', description: '读取经过脱敏的日志摘要，可按日期或项目筛选。', parameters: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' }, projectId: { type: 'string' } }, additionalProperties: false } },
+  { name: 'zhiji.journals.get', action: 'journals.get', label: '读取日志摘要', description: '按日志 ID 读取经过脱敏的摘要。', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
+  { name: 'zhiji.reviews.list', action: 'reviews.list', label: '读取复盘摘要', description: '读取已有复盘的摘要列表。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'zhiji.reviews.get', action: 'reviews.get', label: '读取复盘摘要', description: '按复盘 ID 读取经过脱敏的摘要。', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
+  { name: 'zhiji.projects.list', action: 'projects.list', label: '读取项目列表', description: '读取项目名称、状态和 ID。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'zhiji.topics.list', action: 'topics.list', label: '读取已确认主题', description: '读取已确认主题的索引摘要。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'zhiji.topics.get', action: 'topics.get', label: '读取主题摘要', description: '读取一个已确认主题的经过脱敏的摘要。', parameters: { type: 'object', properties: { topic: { type: 'string' } }, required: ['topic'], additionalProperties: false } },
+  { name: 'zhiji.patterns.list', action: 'patterns.list', label: '读取已验证模式', description: '读取用户已确认的验证模式。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'zhiji.web.search', action: 'web.search', label: '搜索公开来源', description: '通过受控搜索查找公开来源；结果只提供本次会话的 sourceId。', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
+  { name: 'zhiji.web.read-source', action: 'web.read-source', label: '读取搜索来源', description: '只读取同一搜索会话返回的 sourceId 对应来源。', parameters: { type: 'object', properties: { searchSessionId: { type: 'string' }, sourceId: { type: 'string' } }, required: ['searchSessionId', 'sourceId'], additionalProperties: false } },
+  { name: 'zhiji.ui.navigate', action: 'ui.navigate', label: '打开产品页面', description: '请求打开一个经过验证的知己产品页面。', parameters: { type: 'object', properties: { target: { type: 'object' } }, required: ['target'], additionalProperties: false } },
+  { name: 'zhiji.ui.present', action: 'ui.present', label: '展示结果卡片', description: '请求展示含受控产品页链接的结果卡片。', parameters: { type: 'object', properties: { title: { type: 'string' }, summary: { type: 'string' }, links: { type: 'array' } }, required: ['title', 'summary', 'links'], additionalProperties: false } },
+];
 
 class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly values: T[] = [];
@@ -56,6 +73,7 @@ export class DshRuntime {
   private readonly ctx = new Context();
   private readonly agents = new Map<string, AgentHandle>();
   private readonly modelRequests = new Map<string, { queue: AsyncQueue<StreamChunk>; text: string; abort: () => void }>();
+  private readonly toolRequests = new Map<string, { resolve: (result: AgentToolResult) => void; reject: (error: Error) => void }>();
   private readonly assistantMessageIds = new Map<string, string>();
   private started = false;
 
@@ -67,6 +85,7 @@ export class DshRuntime {
     await this.ctx.plugin(SessionStore);
     await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；当前只提供会话能力，后续能力必须复用知己既有的校验与确认流程。' });
     await this.ctx.plugin(ToolRuntime, {});
+    for (const definition of TOOL_DEFINITIONS) this.ctx.tools.register(this.createTool(definition));
     await this.ctx.plugin(AgentRegistry);
     this.ctx.llm.registerAdapter(['zhiji'], new MainProcessModelAdapter(this));
     await this.ctx.plugin(AgentLoop, { agents: [] });
@@ -82,6 +101,8 @@ export class DshRuntime {
   async dispose(): Promise<void> {
     for (const request of this.modelRequests.values()) request.abort();
     this.modelRequests.clear();
+    for (const request of this.toolRequests.values()) request.reject(new Error('知己工具连接已停止。'));
+    this.toolRequests.clear();
     for (const handle of this.agents.values()) await handle.dispose();
     this.agents.clear();
     await this.ctx.fiber.dispose();
@@ -95,6 +116,7 @@ export class DshRuntime {
     const controller = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
     let output = '';
+    const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
     const onAbort = () => {
       this.post({ type: 'model.cancel', requestId });
       queue.push({ type: 'finish', reason: { kind: 'aborted', failure: { code: 'ABORTED', message: '请求已取消。' } } });
@@ -102,23 +124,37 @@ export class DshRuntime {
     };
     signal.addEventListener('abort', onAbort, { once: true });
     this.modelRequests.set(requestId, { queue, text: '', abort: () => controller.abort() });
+    const messages: AgentModelRequest['messages'] = [];
+    for (const message of options.messages) {
+      const text = message.content.filter((block) => block.type === 'text').map((block) => block.text).join('');
+      const calls = message.content.filter((block) => block.type === 'tool-call').map((block) => ({ id: String(block.id), name: block.name, arguments: block.arguments }));
+      const result = message.content.find((block) => block.type === 'tool-result');
+      if (result?.type === 'tool-result') messages.push({ role: 'tool', toolCallId: String(result.toolCallId), content: result.content.filter((block) => block.type === 'text').map((block) => block.text).join('') });
+      else if (message.role === 'assistant' && (text || calls.length)) messages.push({ role: 'assistant', content: text, ...(calls.length ? { toolCalls: calls } : {}) });
+      else if ((message.role === 'user' || message.role === 'system') && text) messages.push({ role: message.role, content: text });
+    }
     this.post({
       type: 'model.request',
       requestId,
       sessionId: String(options.sessionId ?? ''),
-      messages: options.messages.flatMap((message) => {
-        if (message.role !== 'user' && message.role !== 'assistant') return [];
-        const content = message.content.filter((block) => block.type === 'text').map((block) => block.text).join('');
-        return content ? [{ role: message.role, content }] : [];
-      }),
+      messages,
       ...(options.system ? { system: options.system } : {}),
+      ...(options.tools?.length ? { tools: options.tools.map(({ name, description, parameters }) => ({ name, description, parameters })) } : {}),
     });
     try {
       yield { type: 'block-start', index: 0, blockType: 'text' };
       for await (const chunk of queue) {
         if (chunk.type === 'text-delta') output += chunk.text;
+        if (chunk.type === 'tool-call-delta') {
+          const current = toolCalls.get(chunk.index) ?? { id: String(chunk.id), name: '', arguments: '' };
+          if (chunk.name) current.name = chunk.name;
+          current.arguments += chunk.argumentsDelta;
+          toolCalls.set(chunk.index, current);
+          if (current.arguments === chunk.argumentsDelta) yield { type: 'block-start', index: chunk.index, blockType: 'tool-call' };
+        }
         yield chunk;
       }
+      for (const [index, tool] of toolCalls) yield { type: 'block-end', index, block: { type: 'tool-call', id: tool.id as never, name: tool.name, arguments: tool.arguments } };
       if (output) yield { type: 'block-end', index: 0, block: { type: 'text', text: output } };
     } finally {
       signal.removeEventListener('abort', onAbort);
@@ -130,8 +166,13 @@ export class DshRuntime {
     const command = AgentUtilityCommandSchema.safeParse(raw);
     if (!command.success) return;
     const value = command.data;
-    if (value.type === 'model.delta' || value.type === 'model.completed' || value.type === 'model.failed' || value.type === 'model.cancelled') {
+    if (value.type === 'model.delta' || value.type === 'model.tool-call' || value.type === 'model.completed' || value.type === 'model.failed' || value.type === 'model.cancelled') {
       this.resolveModel(value);
+      return;
+    }
+    if (value.type === 'tool.result') {
+      this.toolRequests.get(value.requestId)?.resolve(value.result);
+      this.toolRequests.delete(value.requestId);
       return;
     }
     try {
@@ -156,6 +197,7 @@ export class DshRuntime {
     const request = this.modelRequests.get(command.requestId);
     if (!request) return;
     if (command.type === 'model.delta') request.queue.push({ type: 'text-delta', index: 0, text: command.delta });
+    if (command.type === 'model.tool-call') request.queue.push({ type: 'tool-call-delta', index: command.index, id: command.callId as never, ...(command.name ? { name: command.name } : {}), argumentsDelta: command.argumentsDelta });
     if (command.type === 'model.completed') { request.queue.push({ type: 'finish', reason: { kind: 'stop' } }); request.queue.close(); }
     if (command.type === 'model.cancelled') { request.queue.push({ type: 'finish', reason: { kind: 'aborted', failure: { code: 'ABORTED', message: '请求已取消。' } } }); request.queue.close(); }
     if (command.type === 'model.failed') { request.queue.push({ type: 'finish', reason: { kind: 'error', failure: { code: 'HOST_MODEL_FAILED', message: command.message } } }); request.queue.close(); }
@@ -186,6 +228,40 @@ export class DshRuntime {
   }
 
   private post(event: AgentUtilityEvent): void { this.port.postMessage(event); }
+
+  private createTool(definition: typeof TOOL_DEFINITIONS[number]): ToolDefinition {
+    return {
+      name: definition.name,
+      description: definition.description,
+      parameters: definition.parameters,
+      output: { schema: ToolOutputSchema, render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
+      execute: (args, exec) => this.callTool(String(exec.agent?.id ?? ''), definition.action, args, exec, definition.label),
+    };
+  }
+
+  private async callTool(sessionId: string, action: string, input: unknown, exec: ToolRunContext, label: string): Promise<AgentToolResult> {
+    if (!sessionId) throw new Error('知己工具未关联到有效会话。');
+    if (exec.signal.aborted) throw new Error('已停止本次工具调用。');
+    const requestId = randomUUID();
+    this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'started', label });
+    const result = await new Promise<AgentToolResult>((resolve, reject) => {
+      const abort = () => { this.toolRequests.delete(requestId); reject(new Error('已停止本次工具调用。')); };
+      exec.signal.addEventListener('abort', abort, { once: true });
+      this.toolRequests.set(requestId, {
+        resolve: (value) => { exec.signal.removeEventListener('abort', abort); resolve(value); },
+        reject: (error) => { exec.signal.removeEventListener('abort', abort); reject(error); },
+      });
+      this.post({ type: 'tool.request', requestId, sessionId, action: action as never, input: input as never });
+    });
+    if (result.kind === 'error') {
+      this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'failed', label });
+      throw new Error(result.message);
+    }
+    this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'completed', label });
+    if (result.kind === 'ui.navigate') this.post({ type: 'ui.navigate', sessionId, target: result.target });
+    if (result.kind === 'ui.present') this.post({ type: 'ui.present', sessionId, card: result.card });
+    return result;
+  }
 }
 
 function toChineseRuntimeError(error: unknown): string {

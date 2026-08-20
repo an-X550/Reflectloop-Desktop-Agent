@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { MessageChannelMain, utilityProcess, type MessagePortMain, type UtilityProcess } from 'electron';
-import { AgentUtilityEventSchema, type AgentModelResponse, type AgentUtilityCommand, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
+import { AgentUtilityEventSchema, type AgentRuntimeResponse, type AgentUtilityCommand, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
 import type { AgentRuntimePort } from './agent-facade';
 
 type PendingCommand = { resolve(): void; reject(error: Error): void };
@@ -36,7 +36,7 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
     });
   }
 
-  send(command: AgentModelResponse): void {
+  send(command: AgentRuntimeResponse): void {
     this.port?.postMessage(command);
   }
 

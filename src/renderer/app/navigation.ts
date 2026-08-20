@@ -13,6 +13,20 @@ export type NavigationIntent =
 
 export type NavigationTarget = { view: AppView; intent?: NavigationIntent };
 
+/** 将 Agent 传来的受校验数据映射为既有页面意图；不解释文本或执行脚本。 */
+export function agentNavigationTarget(raw: unknown): NavigationTarget | null {
+  const parsed = AgentNavigationTargetSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  return mapAgentTarget(parsed.data);
+}
+
+function mapAgentTarget(target: AgentNavigationTarget): NavigationTarget {
+  if (target.view === 'journal') return { view: 'journal', ...(target.intent === 'compose' ? { intent: { type: 'journal.compose' } } : target.intent === 'records' ? { intent: { type: 'records.journals' } } : target.intent === 'generate-daily' ? { intent: { type: 'journal.generate-daily' } } : {}) };
+  if (target.view === 'reviews') return { view: 'reviews', ...(target.intent === 'weekly' ? { intent: { type: 'review.weekly' } } : target.intent === 'monthly' ? { intent: { type: 'review.monthly' } } : target.intent === 'yearly' ? { intent: { type: 'review.yearly' } } : target.intent === 'coach' ? { intent: { type: 'review.coach' } } : target.intent === 'project' ? { intent: { type: 'review.project', projectId: target.projectId } } : {}) };
+  if (target.view === 'topics') return { view: 'topics', ...(target.question ? { intent: { type: 'topics.start', question: target.question } } : {}) };
+  return { view: target.view };
+}
+
 export const APP_NAVIGATION: { id: AppView; label: string }[] = [
   { id: 'start', label: '开始' },
   { id: 'agent', label: '知己 Agent' },
@@ -22,3 +36,4 @@ export const APP_NAVIGATION: { id: AppView; label: string }[] = [
   { id: 'projects', label: '项目' },
   { id: 'settings', label: '设置' },
 ];
+import { AgentNavigationTargetSchema, type AgentNavigationTarget } from '../../shared/schemas/agent-tools';

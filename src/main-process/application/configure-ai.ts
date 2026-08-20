@@ -5,7 +5,7 @@ import { appError } from '../../shared/errors/app-error';
 import { atomicWriteUtf8 } from '../infrastructure/markdown/atomic-write';
 import { normalizeProviderConfig, PROVIDER_PRESETS, ProviderConfigSchema, type ProviderConfig, type PublicProviderConfig } from '../infrastructure/ai/provider-config';
 import { OpenAiCompatibleProvider } from '../infrastructure/ai/openai-compatible-provider';
-import type { ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { AgentStreamDelta, AgentToolSpec, ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
 import type { CredentialStore } from '../infrastructure/credentials/credential-store';
 
 const defaults: ProviderConfig = { providerId: 'openai', baseUrl: PROVIDER_PRESETS.openai.baseUrl, model: PROVIDER_PRESETS.openai.defaultModel };
@@ -60,5 +60,13 @@ export class ConfigureAi {
     const apiKey = await this.credentials.read(config.providerId);
     if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
     yield* new OpenAiCompatibleProvider({ ...config, apiKey }).stream(messages, signal, options);
+  }
+
+  /** Agent 专用流保留工具调用块；密钥仍只在 Main Process 读取。 */
+  async *streamAgent(messages: ChatMessage[], tools: AgentToolSpec[], signal?: AbortSignal): AsyncGenerator<AgentStreamDelta> {
+    const config = await this.readConfig();
+    const apiKey = await this.credentials.read(config.providerId);
+    if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
+    yield* new OpenAiCompatibleProvider({ ...config, apiKey }).streamAgent(messages, tools, signal);
   }
 }

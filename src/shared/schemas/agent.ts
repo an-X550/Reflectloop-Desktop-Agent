@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AgentNavigationTargetSchema, AgentPresentationCardSchema } from './agent-tools';
 
 export const AgentSessionIdSchema = z.string().regex(/^agent_[a-z0-9]+$/);
 export const AgentMessageSchema = z.object({
@@ -21,6 +22,9 @@ export const AgentEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session.updated'), session: AgentSessionSchema }).strict(),
   z.object({ type: z.literal('message.delta'), sessionId: AgentSessionIdSchema, messageId: z.string().uuid(), delta: z.string().min(1).max(20_000) }).strict(),
   z.object({ type: z.literal('message.completed'), sessionId: AgentSessionIdSchema, message: AgentMessageSchema }).strict(),
+  z.object({ type: z.literal('tool.activity'), sessionId: AgentSessionIdSchema, callId: z.string().trim().min(1).max(200), phase: z.enum(['started', 'completed', 'failed']), label: z.string().trim().min(1).max(120) }).strict(),
+  z.object({ type: z.literal('ui.navigate'), sessionId: AgentSessionIdSchema, target: AgentNavigationTargetSchema }).strict(),
+  z.object({ type: z.literal('ui.present'), sessionId: AgentSessionIdSchema, card: AgentPresentationCardSchema }).strict(),
   z.object({ type: z.literal('error'), sessionId: AgentSessionIdSchema.optional(), message: z.string().trim().min(1).max(500) }).strict(),
 ]);
 

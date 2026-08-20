@@ -1,7 +1,7 @@
-# DeepSeek Harness（DSH）阶段 A 接入核验
+# DeepSeek Harness（DSH）阶段 A/B 接入核验
 
 更新：2026-08-20
-范围：阶段 0 核验结论与阶段 A 实现记录；当前只建立会话、模型传输和页面桥，不接入领域工具或持久化会话。
+范围：阶段 0 核验结论与阶段 A/B 实现记录；阶段 B 只接入受控只读工具与受校验的页面意图，不接入写入、生成、确认或持久化会话。
 
 ## 第一性原理结论
 
@@ -40,6 +40,13 @@
 3. Main → Utility：`session.start/send/cancel`、`runtime.shutdown` 与 `model.delta/completed/failed/cancelled`。Utility → Main：ready、session status、消息流、模型请求/取消与运行错误。每条消息带 sessionId/requestId，并由共享 Zod schema 解析。
 4. `cancel` 映射到 DSH `Agent.cancel` 并等待 `whenIdle()`；进入领域工作流的取消继续传递既有 `AbortSignal`。工具执行必须等待已启动操作静止后才返回，不能以遗留半写入换取快速停止。
 5. DSH 的 JSONL 持久化要求绝对 `root` 与每个 session 的绝对 `cwd`。阶段 A 的 Utility Process 冒烟测试必须证明 Electron Utility Process 的内嵌 Node 满足 DSH Node 要求，并验证 ESM/原生依赖在打包后可加载；失败时保持同一协议，改为受控 Node 子进程，仍不使用 Web UI。
+
+## 阶段 B：只读工具桥
+
+- Utility Process 只注册 `zhiji.journals/reviews/projects/topics/patterns/web` 的高层只读工具，以及 `zhiji.ui.navigate` 与 `zhiji.ui.present`；没有 Shell、文件系统、任意 URL、工作区编辑或写入/工作流工具。
+- 每个 `tool.request` 在 Main Process 由 `AgentToolDispatcher` 以共享严格 Zod schema 再次解析。dispatcher 只复用现有仓储/服务方法，返回固定长度的任务摘要；绝对路径、URL、凭证和原始实现错误不会跨回 Utility 或 Renderer。
+- `web.read-source` 只接收既有 `WebSearchService.search()` 返回的 `searchSessionId + sourceId`。浏览器 URL 保留在 Main 的搜索会话内，Agent 只得到标题、摘要与 sourceId。
+- 工具结果、失败、活动、导航和展示卡片均走同一 MessagePort schema。Renderer 再验证 `NavigationTarget`，只映射到既有产品页面；卡片链接不是 URL，也不执行任何内容。
 
 ## 发布包与源码构建的裁决
 

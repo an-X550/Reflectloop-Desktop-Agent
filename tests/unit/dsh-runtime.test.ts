@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { DshRuntime, type UtilityMessagePort } from '../../src/main-process/agent/dsh-runtime';
-import type { AgentUtilityCommand, AgentUtilityEvent } from '../../src/shared/schemas/agent-protocol';
+import type { AgentRuntimeResponse, AgentUtilityCommand, AgentUtilityEvent } from '../../src/shared/schemas/agent-protocol';
 
 class FakePort implements UtilityMessagePort {
   readonly sent: AgentUtilityEvent[] = [];
@@ -8,7 +8,7 @@ class FakePort implements UtilityMessagePort {
   postMessage(message: AgentUtilityEvent): void { this.sent.push(message); }
   on(_event: 'message', listener: (event: { data: unknown }) => void): void { this.listener = listener; }
   start(): void { return undefined; }
-  receive(command: AgentUtilityCommand): void { this.listener?.({ data: command }); }
+  receive(command: AgentUtilityCommand | AgentRuntimeResponse): void { this.listener?.({ data: command }); }
   async next<T extends AgentUtilityEvent['type']>(type: T): Promise<Extract<AgentUtilityEvent, { type: T }>> {
     for (let attempts = 0; attempts < 100; attempts += 1) {
       const found = this.sent.find((event) => event.type === type);
@@ -40,5 +40,42 @@ describe('DshRuntime', () => {
     expect(completed.message.content).toBe('这是来自假模型的回复。');
     port.receive({ type: 'session.cancel', requestId: crypto.randomUUID(), sessionId });
     await port.next('command.completed');
+  });
+
+  it('runs one real Agent turn across journals and reviews through the strict tool bridge', async () => {
+    const port = new FakePort();
+    runtime = new DshRuntime(port);
+    await runtime.start();
+    const sessionId = 'agent_twodomains';
+    port.receive({ type: 'session.start', requestId: crypto.randomUUID(), sessionId });
+    await port.next('command.completed');
+    port.receive({ type: 'session.send', requestId: crypto.randomUUID(), sessionId, message: '结合日志和复盘给我一个建议' });
+    const firstRequest = await port.next('model.request');
+    expect(firstRequest.tools?.map((tool) => tool.name)).toContain('zhiji.journals.list');
+    expect(firstRequest.tools?.map((tool) => tool.name)).toContain('zhiji.reviews.list');
+
+    port.receive({ type: 'model.tool-call', requestId: firstRequest.requestId, index: 1, callId: 'call_journals', name: 'zhiji.journals.list', argumentsDelta: '{}' });
+    port.receive({ type: 'model.tool-call', requestId: firstRequest.requestId, index: 2, callId: 'call_reviews', name: 'zhiji.reviews.list', argumentsDelta: '{}' });
+    port.receive({ type: 'model.completed', requestId: firstRequest.requestId });
+    for (let attempts = 0; attempts < 100 && port.sent.filter((event) => event.type === 'tool.request').length < 1; attempts += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    const firstToolRequest = port.sent.find((event): event is Extract<AgentUtilityEvent, { type: 'tool.request' }> => event.type === 'tool.request');
+    if (!firstToolRequest) throw new Error('没有收到日志工具请求');
+    expect(firstToolRequest.action).toBe('journals.list');
+    port.receive({ type: 'tool.result', requestId: firstToolRequest.requestId, result: { kind: 'journals.list', journals: [] } });
+    for (let attempts = 0; attempts < 100 && port.sent.filter((event) => event.type === 'tool.request').length < 2; attempts += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    const requests = port.sent.filter((event): event is Extract<AgentUtilityEvent, { type: 'tool.request' }> => event.type === 'tool.request');
+    expect(requests.map((event) => event.action)).toEqual(['journals.list', 'reviews.list']);
+    port.receive({ type: 'tool.result', requestId: requests[1].requestId, result: { kind: 'reviews.list', reviews: [] } });
+    for (let attempts = 0; attempts < 100 && port.sent.filter((event) => event.type === 'model.request').length < 2; attempts += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    const requestsToModel = port.sent.filter((event): event is Extract<AgentUtilityEvent, { type: 'model.request' }> => event.type === 'model.request');
+    const secondRequest = requestsToModel[1];
+    expect(secondRequest.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: 'assistant', toolCalls: expect.arrayContaining([expect.objectContaining({ name: 'zhiji.journals.list' }), expect.objectContaining({ name: 'zhiji.reviews.list' })]) }),
+      expect.objectContaining({ role: 'tool', toolCallId: 'call_journals' }),
+      expect.objectContaining({ role: 'tool', toolCallId: 'call_reviews' }),
+    ]));
+    port.receive({ type: 'model.delta', requestId: secondRequest.requestId, delta: '我已结合两类材料。' });
+    port.receive({ type: 'model.completed', requestId: secondRequest.requestId });
+    expect((await port.next('message.completed')).message.content).toBe('我已结合两类材料。');
   });
 });

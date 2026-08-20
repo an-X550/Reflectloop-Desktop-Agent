@@ -15,8 +15,9 @@ export class AgentModelTransport {
         ...(request.system ? [{ role: 'system' as const, content: request.system }] : []),
         ...request.messages,
       ];
-      for await (const delta of this.configureAi.stream(messages, controller.signal)) {
-        send({ type: 'model.delta', requestId: request.requestId, delta });
+      for await (const delta of this.configureAi.streamAgent(messages, request.tools ?? [], controller.signal)) {
+        if (delta.kind === 'text') send({ type: 'model.delta', requestId: request.requestId, delta: delta.text });
+        else send({ type: 'model.tool-call', requestId: request.requestId, index: delta.index, callId: delta.callId, ...(delta.name ? { name: delta.name } : {}), argumentsDelta: delta.argumentsDelta });
       }
       send({ type: 'model.completed', requestId: request.requestId });
     } catch (error) {

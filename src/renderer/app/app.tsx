@@ -26,7 +26,7 @@ export function App() {
   };
   return <AppShell view={target.view} onNavigate={navigate} connectionReady={data.hasApiKey} dataPath={data.dataDirectory?.path}>
     {target.view === 'start' ? <StartPage journals={data.journals} reviews={data.reviews} hasApiKey={data.hasApiKey} onNavigate={navigate}/>
-      : target.view === 'agent' ? <AgentPage/>
+      : target.view === 'agent' ? <AgentPage onNavigate={navigate}/>
       : target.view === 'journal' ? <TodayPage journals={data.journals} projects={data.projects} reviews={data.reviews} intent={target.intent} hasApiKey={data.hasApiKey} onRefresh={data.refresh} onNavigate={navigate} onDirtyChange={setJournalDirty}/>
       : target.view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')} reviews={data.reviews} intent={target.intent} onRefresh={data.refresh} onNavigate={navigate}/>
       : target.view === 'topics' ? <TopicsPage intent={target.intent}/>

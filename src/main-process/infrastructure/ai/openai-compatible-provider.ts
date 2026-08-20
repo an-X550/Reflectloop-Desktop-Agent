@@ -1,7 +1,12 @@
 import { appError } from '../../../shared/errors/app-error';
 
-export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string }
+export type ChatMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: Array<{ id: string; name: string; arguments: string }> }
+  | { role: 'tool'; content: string; toolCallId: string };
 export interface CollectOptions { jsonObject?: boolean }
+export interface AgentToolSpec { name: string; description: string; parameters: Record<string, unknown> }
+export type AgentStreamDelta = { kind: 'text'; text: string } | { kind: 'tool-call'; index: number; callId: string; name?: string; argumentsDelta: string };
 
 /** AI 请求 60 秒未返回视为超时；与调用方传入的取消信号合并。 */
 const AI_REQUEST_TIMEOUT_MS = 60_000;
@@ -15,6 +20,14 @@ export class OpenAiCompatibleProvider {
   constructor(private readonly config: { baseUrl: string; model: string; apiKey: string }) {}
 
   async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {
+    for await (const delta of this.streamFrames(messages, signal, options)) if (delta.kind === 'text') yield delta.text;
+  }
+
+  async *streamAgent(messages: ChatMessage[], tools: AgentToolSpec[], signal?: AbortSignal): AsyncGenerator<AgentStreamDelta> {
+    yield* this.streamFrames(messages, signal, undefined, tools);
+  }
+
+  private async *streamFrames(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions, tools?: AgentToolSpec[]): AsyncGenerator<AgentStreamDelta> {
     const combined = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)])
       : AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
@@ -23,7 +36,11 @@ export class OpenAiCompatibleProvider {
       response = await fetch(`${this.config.baseUrl}/chat/completions`, {
         method: 'POST', signal: combined,
         headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ model: this.config.model, messages, stream: true, ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}) }),
+        body: JSON.stringify({ model: this.config.model, messages: messages.map((message) => message.role === 'tool'
+          ? { role: 'tool', content: message.content, tool_call_id: message.toolCallId }
+          : message.role === 'assistant' && message.toolCalls?.length
+            ? { role: 'assistant', content: message.content, tool_calls: message.toolCalls.map((call) => ({ id: call.id, type: 'function', function: { name: call.name, arguments: call.arguments } })) }
+            : { role: message.role, content: message.content }), stream: true, ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}), ...(tools?.length ? { tools: tools.map((tool) => ({ type: 'function', function: tool })) } : {}) }),
       });
     } catch {
       throw mapNetworkError(signal);
@@ -57,8 +74,15 @@ export class OpenAiCompatibleProvider {
           let payload: unknown;
           try { payload = JSON.parse(data); }
           catch { continue; }
-          const delta = (payload as { choices?: Array<{ delta?: { content?: unknown } }> } | null)?.choices?.[0]?.delta?.content;
-          if (typeof delta === 'string') yield delta;
+          const delta = (payload as { choices?: Array<{ delta?: { content?: unknown; tool_calls?: Array<{ index?: unknown; id?: unknown; function?: { name?: unknown; arguments?: unknown } }> } }> } | null)?.choices?.[0]?.delta;
+          const text = delta?.content;
+          if (typeof text === 'string') yield { kind: 'text', text };
+          for (const call of delta?.tool_calls ?? []) {
+            if (typeof call.index !== 'number' || !Number.isInteger(call.index) || typeof call.id !== 'string') continue;
+            const name = typeof call.function?.name === 'string' ? call.function.name : undefined;
+            const argumentsDelta = typeof call.function?.arguments === 'string' ? call.function.arguments : '';
+            yield { kind: 'tool-call', index: call.index, callId: call.id, ...(name ? { name } : {}), argumentsDelta };
+          }
         }
       }
       if (done) return;
