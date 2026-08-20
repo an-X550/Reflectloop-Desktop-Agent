@@ -8,7 +8,7 @@ export type { PublicProviderConfig } from '../../../shared/schemas/domain';
 
 export const PROVIDER_PRESETS = {
   openai: { baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-5-mini' },
-  deepseek: { baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
+  deepseek: { baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-v4-flash' },
 } as const;
 
 export function normalizeProviderConfig(input: ProviderConfig, allowLoopbackHttp = false): ProviderConfig {

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeProviderConfig } from '../../src/main-process/infrastructure/ai/provider-config';
+import { normalizeProviderConfig, PROVIDER_PRESETS } from '../../src/main-process/infrastructure/ai/provider-config';
 
 describe('provider configuration', () => {
+  it('uses a current DeepSeek model preset', () => {
+    expect(PROVIDER_PRESETS.deepseek.defaultModel).toBe('deepseek-v4-flash');
+  });
+
   it('accepts HTTPS and explicit loopback development endpoints', () => {
     expect(normalizeProviderConfig({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1/', model: 'gpt-5-mini' }).baseUrl)
       .toBe('https://api.openai.com/v1');

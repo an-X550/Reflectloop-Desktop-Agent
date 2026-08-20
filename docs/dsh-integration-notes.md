@@ -107,3 +107,9 @@
 - 真实截图错误对应 `safeStorage.decryptString` 无法解开旧密文（常见于切换 Electron `userData`、应用身份或 Windows 密钥环变化），不是 API 地址或模型响应错误。
 - `CredentialStore.read()` 仅捕获解密失败并返回 `null`；`credentials.json` 不删除、不搬入数据目录、不降级明文。`settings:get` 因此仍能返回服务商配置和 `hasApiKey: false`，用户可在既有设置页重新保存 API Key，让当前密钥环重新加密。
 - 回归：`credential-store.test.ts` 覆盖密文失配后的设置恢复语义；安全存储不可用仍返回明确错误，文件损坏仍不被静默吞掉。
+
+## 阶段 G：DeepSeek 连接可用性（2026-08-21）
+
+- DeepSeek 官方当前 Chat Completions 模型清单为 `deepseek-v4-flash` / `deepseek-v4-pro`；桌面端默认切换到 `deepseek-v4-flash`，`deepseek-chat` / `deepseek-reasoner` 旧配置在 `ConfigureAi.readConfig()` 中迁移，避免用户换 Key 后仍请求停用模型。
+- 设置页“测试连接”现在使用 `stream: false`、`max_tokens: 1` 的短请求，只验证 API Key、模型和基础响应；正式复盘/Agent 的流式请求不变。
+- 验证依据：DeepSeek API 无 Key 网络请求在本机约 250ms 返回 401；provider、旧配置迁移和设置页 focused tests 覆盖状态。

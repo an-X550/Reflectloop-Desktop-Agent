@@ -63,10 +63,10 @@ describe('SettingsPage', () => {
     render(<SettingsPage onSaved={onSaved}/>);
     await screen.findByText(/已安全保存/);
     fireEvent.click(screen.getByRole('button', { name: /^D DeepSeek/ }));
-    fireEvent.change(screen.getByLabelText('模型'), { target: { value: 'deepseek-chat' } });
+    fireEvent.change(screen.getByLabelText('模型'), { target: { value: 'deepseek-v4-flash' } });
     fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'sk-deepseek' } });
     fireEvent.click(screen.getByRole('button', { name: '测试连接' }));
-    const expected = { providerId: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat', apiKey: 'sk-deepseek' };
+    const expected = { providerId: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash', apiKey: 'sk-deepseek' };
     await waitFor(() => expect(window.zhiji.settings.testConnection).toHaveBeenCalledWith(expected));
     expect(window.zhiji.settings.save).toHaveBeenCalledWith(expected);
     expect(onSaved).toHaveBeenCalled();

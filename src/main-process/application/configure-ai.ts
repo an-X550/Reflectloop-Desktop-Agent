@@ -10,6 +10,13 @@ import type { CredentialStore } from '../infrastructure/credentials/credential-s
 
 const defaults: ProviderConfig = { providerId: 'openai', baseUrl: PROVIDER_PRESETS.openai.baseUrl, model: PROVIDER_PRESETS.openai.defaultModel };
 
+function migrateProviderConfig(config: ProviderConfig): ProviderConfig {
+  if (config.providerId === 'deepseek' && (config.model === 'deepseek-chat' || config.model === 'deepseek-reasoner')) {
+    return { ...config, model: PROVIDER_PRESETS.deepseek.defaultModel };
+  }
+  return config;
+}
+
 export class ConfigureAi {
   private readonly target: string;
   constructor(root: string, private readonly credentials: CredentialStore, private readonly allowLoopbackHttp = false) {
@@ -17,7 +24,7 @@ export class ConfigureAi {
   }
 
   private async readConfig(): Promise<ProviderConfig> {
-    try { return ProviderConfigSchema.parse(JSON.parse(await readFile(this.target, 'utf8'))); }
+    try { return migrateProviderConfig(ProviderConfigSchema.parse(JSON.parse(await readFile(this.target, 'utf8')))); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return defaults; throw error; }
   }
 

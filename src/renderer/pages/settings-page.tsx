@@ -12,7 +12,7 @@ import { applyThemePreference, getThemePreference, type ThemePreference } from '
 
 const presets = {
   openai: { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini' },
-  deepseek: { baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' },
+  deepseek: { baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' },
 } as const;
 
 export function SettingsPage({ onSaved }: { onSaved?(): void | Promise<void> }) {

@@ -16,6 +16,14 @@ function mapNetworkError(signal?: AbortSignal): Error {
   return appError({ code: 'NETWORK_TIMEOUT' });
 }
 
+function ensureSuccessfulResponse(response: Response, model: string): void {
+  if (response.ok) return;
+  if (response.status === 401 || response.status === 403) throw appError({ code: 'INVALID_API_KEY' });
+  if (response.status === 404) throw appError({ code: 'MODEL_NOT_FOUND', model });
+  if (response.status === 429) throw appError({ code: 'RATE_LIMITED' });
+  throw appError({ code: 'UNKNOWN', message: `接口返回 ${response.status}` });
+}
+
 export class OpenAiCompatibleProvider {
   constructor(private readonly config: { baseUrl: string; model: string; apiKey: string }) {}
 
@@ -45,12 +53,7 @@ export class OpenAiCompatibleProvider {
     } catch {
       throw mapNetworkError(signal);
     }
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) throw appError({ code: 'INVALID_API_KEY' });
-      if (response.status === 404) throw appError({ code: 'MODEL_NOT_FOUND', model: this.config.model });
-      if (response.status === 429) throw appError({ code: 'RATE_LIMITED' });
-      throw appError({ code: 'UNKNOWN', message: `接口返回 ${response.status}` });
-    }
+    ensureSuccessfulResponse(response, this.config.model);
     if (!response.body) throw appError({ code: 'UNKNOWN', message: '接口没有返回内容。' });
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -100,6 +103,19 @@ export class OpenAiCompatibleProvider {
   }
 
   async testConnection(signal?: AbortSignal): Promise<void> {
-    await this.collect([{ role: 'user', content: 'Reply with OK.' }], signal);
+    const combined = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)])
+      : AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+        method: 'POST', signal: combined,
+        headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ model: this.config.model, messages: [{ role: 'user', content: 'Reply with OK.' }], stream: false, max_tokens: 1 }),
+      });
+    } catch {
+      throw mapNetworkError(signal);
+    }
+    ensureSuccessfulResponse(response, this.config.model);
   }
 }
