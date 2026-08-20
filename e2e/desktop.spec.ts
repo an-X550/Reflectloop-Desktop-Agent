@@ -1,16 +1,23 @@
 import { test, expect, _electron as electron } from '@playwright/test';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import electronPath from 'electron';
 
 test('a non-CLI user completes the local journal loop', async () => {
+  const packagedAsar = path.resolve('out/知己-win32-x64/resources/app.asar');
+  await access(packagedAsar);
   const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-'));
+  const userDataRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-userdata-'));
   const executablePath = electronPath as unknown as string;
-  const app = await electron.launch({ executablePath, args: ['.'], cwd: process.cwd(), env: { ...process.env, ZHIJI_DATA_ROOT: dataRoot } });
+  const app = await electron.launch({ executablePath, args: [packagedAsar, `--user-data-dir=${userDataRoot}`], cwd: process.cwd(), env: { ...process.env, ZHIJI_DATA_ROOT: dataRoot } });
   try {
     const page = await app.firstWindow();
     await expect(page.getByRole('heading', { name: '写下今天的经历' })).toBeVisible();
+    await page.getByRole('button', { name: '知己 Agent', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '知己 Agent', level: 1 })).toBeVisible();
+    await page.getByRole('button', { name: '新建会话' }).click();
+    await expect(page.getByText('新对话').first()).toBeVisible();
     await page.getByRole('button', { name: '项目', exact: true }).click();
     await page.getByRole('button', { name: '新建第一个项目' }).click();
     await page.getByRole('textbox', { name: '项目名称' }).fill('桌面端验收');
@@ -34,7 +41,7 @@ test('a non-CLI user completes the local journal loop', async () => {
     await expect(page.getByText('这是一条由桌面端自动化验收写入的本地日志。')).toBeVisible();
     await page.getByRole('button', { name: '日志', exact: true }).click();
     await page.getByRole('button', { name: '过去日志' }).click();
-    await expect(page.locator('pre')).toContainText(/桌面端自动化验收|第二条日志/);
+    await expect(page.locator('.history-reader')).toContainText(/桌面端自动化验收|第二条日志/);
     const yearRoot = path.join(dataRoot, 'journals', new Date().getFullYear().toString());
     const files = (await readdir(yearRoot)).filter((file) => file.endsWith('.md'));
     expect(files).toHaveLength(2);
@@ -44,5 +51,6 @@ test('a non-CLI user completes the local journal loop', async () => {
   } finally {
     await app.close();
     await rm(dataRoot, { recursive: true, force: true });
+    await rm(userDataRoot, { recursive: true, force: true });
   }
 });

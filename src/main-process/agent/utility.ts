@@ -1,7 +1,7 @@
-import { parentPort, type MessagePortMain } from 'electron';
+import type { MessagePortMain } from 'electron';
 import { DshRuntime, type UtilityMessagePort } from './dsh-runtime';
 
-parentPort.on('message', (event) => {
+process.parentPort?.on('message', (event) => {
   const port = event.ports[0] as unknown as MessagePortMain | undefined;
   if (!port) return;
   const sessionRoot = typeof (event.data as { sessionRoot?: unknown } | undefined)?.sessionRoot === 'string'

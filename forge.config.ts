@@ -6,8 +6,44 @@ import { FuseV1Options, FuseVersion } from '@electron/fuses';
 
 const config: ForgeConfig = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      // Koffi is used by DSH's Windows durable JSONL publisher and loads a
+      // native .node binary; native modules cannot be dlopen'ed from asar.
+      unpack: '**/*.node',
+    },
     appBundleId: 'com.zhiji.desktop',
+    // The Vite plugin normally excludes every node_modules entry because
+    // application dependencies are bundled. DSH must stay external so its
+    // package-relative package.json lookup remains valid, therefore keep only
+    // the DSH runtime and its Windows FFI dependency in the production asar.
+    ignore: (file) => {
+      if (!file) return false;
+      const normalized = file.replace(/\\/g, '/').toLowerCase();
+      const keptPaths = [
+        '/.vite',
+        '/node_modules/@deepseek-ai',
+        '/node_modules/koffi',
+        '/node_modules/@koromix',
+      ];
+      const kept =
+        normalized === '/' ||
+        normalized === '/resources' ||
+        normalized.endsWith('/resources') ||
+        normalized === '/resources/app' ||
+        normalized.endsWith('/resources/app') ||
+        normalized === '/node_modules' ||
+        normalized.endsWith('/resources/app/node_modules') ||
+        normalized.endsWith('/node_modules') ||
+        normalized === '/package.json' ||
+        normalized.endsWith('/resources/app/package.json') ||
+        keptPaths.some(
+          (path) =>
+            normalized === path ||
+            normalized.endsWith(path) ||
+            normalized.includes(`${path}/`),
+        );
+      return !kept;
+    },
   },
   rebuildConfig: {},
   makers: [
