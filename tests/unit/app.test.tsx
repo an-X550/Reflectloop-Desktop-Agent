@@ -6,6 +6,7 @@ import { App } from '../../src/renderer/app/app';
 function api() {
   return {
     dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 0, totalBytes: 0, categories: { journals: 0, reviews: 0, projects: 0, profile: 0, settings: 0 } })), open: vi.fn(), pickFolder: vi.fn(async () => ({ canceled: true })), changeLocation: vi.fn() },
+    agent: { start: vi.fn(), send: vi.fn(), cancel: vi.fn(), list: vi.fn(async () => []), get: vi.fn(), onEvent: vi.fn(() => () => undefined) },
     profile: { get: vi.fn(async () => null), save: vi.fn(), clear: vi.fn() },
     transfer: { exportBackup: vi.fn(), previewRestore: vi.fn(), restore: vi.fn() },
     journals: { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), get: vi.fn() },
@@ -22,7 +23,7 @@ function api() {
 beforeEach(() => { window.zhiji = api(); });
 
 describe('App', () => {
-  it('navigates across all six product pages', async () => {
+  it('navigates across the product pages', async () => {
     render(<App/>);
     await screen.findByRole('heading', { name: '写下今天的经历' });
     for (const [nav, heading] of [['日志', '写一条日志'], ['复盘', '把一段时间的经历放在一起看'], ['项目', '项目与关联日志'], ['设置', '设置']] as const) {
@@ -31,6 +32,8 @@ describe('App', () => {
     }
     fireEvent.click(screen.getByRole('button', { name: '主题思考' }));
     expect(screen.getByRole('heading', { name: '开始一场主题讨论', level: 3 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '知己 Agent' }));
+    expect(screen.getByRole('heading', { name: '知己 Agent', level: 2 })).toBeInTheDocument();
   });
 
   it('recovers from an initial load failure with Retry', async () => {

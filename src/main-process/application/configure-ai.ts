@@ -54,4 +54,11 @@ export class ConfigureAi {
     if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
     return new OpenAiCompatibleProvider({ ...config, apiKey }).collect(messages, signal, options);
   }
+
+  async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {
+    const config = await this.readConfig();
+    const apiKey = await this.credentials.read(config.providerId);
+    if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
+    yield* new OpenAiCompatibleProvider({ ...config, apiKey }).stream(messages, signal, options);
+  }
 }

@@ -1,6 +1,6 @@
 # 知己桌面端架构与逻辑文档（AI 修改与优化指南）
 
-> 更新日期：2026-08-14
+> 更新日期：2026-08-20
 >
 > 读者：需要修改或优化 `apps/zhiji-desktop/` 的 AI 代理与开发者
 >
@@ -32,6 +32,7 @@
 | 前端 | React ^19 + TypeScript ^5.9 | 无路由库、无状态库，纯 useState/useEffect |
 | 校验 | zod ^4 | 域模型、IPC 入参、模型输出三层都用 |
 | AI 编排 | @langchain/langgraph ^1.4 | 仅用于日反馈/周期复盘的 StateGraph |
+| Agent 编排 | DeepSeek Harness `0.1.0-rc.8` + Cordis `4.0.1` | 仅在独立 Utility Process 中运行会话 loop；现有领域能力仍由 Main Process 服务实现 |
 | Markdown | gray-matter ^4 | frontmatter 序列化 |
 | 压缩 | adm-zip | 备份导出/恢复 |
 | 测试 | vitest ^2 + @testing-library/react + playwright | unit + integration + e2e |
@@ -57,12 +58,16 @@ npm run test:e2e   playwright（先自动 package）
 ┌─ Main Process（src/main.ts → bootstrap.ts）──────────────┐
 │  application（用例）/ domain（纯逻辑）/ skill-runtime     │
 │  prompts（版本化提示词）/ infrastructure（存储/AI/网络）   │
-│  ipc/register-handlers.ts（~45 个 ipcMain.handle）        │
+│  AgentFacade / AgentModelTransport（会话与模型密钥边界）   │
 └──────────────▲───────────────────────────────────────────┘
                │ ipcMain.handle / preload（contextBridge）
 ┌─ Renderer（src/renderer.tsx → app/app.tsx）──────────────┐
 │  pages / features / components / hooks / domain（纯函数） │
 │  只能通过 window.zhiji（ZhijiDesktopApi）访问后端          │
+└───────────────────────────────────────────────────────────┘
+               │ Electron MessagePort（结构化事件/模型流）
+┌─ Utility Process（main-process/agent/utility.ts）─────────┐
+│  DSH Agent loop / session events；不持有凭证或产品数据能力 │
 └───────────────────────────────────────────────────────────┘
 ```
 
@@ -91,6 +96,7 @@ src/
 │   └── errors/app-error.ts        AppError 判别联合 + appError() 工厂（带中文默认文案）
 ├── main-process/
 │   ├── bootstrap.ts               组合根：手工装配全部服务
+│   ├── agent/                     DSH Utility Process、MessagePort 协议、AgentFacade 与 Main 模型代理
 │   ├── window-options.ts          窗口与安全配置
 │   ├── application/               用例层（每个文件一个用例类）
 │   ├── domain/                    纯领域逻辑（无 Electron/fs 依赖）
@@ -100,7 +106,7 @@ src/
 │   └── ipc/register-handlers.ts   IPC 注册（入参校验 + 委托）
 └── renderer/
     ├── app/                       App / AppShell / navigation 模型
-    ├── pages/                     六个一级页面
+    ├── pages/                     七个一级页面（含知己 Agent；其余六页职责不变）
     ├── features/                  跨页面复用功能块（history/patterns/reviews/settings/projects）
     ├── components/                基础组件（Button/Field/Modal/MarkdownDocument 等）
     ├── hooks/use-app-data.ts      启动数据加载与刷新
@@ -117,7 +123,7 @@ src/
 导航模型（app/navigation.ts）是前端最重要的契约之一：
 
 ```text
-AppView = 'start' | 'journal' | 'reviews' | 'topics' | 'projects' | 'settings'
+AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'topics' | 'projects' | 'settings'
 NavigationIntent = journal.compose | journal.generate-daily | records.journals
                  | review.weekly | review.monthly{month?} | review.yearly{year?}
                  | review.coach | review.project{projectId}
@@ -140,6 +146,7 @@ NavigationTarget = { view, intent? }
 | 页面 | 文件 | 职责与关键逻辑 |
 |---|---|---|
 | 开始 | `pages/start-page.tsx` | `resolveNextStep` 确定性建议卡；能力链接（做复盘/查看记录/管理项目）。原意图输入框已于 2026-08-14 下线删除 |
+| 知己 Agent | `pages/agent-page.tsx` | DSH 会话列表、流式消息、安全 Markdown、运行状态与停止；阶段 A 只建立会话与模型桥，不替代或写入现有领域产物 |
 | 日志 | `pages/today-page.tsx` | 写日志/过去日志两个 section；日期可选今天或过去（补写只保存不自动生成反馈）；"保存并生成今日反馈"会先保存再调 `reviews.generateDaily`；clarification 结果以 info 横幅展示；删除走确认条 + 回收站；复用 `RecordBrowser` 浏览历史并支持对过去日期"生成这一天的反馈" |
 | 复盘 | `pages/reviews-page.tsx` | 生成/历史两个 section；周/月/项目三卡 + "更多洞察"折叠区（coach/yearly/life-design）；固定流程：选类型 → 预览材料（拿 token）→ 确认并生成（带 previewToken）；结果用 `MarkdownDocument` 渲染并挂 `PatternPanel` |
 | 主题思考 | `pages/topics-page.tsx` | 讨论（start/discuss）、归纳提案（propose，更新模式展示旧正文差异）、确认沉淀（confirm）、主题列表与阅读、会话恢复、受控联网搜索与读源 |
@@ -169,7 +176,7 @@ NavigationTarget = { view, intent? }
 
 三件套必须保持一致：
 
-1. `shared/contracts/desktop-api.ts`——`ZhijiDesktopApi` 接口，前端可见的完整 API 形状（dataDirectory / profile / transfer / journals / projects / settings / reviews / patterns / topics / web 十个域）。
+1. `shared/contracts/desktop-api.ts`——`ZhijiDesktopApi` 接口，前端可见的完整 API 形状（包括 `agent`；其余领域 API 保持不变）。
 2. `preload.ts`——每个方法逐一映射到 `ipcRenderer.invoke('通道名')`；`contextBridge.exposeInMainWorld('zhiji', api)`。
 3. `ipc/register-handlers.ts`——`ipcMain.handle('通道名', ...)`，入参一律 zod schema `.parse(raw)` 后再委托服务。
 
@@ -183,7 +190,7 @@ NavigationTarget = { view, intent? }
 
 ### 7.1 组合根
 
-`bootstrap.ts` 手工装配（无 DI 容器）：数据根 `process.env.ZHIJI_DATA_ROOT ?? Documents/知己`；按"仓储 → 凭证 → AI 配置 → 任务管理 → 生成服务 → 领域服务 → 传输/目录服务"顺序构造，最后整体注入 `registerHandlers`。新增服务的装配只改这一个文件。注意 `ConfigureAi` 同时充当所有服务的 `ProviderPort`（它实现 `collect()`，内部读配置 + 解密 Key + 构造 `OpenAiCompatibleProvider`）。
+`bootstrap.ts` 手工装配（无 DI 容器）：数据根 `process.env.ZHIJI_DATA_ROOT ?? Documents/知己`；按“仓储 → 凭证 → AI 配置 → 任务管理 → 生成服务 → 领域服务 → 传输/目录服务”顺序构造，最后整体注入 `registerHandlers`。阶段 A 额外装配 `AgentFacade`：它启动独立 Utility Process 中的最小 DSH loop，并通过 `AgentModelTransport` 调用 `ConfigureAi.stream()`；密钥仅在 Main Process 内解密和使用。新增服务的装配只改这一个文件。
 
 ### 7.2 application 层（用例）
 

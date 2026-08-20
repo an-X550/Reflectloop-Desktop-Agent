@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AgentSessionIdSchema } from './agent';
 
 const StableJournalId = z.string().regex(/^journal_[a-z0-9]+$/);
 const StableProjectId = z.string().regex(/^project_[a-z0-9]+$/);
@@ -113,3 +114,10 @@ export const SaveTemplateInputSchema = z.object({ name: TemplateNameSchema, body
 export type SaveTemplateInput = z.infer<typeof SaveTemplateInputSchema>;
 export const ChangeDataRootInputSchema = z.object({ target: z.string().min(1), move: z.boolean() }).strict();
 export type ChangeDataRootInput = z.infer<typeof ChangeDataRootInputSchema>;
+
+export const AgentStartInputSchema = z.object({ title: z.string().trim().min(1).max(80).optional() }).strict();
+export const AgentSendInputSchema = z.object({ sessionId: AgentSessionIdSchema, message: z.string().trim().min(1).max(20_000) }).strict();
+export const AgentSessionInputSchema = z.object({ sessionId: AgentSessionIdSchema }).strict();
+export type AgentStartInput = z.infer<typeof AgentStartInputSchema>;
+export type AgentSendInput = z.infer<typeof AgentSendInputSchema>;
+export type AgentSessionInput = z.infer<typeof AgentSessionInputSchema>;

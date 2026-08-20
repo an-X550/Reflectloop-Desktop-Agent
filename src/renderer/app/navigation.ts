@@ -1,4 +1,4 @@
-export type AppView = 'start' | 'journal' | 'reviews' | 'topics' | 'projects' | 'settings';
+export type AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'topics' | 'projects' | 'settings';
 
 export type NavigationIntent =
   | { type: 'journal.compose' }
@@ -15,6 +15,7 @@ export type NavigationTarget = { view: AppView; intent?: NavigationIntent };
 
 export const APP_NAVIGATION: { id: AppView; label: string }[] = [
   { id: 'start', label: '开始' },
+  { id: 'agent', label: '知己 Agent' },
   { id: 'journal', label: '日志' },
   { id: 'reviews', label: '复盘' },
   { id: 'topics', label: '主题思考' },

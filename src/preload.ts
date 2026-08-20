@@ -2,6 +2,18 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { ZhijiDesktopApi } from './shared/contracts/desktop-api';
 
 const api: ZhijiDesktopApi = {
+  agent: {
+    start: (input = {}) => ipcRenderer.invoke('agent:start', input),
+    send: (input) => ipcRenderer.invoke('agent:send', input),
+    cancel: (input) => ipcRenderer.invoke('agent:cancel', input),
+    list: () => ipcRenderer.invoke('agent:list'),
+    get: (input) => ipcRenderer.invoke('agent:get', input),
+    onEvent: (listener) => {
+      const handler = (_event: unknown, payload: unknown) => listener(payload as Parameters<typeof listener>[0]);
+      ipcRenderer.on('agent:event', handler);
+      return () => ipcRenderer.removeListener('agent:event', handler);
+    },
+  },
   dataDirectory: {
     getInfo: () => ipcRenderer.invoke('data-directory:get-info'),
     open: () => ipcRenderer.invoke('data-directory:open'),

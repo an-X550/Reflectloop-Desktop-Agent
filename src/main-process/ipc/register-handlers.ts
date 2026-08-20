@@ -1,7 +1,7 @@
 import { ipcMain, type dialog as ElectronDialog, shell } from 'electron';
 import { z } from 'zod';
 import { appError } from '../../shared/errors/app-error';
-import { ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, StartTopicInputSchema, TemplateNameSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
+import { AgentSendInputSchema, AgentSessionInputSchema, AgentStartInputSchema, ChangeDataRootInputSchema, ConfirmPatternInputSchema, CreateJournalInputSchema, CreateProjectInputSchema, DiscussTopicInputSchema, GenerateDailyReviewInputSchema, IdSchema, InsightReviewGenerateInputSchema, InsightReviewPreviewInputSchema, JournalQuerySchema, PeriodicReviewGenerateInputSchema, PeriodicReviewPreviewInputSchema, ProposePatternsInputSchema, ReadWebSourceInputSchema, RenameProjectInputSchema, SaveProfileInputSchema, SaveProviderConfigInputSchema, SaveTemplateInputSchema, StartTopicInputSchema, TemplateNameSchema, TopicNameInputSchema, TopicSessionInputSchema, UpdateJournalInputSchema, WebSearchInputSchema } from '../../shared/schemas/ipc';
 import type { MarkdownProfileRepository } from '../infrastructure/markdown/profile-repository';
 import type { MarkdownJournalRepository } from '../infrastructure/markdown/journal-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
@@ -20,10 +20,23 @@ import type { GenerateInsightReview } from '../application/generate-insight-revi
 import type { VerifiedPatternService } from '../application/verified-patterns';
 import type { TopicThinkingService } from '../application/topic-thinking';
 import type { WebSearchService } from '../infrastructure/web/web-search-service';
+import type { AgentFacade } from '../agent/agent-facade';
 
-export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; verifiedPatterns: VerifiedPatternService; topicThinking: TopicThinkingService; webSearch: WebSearchService; templates: TemplateRepository; dataRootHolder: DataRootHolder; dataRootConfig: DataRootConfig; appVersion: string; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'> }) {
+export function registerHandlers(deps: { createJournal: CreateJournal; updateJournal: UpdateJournal; journals: MarkdownJournalRepository; projects: JsonProjectRepository; profile: MarkdownProfileRepository; configureAi: ConfigureAi; generateDailyReview: GenerateDailyReview; generatePeriodicReview: GeneratePeriodicReview; generateInsightReview: GenerateInsightReview; verifiedPatterns: VerifiedPatternService; topicThinking: TopicThinkingService; webSearch: WebSearchService; templates: TemplateRepository; dataRootHolder: DataRootHolder; dataRootConfig: DataRootConfig; appVersion: string; reviews: MarkdownReviewRepository; reviewTasks: ReviewTaskManager; transfer: DataTransferService; dataDirectory: DataDirectoryService; dialog: Pick<typeof ElectronDialog, 'showSaveDialog' | 'showOpenDialog'>; agentFacade: AgentFacade }) {
   /** 所有生成类通道共用：从公开配置取当前模型注入输入。 */
   const withModel = async <T extends object>(input: T): Promise<T & { model: string }> => ({ ...input, model: (await deps.configureAi.getPublicConfig()).model });
+  const agentSubscriptions = new Map<number, () => void>();
+  const ensureAgentSubscription = (sender: Electron.IpcMainInvokeEvent['sender']) => {
+    if (agentSubscriptions.has(sender.id)) return;
+    const unsubscribe = deps.agentFacade.subscribe((payload) => { if (!sender.isDestroyed()) sender.send('agent:event', payload); });
+    agentSubscriptions.set(sender.id, unsubscribe);
+    sender.once('destroyed', () => { agentSubscriptions.get(sender.id)?.(); agentSubscriptions.delete(sender.id); });
+  };
+  ipcMain.handle('agent:start', async (event, raw) => { ensureAgentSubscription(event.sender); return deps.agentFacade.start(AgentStartInputSchema.parse(raw).title); });
+  ipcMain.handle('agent:send', async (event, raw) => { ensureAgentSubscription(event.sender); const input = AgentSendInputSchema.parse(raw); await deps.agentFacade.send(input.sessionId, input.message); });
+  ipcMain.handle('agent:cancel', async (event, raw) => { ensureAgentSubscription(event.sender); await deps.agentFacade.cancel(AgentSessionInputSchema.parse(raw).sessionId); });
+  ipcMain.handle('agent:list', (event) => { ensureAgentSubscription(event.sender); return deps.agentFacade.list(); });
+  ipcMain.handle('agent:get', (event, raw) => { ensureAgentSubscription(event.sender); return deps.agentFacade.get(AgentSessionInputSchema.parse(raw).sessionId); });
   ipcMain.handle('data-directory:get-info', () => deps.dataDirectory.getInfo());
   ipcMain.handle('data-directory:open', () => deps.dataDirectory.open());
   ipcMain.handle('data-directory:pick-folder', async () => {

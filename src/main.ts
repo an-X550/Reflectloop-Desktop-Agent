@@ -3,6 +3,7 @@ import path from 'node:path';
 import started from 'electron-squirrel-startup';
 import { createWindowOptions } from './main-process/window-options';
 import { bootstrap } from './main-process/bootstrap';
+import type { AgentFacade } from './main-process/agent/agent-facade';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -28,13 +29,17 @@ const createWindow = () => {
 
 };
 
+let agentFacade: AgentFacade | undefined;
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
-  await bootstrap();
+  ({ agentFacade } = await bootstrap());
   createWindow();
 });
+
+app.on('before-quit', () => { void agentFacade?.dispose(); });
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits

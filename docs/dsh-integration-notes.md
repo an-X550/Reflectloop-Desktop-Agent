@@ -1,11 +1,11 @@
-# DeepSeek Harness（DSH）阶段 0 接入核验
+# DeepSeek Harness（DSH）阶段 A 接入核验
 
 更新：2026-08-20
-范围：只记录接入面和可判基线；不引入 DSH 依赖、不新增 IPC 或页面。
+范围：阶段 0 核验结论与阶段 A 实现记录；当前只建立会话、模型传输和页面桥，不接入领域工具或持久化会话。
 
 ## 第一性原理结论
 
-待解决的问题是让桌面端在不绕过既有领域服务、确认边界和本地数据保护的前提下，执行跨日志、复盘、主题和项目的连续任务。DSH 只需要提供会话、Agent loop、模型—工具循环和事件流；文件读写、密钥、领域校验与正式产物仍由知己 Main Process 持有。故阶段 A 的最小路径是：在 Electron Utility Process 内组合 DSH 的已发布核心包，用受限 `zhiji.*` 工具经 `MessagePort` 回调 Main Process；不采用 DSH Web UI，也不把 DSH 的通用文件、Shell、终端或任意 URL 工具加入 preset。
+待解决的问题是让桌面端在不绕过既有领域服务、确认边界和本地数据保护的前提下，执行跨日志、复盘、主题和项目的连续任务。DSH 提供会话、Agent loop、模型—工具循环和事件流；密钥、领域校验与正式产物仍由知己 Main Process 持有。阶段 A 的最小路径是已发布核心包在 Electron Utility Process 内运行，通过 `MessagePort` 向 Main 请求模型流。阶段 B 起，现有每日反馈、周/月复盘等能力可按收益接入为领域工具，但必须复用既有校验、确认、取消与保存链路；不把当前阶段的工具空集误写成永久产品限制。
 
 ## 已核验的源码与构建
 
@@ -36,11 +36,19 @@
 ## 进程与工具协议
 
 1. Renderer 只能经既有 Preload 具名 API 调用 Main Process；不导入 DSH、不会看到模型密钥。
-2. Main Process 创建 Electron Utility Process，并以 Electron `MessagePort` 建立双向协议。Utility Process 只能保有 DSH loop、会话状态和受限工具定义。
-3. Main → Utility：`start`、`send`、`cancel`、`shutdown` 与已验证的 `tool.result`。Utility → Main：`ready`、归一化的 DSH `event`、`tool.call`、`fatal`。每条消息带 sessionId/requestId，Main 在 `AgentToolDispatcher` 重新做 Zod 校验和会话绑定。
+2. Main Process 创建 Electron Utility Process，并以 Electron `MessagePort` 建立双向协议。Utility Process 保有 DSH loop 和会话状态，不持有 API Key。
+3. Main → Utility：`session.start/send/cancel`、`runtime.shutdown` 与 `model.delta/completed/failed/cancelled`。Utility → Main：ready、session status、消息流、模型请求/取消与运行错误。每条消息带 sessionId/requestId，并由共享 Zod schema 解析。
 4. `cancel` 映射到 DSH `Agent.cancel` 并等待 `whenIdle()`；进入领域工作流的取消继续传递既有 `AbortSignal`。工具执行必须等待已启动操作静止后才返回，不能以遗留半写入换取快速停止。
 5. DSH 的 JSONL 持久化要求绝对 `root` 与每个 session 的绝对 `cwd`。阶段 A 的 Utility Process 冒烟测试必须证明 Electron Utility Process 的内嵌 Node 满足 DSH Node 要求，并验证 ESM/原生依赖在打包后可加载；失败时保持同一协议，改为受控 Node 子进程，仍不使用 Web UI。
 
 ## 发布包与源码构建的裁决
 
 当前接入面已由发布包覆盖，且 npm registry 与已构建源码均为 `0.1.0-rc.8`，因此阶段 A 先锁定发布包。源码仅用于接口核验、构建复验与问题定位。只有阶段 A 的 Utility Process 冒烟测试证明某个必须的宿主接口未发布或打包产物不可用时，才在 `BLOCKED.md` 记录具体缺口，再决定是否构建受控外部产物；当前没有该证据，也没有理由维护上游 fork。
+
+## 阶段 A 实现与验证
+
+- 实际依赖为 `@deepseek-ai/cordis@4.0.1` 与 `@deepseek-ai/dsh-{agent,agent-loop,llm,session,system-prompt,tools,settings,scope,invariants}@0.1.0-rc.8`，均来自 npm 发布包；lockfile 不含外部源码 `file:` 路径。
+- Utility Process 只组合 DSH 的 LLM、session、system prompt、tool registry、agent registry 与 agent loop。未加载官方默认 bundle，因为它还会安装 Shell、文件系统、技能与联网工具；这不是永久排除知己领域能力，后续能力应通过 Main Process 受校验地复用既有服务、确认与正式写入链路。
+- 当前协议为 Main → Utility 的 `session.start/send/cancel`、`runtime.shutdown`、`model.delta/completed/failed/cancelled`，以及反向的 ready、session status、消息流、模型请求/取消与运行错误；每条消息使用共享 Zod schema 并带 sessionId/requestId。
+- `tests/unit/dsh-runtime.test.ts` 使用真实 DSH Agent loop 与假模型 relay 验证启动、消息、流事件、完成和取消；`agent-facade.test.ts` 使用假 DSH 覆盖两轮消息、退出和崩溃中文降级；`agent-page.test.tsx` 和 schema 测试覆盖 Renderer 具名 API。
+- `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。

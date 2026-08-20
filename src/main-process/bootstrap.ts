@@ -24,6 +24,9 @@ import { TopicSessionStore } from './infrastructure/topics/topic-session-store';
 import { TopicThinkingService } from './application/topic-thinking';
 import { WebSearchService } from './infrastructure/web/web-search-service';
 import { TemplateRepository } from './infrastructure/templates/template-repository';
+import { AgentFacade } from './agent/agent-facade';
+import { AgentModelTransport } from './agent/agent-model-transport';
+import { ElectronAgentRuntime } from './agent/electron-agent-runtime';
 
 export async function bootstrap() {
   const config = new DataRootConfig();
@@ -47,5 +50,7 @@ export async function bootstrap() {
   const webSearch = new WebSearchService();
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog });
+  const agentFacade = new AgentFacade(new ElectronAgentRuntime(), new AgentModelTransport(configureAi));
+  registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, topicThinking, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal: new CreateJournal(journals), updateJournal: new UpdateJournal(journals), configureAi, transfer, dataDirectory, dialog, agentFacade });
+  return { agentFacade };
 }

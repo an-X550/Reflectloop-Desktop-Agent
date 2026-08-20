@@ -1,7 +1,16 @@
 import type { BackupExportOutcome, DailyGenerationResult, DataDirectoryInfo, Journal, JournalTemplate, PeriodicGenerationResult, Profile, Project, PublicProviderConfig, RestorePreviewOutcome, RestoreResult, Review, ReviewPreview, TopicConfirmResult, TopicContent, TopicDiscussResult, TopicIndexEntry, TopicProposal, TopicSession, TopicStartResult, VerifiedPattern, VerifiedPatternCandidate, WebSearchResult, WebSourceContent } from '../schemas/domain';
-import type { ChangeDataRootInput, ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, SaveTemplateInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
+import type { AgentEvent, AgentSession } from '../schemas/agent';
+import type { AgentSendInput, AgentSessionInput, AgentStartInput, ChangeDataRootInput, ConfirmPatternInput, CreateJournalInput, CreateProjectInput, DiscussTopicInput, InsightReviewGenerateInput, InsightReviewPreviewInput, JournalQuery, PeriodicReviewGenerateInput, PeriodicReviewPreviewInput, ProposePatternsInput, ReadWebSourceInput, RenameProjectInput, SaveProfileInput, SaveProviderConfigInput, SaveTemplateInput, StartTopicInput, TopicNameInput, TopicSessionInput, UpdateJournalInput, WebSearchInput } from '../schemas/ipc';
 
 export interface ZhijiDesktopApi {
+  agent: {
+    start(input?: AgentStartInput): Promise<AgentSession>;
+    send(input: AgentSendInput): Promise<void>;
+    cancel(input: AgentSessionInput): Promise<void>;
+    list(): Promise<AgentSession[]>;
+    get(input: AgentSessionInput): Promise<AgentSession>;
+    onEvent(listener: (event: AgentEvent) => void): () => void;
+  };
   dataDirectory: {
     getInfo(): Promise<DataDirectoryInfo>;
     open(): Promise<void>;
