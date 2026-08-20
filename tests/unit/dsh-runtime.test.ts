@@ -53,6 +53,7 @@ describe('DshRuntime', () => {
     const firstRequest = await port.next('model.request');
     expect(firstRequest.tools?.map((tool) => tool.name)).toContain('zhiji.journals.list');
     expect(firstRequest.tools?.map((tool) => tool.name)).toContain('zhiji.reviews.list');
+    expect(firstRequest.system).toContain('不要声称已写入、生成、确认或删除正式内容');
 
     port.receive({ type: 'model.tool-call', requestId: firstRequest.requestId, index: 1, callId: 'call_journals', name: 'zhiji.journals.list', argumentsDelta: '{}' });
     port.receive({ type: 'model.tool-call', requestId: firstRequest.requestId, index: 2, callId: 'call_reviews', name: 'zhiji.reviews.list', argumentsDelta: '{}' });

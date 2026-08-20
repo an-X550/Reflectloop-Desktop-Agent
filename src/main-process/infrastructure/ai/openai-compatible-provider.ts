@@ -55,6 +55,7 @@ export class OpenAiCompatibleProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let pending = '';
+    const toolCallIds = new Map<number, string>();
     for (;;) {
       let done: boolean;
       let value: Uint8Array | undefined;
@@ -78,10 +79,13 @@ export class OpenAiCompatibleProvider {
           const text = delta?.content;
           if (typeof text === 'string') yield { kind: 'text', text };
           for (const call of delta?.tool_calls ?? []) {
-            if (typeof call.index !== 'number' || !Number.isInteger(call.index) || typeof call.id !== 'string') continue;
+            if (typeof call.index !== 'number' || !Number.isInteger(call.index)) continue;
+            const callId = typeof call.id === 'string' ? call.id : toolCallIds.get(call.index);
+            if (!callId) continue;
+            toolCallIds.set(call.index, callId);
             const name = typeof call.function?.name === 'string' ? call.function.name : undefined;
             const argumentsDelta = typeof call.function?.arguments === 'string' ? call.function.arguments : '';
-            yield { kind: 'tool-call', index: call.index, callId: call.id, ...(name ? { name } : {}), argumentsDelta };
+            yield { kind: 'tool-call', index: call.index, callId, ...(name ? { name } : {}), argumentsDelta };
           }
         }
       }

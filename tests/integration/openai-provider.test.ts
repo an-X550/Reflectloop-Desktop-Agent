@@ -51,6 +51,18 @@ describe('OpenAiCompatibleProvider', () => {
     await expect(provider.collect([{ role: 'user', content: 'hello' }])).resolves.toBe('你好');
   });
 
+  it('preserves streamed tool-call arguments when later frames omit the call id', async () => {
+    const body = 'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"zhiji.journals.get","arguments":"{\\"id\\":\\"journal_"}}]}}]}\n\ndata: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"a1\\"}"}}]}}]}\n\ndata: [DONE]\n\n';
+    const baseUrl = await endpoint(200, body, 'text/event-stream');
+    const provider = new OpenAiCompatibleProvider({ baseUrl, model: 'fake', apiKey: 'x' });
+    const frames = [];
+    for await (const frame of provider.streamAgent([{ role: 'user', content: '读取日志' }], [{ name: 'zhiji.journals.get', description: '读取日志', parameters: { type: 'object' } }])) frames.push(frame);
+    expect(frames).toEqual([
+      { kind: 'tool-call', index: 0, callId: 'call_1', name: 'zhiji.journals.get', argumentsDelta: '{"id":"journal_' },
+      { kind: 'tool-call', index: 0, callId: 'call_1', argumentsDelta: 'a1"}' },
+    ]);
+  });
+
   it('requests JSON object mode only for structured generations', async () => {
     let requestBody: unknown;
     const body = 'data: {"choices":[{"delta":{"content":"{}"}}]}\n\ndata: [DONE]\n\n';

@@ -83,7 +83,7 @@ export class DshRuntime {
     if (this.started) return;
     await this.ctx.plugin(LlmRuntime);
     await this.ctx.plugin(SessionStore);
-    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；当前只提供会话能力，后续能力必须复用知己既有的校验与确认流程。' });
+    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；当前可读取经脱敏的日志、复盘、项目、主题和验证模式，并请求打开知己既有页面。不要声称已写入、生成、确认或删除正式内容；这些动作仍由既有校验与确认流程负责。' });
     await this.ctx.plugin(ToolRuntime, {});
     for (const definition of TOOL_DEFINITIONS) this.ctx.tools.register(this.createTool(definition));
     await this.ctx.plugin(AgentRegistry);
