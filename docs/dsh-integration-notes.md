@@ -11,7 +11,7 @@
 
 | 项目 | 证据 |
 |---|---|
-| 源码目录 | `D:\AI\deepseek-harness`；当前执行进程及 User/Machine 环境中均未读到 `DSH_SOURCE_ROOT`，因此本阶段按该已验证目录只读/构建。后续执行前应将同一路径设置为 `DSH_SOURCE_ROOT`。 |
+| 源码目录 | `D:\AI\deepseek-harness`；当前执行进程已读取 `DSH_SOURCE_ROOT=D:\AI\deepseek-harness`，User/Machine 持久化变量未设定；本阶段只读/构建该目录，后续启动需确保进程继承该变量。 |
 | 源码版本 | Git `141eb6fef83422698aef7a981029e843e8161534`，`0.1.0-rc.8`，提交时间 `2026-08-19T23:11:50+08:00`。 |
 | 运行要求 | 根 `package.json` 声明 Node `^22.19.0 || >=24.0.0`、`pnpm@11.7.0`；本机构建使用 Node `24.18.0`。 |
 | 构建 | 在源码目录执行 `pnpm run build` 成功；`.dsh-build/client-build-environment.json` 更新时间为 2026-08-20 17:37:48。 |
@@ -89,3 +89,9 @@
 - 当前协议为 Main → Utility 的 `session.start/list/send/cancel`、`runtime.shutdown`、`model.delta/completed/failed/cancelled`，以及反向的 ready、session status/snapshot、消息流、模型请求/取消与运行错误；每条消息使用共享 Zod schema 并带 sessionId/requestId。
 - `tests/unit/dsh-runtime.test.ts` 使用真实 DSH Agent loop 与假模型 relay 验证启动、消息、流事件、完成和取消；`agent-facade.test.ts` 使用假 DSH 覆盖两轮消息、退出和崩溃中文降级；`agent-page.test.tsx` 和 schema 测试覆盖 Renderer 具名 API。
 - `npm run package` 已通过；已在产物 `app.asar` 确认 `.vite/build/main.js`、`preload.js` 与独立 `.vite/build/utility.js`。阶段 D1 全量回归为 `npm test` 56 files / 326 tests；另有会话重启/损坏显式报错与备份拒绝 focused tests。
+
+## 阶段 E 当前收敛证据
+
+- 生产 `app.asar` 保留 DSH 包自己的 `package.json` 相对解析，并带入 `@deepseek-ai/*`、`koffi` 与 `@koromix`；Koffi 的 `.node` 文件按 asar unpack 规则落到 `app.asar.unpacked`。这修复了启动时的 `../package.json` 与 `@deepseek-ai/dsh-session` 缺失错误。
+- Electron Utility Process 按运行时契约从 `process.parentPort` 接收端口；不依赖不存在的 `electron.parentPort`。`npm run test:e2e` 使用打包后的 `app.asar` 验证 Agent 页面、新建会话、日志写入、每日反馈、周复盘和历史阅读，结果为 1 passed。
+- 无 API Key 时，Main Process 仍只读取 safeStorage 中的凭证并返回中文错误；Agent 页面把该错误映射为“打开设置”动作，恢复路径仍是既有设置页，不新增密钥存储或 Renderer 读取 Key 的路径。

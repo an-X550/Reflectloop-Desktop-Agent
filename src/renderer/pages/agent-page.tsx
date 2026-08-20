@@ -16,6 +16,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
   const [activities, setActivities] = useState<Array<{ id: string; label: string; phase: 'started' | 'completed' | 'failed' }>>([]);
   const [cards, setCards] = useState<AgentPresentationCard[]>([]);
   const [approvals, setApprovals] = useState<Array<{ sessionId: string; approval: AgentWorkflowApproval }>>([]);
+  const [needsApiKey, setNeedsApiKey] = useState(false);
 
   useEffect(() => {
     void window.zhiji.agent.list().then((items) => {
@@ -41,7 +42,10 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
         else setError('Agent 请求的结果卡片无效，已拒绝展示。');
       }
       if (event.type === 'workflow.approval') setApprovals((items) => [{ sessionId: event.sessionId, approval: event.approval }, ...items.filter((item) => item.approval.approvalId !== event.approval.approvalId)].slice(0, 6));
-      if (event.type === 'error') setError(event.message);
+      if (event.type === 'error') {
+        setError(event.message);
+        setNeedsApiKey(/API Key|密钥/.test(event.message));
+      }
     });
   }, []);
 
@@ -49,6 +53,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
   const createSession = async (): Promise<AgentSession | null> => {
     try {
       setError('');
+      setNeedsApiKey(false);
       const session = await window.zhiji.agent.start();
       setSelectedId(session.id);
       return session;
@@ -64,6 +69,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
     if (!session) return;
     setMessage('');
     setError('');
+    setNeedsApiKey(false);
     try { await window.zhiji.agent.send({ sessionId: session.id, message: content }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '发送失败，请重试。'); }
   };
@@ -104,6 +110,6 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
         </>}
       </section>
     </div>
-    {error && <StatusBanner tone="error">{error}</StatusBanner>}
+    {error && <StatusBanner tone="error"><span>{error}</span>{needsApiKey && <Button variant="secondary" onClick={() => onNavigate({ view: 'settings' })}>打开设置</Button>}</StatusBanner>}
   </div>;
 }

@@ -44,4 +44,17 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认并继续' }));
     await waitFor(() => expect(window.zhiji.agent.confirm).toHaveBeenCalledWith({ sessionId: session.id, approvalId: 'approval_abc123' }));
   });
+
+  it('offers a direct settings recovery action when the model needs an API key', async () => {
+    let listener: ((event: AgentEvent) => void) | undefined;
+    const onNavigate = vi.fn();
+    window.zhiji.agent.onEvent = vi.fn((next) => { listener = next; return () => undefined; });
+    render(<AgentPage onNavigate={onNavigate}/>);
+    await waitFor(() => expect(listener).toBeTypeOf('function'));
+    listener?.({ type: 'error', sessionId: session.id, message: '请先在设置中保存可用的 API Key。' });
+
+    expect(await screen.findByText('请先在设置中保存可用的 API Key。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
+  });
 });
