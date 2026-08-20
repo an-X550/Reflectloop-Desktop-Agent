@@ -135,7 +135,7 @@ export class TopicThinkingService {
     if (existing) {
       const existingBody = await this.topics.getTopic(existing.topic).catch(() => '');
       summary = await this.summarize({ ...basePayload, existingBody }, existingBody);
-      proposal = { mode: 'update', targetTopic: existing.topic, existingBody, summary };
+      proposal = { mode: 'update', targetTopic: existing.topic, expectedUpdatedAt: existing.updatedAt, existingBody, summary };
     } else {
       proposal = { mode: 'create', summary };
     }
@@ -147,7 +147,13 @@ export class TopicThinkingService {
     const session = await this.requireSession(input.sessionId);
     const proposal = session.proposal;
     if (!proposal) throw appError({ code: 'INVALID_INPUT', message: '请先生成主题归纳，再确认沉淀。' });
-    const topic = await this.topics.saveTopic(proposal.summary);
+    if (proposal.mode === 'update' && (!proposal.targetTopic || !proposal.expectedUpdatedAt)) {
+      throw appError({ code: 'FILE_CONFLICT', path: `topics/${proposal.targetTopic ?? safeTopicName(proposal.summary.title)}.md` });
+    }
+    const topic = await this.topics.saveTopic(
+      { ...proposal.summary, ...(proposal.targetTopic ? { topic: proposal.targetTopic } : {}) },
+      proposal.mode === 'update' ? proposal.expectedUpdatedAt : null,
+    );
     await this.sessions.remove(input.sessionId);
     return { topic };
   }

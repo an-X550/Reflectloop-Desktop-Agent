@@ -347,7 +347,7 @@ bootstrap → dataRoot/agent/sessions/
 
 会话日志是 Agent 对话过程的权威，不取代日志、日反馈、周/月复盘、主题和项目的 Markdown/JSON 仓储。数据目录迁移复用 `DataRootHolder` 的递归复制；备份路径白名单接纳 `agent/sessions/<project>/<agent>/session.jsonl`，业务校验用 DSH `Session.fromRestore` 验证 header、事件类型、顺序和序号。损坏日志以 `IMPORT_REJECTED` 或“会话数据损坏”明确失败，保留原文件，不静默重置。
 
-主题 `TopicSessionStore` 本轮继续保留：当前 DSH 工具未覆盖主题提案、差异展示与确认沉淀的完整门，强制迁移会破坏现有主题闭环；待 D2 具备同等确认语义且有真实使用证据后再导入旧 checkpoint。每日分析、周复盘、月复盘和专业页面不因 D1 改变。
+主题 `TopicSessionStore` 本轮继续保留：当前 DSH 工具未覆盖主题提案、差异展示与确认沉淀的完整门，强制迁移会破坏现有主题闭环；待 D2 具备同等确认语义且有真实使用证据证明能降低摩擦后再评估导入旧 checkpoint。当前主题确认已记录提案生成时的索引版本，并在仓储串行写队列内拒绝过期覆盖；每日分析、周复盘、月复盘和专业页面不因 D1 改变。
 
 ### 9.4 主题思考
 
@@ -356,8 +356,8 @@ topics:start → findRelatedTopics（标题/别名/核心问题与提问的最�
 → 首稿提示词 + 相关主题正文（≤2）→ 保存会话 checkpoint → 返回 draft
 topics:discuss → 全历史消息进模型 → 追加 checkpoint
 topics:propose → 归纳提示词（jsonObject）→ 与索引按 topic/title/别名匹配
-→ create 或 update 提案（update 将旧正文传入归纳提示词重组整篇论证，前端展示合并后全文）→ 提案写入会话 checkpoint
-topics:confirm → 才写主题文件 → 删除会话
+→ create 或 update 提案（update 将旧正文传入归纳提示词重组整篇论证，前端展示合并后全文，并记录生成时的主题版本）→ 提案写入会话 checkpoint
+topics:confirm → 主题仓储串行校验提案版本后才写规范主题文件 → 删除会话
 ```
 
 未经 confirm 不写任何主题文件；提案持久化在会话 checkpoint 文件内（topic-thinking-v2），重启后可恢复并 confirm。

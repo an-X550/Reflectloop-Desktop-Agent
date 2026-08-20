@@ -48,6 +48,27 @@ describe('TopicRepository', () => {
     expect(await repo.getTopic('职业选择')).toBe('新正文');
   });
 
+  it('rejects a stale conditional update and preserves the newer body', async () => {
+    const repo = new TopicRepository(root);
+    await repo.saveTopic({ title: '职业选择', coreQuestion: '旧问题', aliases: [], body: '旧正文' });
+    const updatedAt = (await repo.listIndex()).entries[0].updatedAt;
+    await repo.saveTopic({ title: '职业选择', coreQuestion: '新问题', aliases: [], body: '新正文' }, updatedAt);
+    const newerUpdatedAt = (await repo.listIndex()).entries[0].updatedAt;
+    await expect(repo.saveTopic({ title: '职业选择', coreQuestion: '过期问题', aliases: [], body: '过期正文' }, updatedAt)).rejects.toMatchObject({ code: 'FILE_CONFLICT' });
+    expect((await repo.listIndex()).entries[0].updatedAt).toBe(newerUpdatedAt);
+    expect(await repo.getTopic('职业选择')).toBe('新正文');
+  });
+
+  it('keeps the canonical topic file when an update changes the display title', async () => {
+    const repo = new TopicRepository(root);
+    await repo.saveTopic({ title: '职业选择', coreQuestion: '旧问题', aliases: ['行业选择'], body: '旧正文' });
+    const updatedAt = (await repo.listIndex()).entries[0].updatedAt;
+    const topic = await repo.saveTopic({ topic: '职业选择', title: '行业选择', coreQuestion: '新问题', aliases: [], body: '新正文' }, updatedAt);
+    expect(topic).toBe('职业选择');
+    expect(await repo.getTopic('职业选择')).toBe('新正文');
+    await expect(repo.getTopic('行业选择')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('sanitizes unsafe titles before writing to disk', async () => {
     const repo = new TopicRepository(root);
     const saved = await repo.saveTopic({ title: 'a/b\\c', coreQuestion: 'q', aliases: [], body: 'body' });

@@ -22,6 +22,7 @@ function safeText(value: string, limit = 1_000): string {
 function safeError(error: unknown): string {
   const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
   if (code === 'NOT_FOUND') return '未找到所需内容，可能已被移动或删除。';
+  if (code === 'FILE_CONFLICT') return '内容已在其他位置更新，请刷新后重试。';
   if (code === 'CANCELLED') return '已停止本次工具调用。';
   if (code === 'NETWORK_TIMEOUT' || code === 'WEB_SEARCH_FAILED' || code === 'WEB_SOURCE_FAILED') return '联网内容暂时不可用，请稍后重试。';
   if (code === 'TASK_ALREADY_RUNNING') return '已有复盘任务正在运行，请等待它完成或先停止。';

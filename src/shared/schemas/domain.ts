@@ -96,6 +96,8 @@ export const TopicMessageSchema = z.object({
 export const TopicProposalSchema = z.object({
   mode: z.enum(['create', 'update']),
   targetTopic: z.string().trim().min(1).max(80).optional(),
+  /** 生成提案时对应的主题索引版本；确认时用于拒绝覆盖较新的认识。 */
+  expectedUpdatedAt: IsoDateTime.optional(),
   existingBody: z.string().max(40_000).optional(),
   summary: z.object({
     title: z.string().trim().min(1).max(120),

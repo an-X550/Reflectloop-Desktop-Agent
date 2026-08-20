@@ -135,6 +135,7 @@ describe('TopicThinkingService.proposeSummary', () => {
     const proposal = await service.proposeSummary({ sessionId: 'topicsession_a1', model: 'fake' });
     expect(proposal.mode).toBe('update');
     expect(proposal.targetTopic).toBe('职业选择');
+    expect(proposal.expectedUpdatedAt).toBe(entry.updatedAt);
     expect(proposal.existingBody).toContain('旧正文');
     expect(topics.saveTopic).not.toHaveBeenCalled();
   });
@@ -212,5 +213,15 @@ describe('TopicThinkingService.confirm', () => {
   it('rejects confirmation without a prior proposal', async () => {
     const service = new TopicThinkingService(makeTopics() as never, makeSessions(existing) as never, { collect: vi.fn() } as never);
     await expect(service.confirm({ sessionId: 'topicsession_a1' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  });
+
+  it('passes the proposal version and canonical topic to the repository on confirmation', async () => {
+    const topics = makeTopics();
+    const sessions = makeSessions(existing);
+    const collect = vi.fn().mockResolvedValue(JSON.stringify({ title: '职业选择', coreQuestion: '化债背景下选什么行业？', aliases: [], body: '# 职业选择\n新正文' }));
+    const service = new TopicThinkingService(topics as never, sessions as never, { collect } as never);
+    await service.proposeSummary({ sessionId: 'topicsession_a1', model: 'fake' });
+    await service.confirm({ sessionId: 'topicsession_a1' });
+    expect(topics.saveTopic).toHaveBeenCalledWith(expect.objectContaining({ topic: '职业选择' }), entry.updatedAt);
   });
 });

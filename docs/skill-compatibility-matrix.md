@@ -47,7 +47,7 @@
 
 | 已冻结规则能力 | 桌面端行为 | 验收测试 | 状态 |
 |---|---|---|---|
-| 讨论—展示差异—确认—沉淀 | 未经确认不写主题文件；更新既有主题时展示旧正文差异，确认后才原子写入 | `topic-thinking.test.ts`、`topics-page.test.tsx` | 本阶段实现 |
+| 讨论—展示差异—确认—沉淀 | 未经确认不写主题文件；更新既有主题时展示旧正文差异，提案记录生成时的主题版本，确认时条件写入并拒绝过期覆盖 | `topic-thinking.test.ts`、`topic-repository.test.ts`、`topics-page.test.tsx` | 本阶段实现 |
 | 文件型 checkpoint 恢复 | 会话逐轮原子写入 JSON，重启后可列出并恢复；损坏报错 | `topic-session-store.test.ts` | 本阶段实现 |
 | 主题名消毒与索引 | 标题移除路径分隔符等不安全字符；索引损坏报错不静默重置 | `topic-repository.test.ts` | 本阶段实现 |
 | 联网仅用户显式触发 | 搜索只由 UI 按钮发起；结果显示来源域名与检索日期 | `topics-page.test.tsx`、`web-search-service.test.ts` | 本阶段实现 |
@@ -86,7 +86,7 @@
 | 日反馈、周/月/项目复盘、主题与项目 | 继续由既有页面、应用服务、Schema、预览确认与仓储负责 | DSH 以 Main Process Zod 校验的只读摘要工具读取日志/复盘/项目、已确认主题和已验证模式；阶段 C 另以高层工具调用日志保存、每日反馈及周期/洞察复盘，仍不重写或绕过正式产物链路 | 阶段 B 只读接入；阶段 C 已接入日志与正式复盘桥，D1 不改变既有专业入口 |
 | Agent 会话与重启 | DSH 事件日志写入当前数据根 `agent/sessions/`，Agent 页列出并恢复会话 | Main 只传递数据根；Utility 使用官方 `JsonlSessionPersistence`，`session.list` 投影有限长度 snapshot，继续消息调用 `AgentRegistry.resume` | 阶段 D1 已实现 |
 | Agent 会话备份与迁移 | 会话随数据目录迁移，备份导出/恢复纳入业务校验 | 递归迁移沿用 `DataRootHolder`；备份白名单和 DSH `Session.fromRestore` 校验 JSONL，损坏拒绝且不静默清空 | 阶段 D1 已实现 |
-| 主题临时会话 | 继续由 `TopicSessionStore` 支撑讨论、提案、确认和恢复 | 待 DSH 同时具备提案/差异/确认工具且有真实使用证据后，再做旧 checkpoint 导入；本轮不强行迁移 | D2 待实施，现有主题能力保留 |
+| 主题临时会话 | 继续由 `TopicSessionStore` 支撑讨论、提案、确认和恢复；确认写入带版本保护 | 待 DSH 同时具备提案/差异/确认工具且有真实使用证据证明能降低摩擦后，再评估旧 checkpoint 导入；本轮不强行迁移 | D2 为证据触发项，现有主题能力保留 |
 | 模型密钥 | Main Process `ConfigureAi` 流式代理 | Utility Process、Renderer、会话事件与数据目录均不接触 API Key | 阶段 A 实现 |
 | DSH 联网与 UI | 不加载官方默认 bundle 中的 Shell、文件系统、技能或任意联网工具 | 只复用 `WebSearchService` 的 search/sourceId 绑定；UI 只能请求既有页面和结果卡片，不能提供 URL、DOM 或脚本 | 阶段 B 实现 |
 | Agent 正式写入与确认 | 日志可按用户明确要求创建/更新；每日反馈可直接调用既有生成用例；周期/洞察复盘先预览后生成 | `AgentToolDispatcher` 只接受共享 Zod 输入；周期/洞察的 `previewToken` 还必须匹配 Main Process 签发且由 Renderer 页面按钮确认的一次性 `approvalId`；模型或普通文本不能冒充确认 | 阶段 C 实现 |
