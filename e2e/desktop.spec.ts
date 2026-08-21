@@ -6,7 +6,7 @@ import electronPath from 'electron';
 
 test('a non-CLI user completes the local journal loop', async () => {
   const packagedAsar = path.resolve('out/知己-win32-x64/resources/app.asar');
-  const packagedExecutable = path.resolve('out/知己-win32-x64/知己.exe');
+  const packagedExecutable = path.resolve('out/知己-win32-x64/zhiji.exe');
   await access(packagedAsar);
   await access(packagedExecutable);
   const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-'));
