@@ -12,6 +12,9 @@ const config: ForgeConfig = {
       unpack: '**/*.node',
     },
     appBundleId: 'com.zhiji.desktop',
+    // Keep the Windows executable name ASCII-safe for Squirrel's nupkg
+    // archive. The UI/product name remains the Chinese "知己".
+    executableName: 'zhiji',
     // The Vite plugin normally excludes every node_modules entry because
     // application dependencies are bundled. DSH must stay external so its
     // package-relative package.json lookup remains valid, therefore keep only

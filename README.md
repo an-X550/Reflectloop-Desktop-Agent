@@ -39,7 +39,7 @@
 当 Releases 提供安装包时，按你拿到的文件选择一种方式：
 
 1. `Setup.exe`：双击运行安装程序，按 Windows 提示完成安装。
-2. 免安装压缩包：解压整个文件夹，双击其中的 `知己.exe`。
+2. 免安装压缩包：解压整个文件夹，双击其中的 `zhiji.exe`。
 
 两种方式使用同一份本地业务数据。默认数据目录是 Windows“文档”文件夹下的 `知己`；应用内可以查看或更改位置。
 
@@ -71,7 +71,7 @@ npm run make
 通常可在以下位置找到产物：
 
 ```text
-out/知己-win32-x64/知己.exe
+out/知己-win32-x64/zhiji.exe
 out/make/squirrel.windows/x64/Setup.exe
 ```
 
