@@ -6,11 +6,14 @@ import electronPath from 'electron';
 
 test('a non-CLI user completes the local journal loop', async () => {
   const packagedAsar = path.resolve('out/知己-win32-x64/resources/app.asar');
+  const packagedExecutable = path.resolve('out/知己-win32-x64/知己.exe');
   await access(packagedAsar);
+  await access(packagedExecutable);
   const dataRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-'));
   const userDataRoot = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-userdata-'));
+  const launchCwd = await mkdtemp(path.join(os.tmpdir(), 'zhiji-e2e-cwd-'));
   const executablePath = electronPath as unknown as string;
-  const app = await electron.launch({ executablePath, args: [packagedAsar, `--user-data-dir=${userDataRoot}`], cwd: process.cwd(), env: { ...process.env, ZHIJI_DATA_ROOT: dataRoot } });
+  const app = await electron.launch({ executablePath, args: [packagedAsar, `--user-data-dir=${userDataRoot}`], cwd: launchCwd, env: { ...process.env, ZHIJI_DATA_ROOT: dataRoot } });
   try {
     const page = await app.firstWindow();
     await expect(page.getByRole('heading', { name: '写下今天的经历' })).toBeVisible();
@@ -52,5 +55,6 @@ test('a non-CLI user completes the local journal loop', async () => {
     await app.close();
     await rm(dataRoot, { recursive: true, force: true });
     await rm(userDataRoot, { recursive: true, force: true });
+    await rm(launchCwd, { recursive: true, force: true });
   }
 });
