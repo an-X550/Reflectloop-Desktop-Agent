@@ -30,11 +30,9 @@
 
 ## 二、如何打包
 
-在 `apps/zhiji-desktop` 目录下执行。**先同步版本号**：改 `apps/zhiji-desktop/package.json` 的 `version` 与仓库根目录 `VERSION` 文件，保持一致（`app.getVersion()` 读取的是 package.json 的 version）。
+在本仓库根目录下执行。**先同步版本号**：改 `package.json` 的 `version` 与仓库根目录 `VERSION` 文件，保持一致（`app.getVersion()` 读取的是 package.json 的 version）。
 
 ```bash
-cd apps/zhiji-desktop
-
 # 安装依赖（首次）
 npm install
 
@@ -147,7 +145,7 @@ Setup.exe                # 引导安装器
 | `credentials.json` | 加密的 API Key | 用 Windows safeStorage 加密，仅主进程读取 |
 | `zhiji-config.json` | 应用级配置 | 自定义数据目录路径、更新地址 |
 
-### 4.3 源码结构（`apps/zhiji-desktop/src/`）
+### 4.3 源码结构（`src/`）
 
 | 目录/文件 | 职责 |
 | --- | --- |
