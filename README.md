@@ -45,14 +45,14 @@
 - 当前代码版本：`2.6.5`。
 - 当前支持目标：Windows 本地单用户。
 - 应用可以离线写日志、管理项目和查看已有内容；生成 AI 反馈、复盘或使用 Agent 需要可用的模型配置。
-- 最新可下载发布版仍是 [v2.6.3 Release](https://github.com/an-X550/zhiji-desktop/releases/tag/v2.6.3)，下载 `Zhiji-Setup-v2.6.3.exe`。当前源码的 v2.6.5 改动已推送，但未在本仓库创建新的 Release；GitHub 自动生成的 `Source code (zip)` 是源码，不是安装程序。
+- 最新可下载发布版是 [v2.6.5 Release](https://github.com/an-X550/zhiji-desktop/releases/tag/v2.6.5)，下载 `Zhiji-Setup-v2.6.5.exe`。GitHub 自动生成的 `Source code (zip)` 是源码，不是安装程序。
 - v2.6.5 源码已包含受控 Agent 联网、结构化搜索/读源错误、同轮超时一次重试、重复 query 抑制、provider smoke 和对应回归测试；真实 AI 服务生成仍需配置你自己的 Key 后自行验证。
 
 ## 安装
 
 ### 普通用户：使用发布包
 
-1. 下载 `Zhiji-Setup-v2.6.3.exe`。
+1. 下载 `Zhiji-Setup-v2.6.5.exe`。
 2. 双击运行安装程序，按 Windows 提示完成安装。
 
 当前发布不提供免安装包，也不承诺代码签名、应用内自动更新或完整的 Windows 10/11 干净机安装回归。Windows SmartScreen 出现“未知发布者”提示时，应先确认安装包来源，再决定是否继续。
