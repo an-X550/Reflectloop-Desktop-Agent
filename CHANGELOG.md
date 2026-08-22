@@ -4,6 +4,12 @@ last_updated: 2026-08-22
 
 # 更新记录
 
+## [2026-08-22] [文档] 采用 ReflectLoop Desktop 英文项目名（v2.6.5 -> v2.6.5）
+
+- 保留“知己 Windows 客户端”作为中文产品名，采用 ReflectLoop Desktop 作为英文项目名；版本和发布制品保持 2.6.5。
+- README 改为面向普通用户的入口顺序，前置下载、适用范围和第一次使用，再说明主要能力、Agent 边界、数据隐私与开发方式。
+- Agent 继续作为受控复盘能力，不再承担产品根定义；仓库 URL 与 GitHub About 简介本次不改，等待维护者在平台设置中另行完成。
+
 ## [2026-08-22] [修复] 同步 Agent 受控联网与 v2.6.5 桌面端源码
 
 - 以 `@tavily/core@0.7.7` keyless `search/extract` 替换 DuckDuckGo HTML 直连和任意 URL 读取；搜索结果只向 Agent 暴露 sourceId、标题、域名、摘要和时间。
