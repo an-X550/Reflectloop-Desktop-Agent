@@ -147,11 +147,11 @@ export class AgentFacade {
   }
 
   private async dispatchTool(event: Extract<AgentUtilityEvent, { type: 'tool.request' }>): Promise<void> {
-    if (!this.sessions.has(event.sessionId)) { this.runtime.send({ type: 'tool.result', requestId: event.requestId, result: { kind: 'error', message: '知己 Agent 会话不存在，已拒绝工具调用。' } }); return; }
+    if (!this.sessions.has(event.sessionId)) { this.runtime.send({ type: 'tool.result', requestId: event.requestId, result: { kind: 'error', code: 'INVALID_INPUT', message: '知己 Agent 会话不存在，已拒绝工具调用。', retryable: false } }); return; }
     const controller = new AbortController();
     this.toolControllers.set(event.requestId, controller);
     try {
-      const result = await (this.toolDispatcher?.dispatch(event, controller.signal) ?? Promise.resolve({ kind: 'error' as const, message: '知己工具当前不可用。' }));
+      const result = await (this.toolDispatcher?.dispatch(event, controller.signal) ?? Promise.resolve({ kind: 'error' as const, code: 'UNKNOWN' as const, message: '知己工具当前不可用。', retryable: false }));
       this.runtime.send({ type: 'tool.result', requestId: event.requestId, result });
       if (result.kind === 'memory.search' && result.hits.length > 0) this.emit({ type: 'tool.evidence', sessionId: event.sessionId, callId: event.requestId, source: 'memory.search', hits: result.hits });
       if (result.kind === 'workflow.approval-required') this.emit({ type: 'workflow.approval', sessionId: event.sessionId, approval: result.approval });

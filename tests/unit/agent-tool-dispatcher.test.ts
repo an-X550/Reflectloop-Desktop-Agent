@@ -11,10 +11,10 @@ function makeDispatcher() {
   const verifiedPatterns = { list: vi.fn(async () => ({ schemaVersion: 1 as const, updatedAt: '2026-08-20T00:00:00.000Z', patterns: [] })) };
   const memorySearch = { search: vi.fn(async () => ({ hits: [{ id: 'journal_a1', kind: 'journal' as const, date: '2026-08-20', excerpt: '长期记忆命中' }] })) };
   const webSearch = {
-    search: vi.fn(async () => ({ searchSessionId: 'search_a1', results: [{ sourceId: 'source_a1', title: '可信来源', url: 'https://example.com/private', snippet: '搜索摘要', publishedAt: null, retrievedAt: '2026-08-20T00:00:00.000Z' }] })),
+    search: vi.fn(async () => ({ searchSessionId: 'search_a1', results: [{ sourceId: 'source_a1', title: '可信来源', url: 'https://example.com/private', domain: 'example.com', snippet: '搜索摘要', publishedAt: null, retrievedAt: '2026-08-20T00:00:00.000Z' }] })),
     readSource: vi.fn(async (input: { searchSessionId: string; sourceId: string }) => {
       if (input.searchSessionId !== 'search_a1' || input.sourceId !== 'source_a1') throw Object.assign(new Error('bad source'), { code: 'INVALID_INPUT' });
-      return { title: '可信来源', url: 'https://example.com/private', publishedAt: null, excerpt: '来源正文' };
+      return { title: '可信来源', url: 'https://example.com/private', domain: 'example.com', publishedAt: null, retrievedAt: '2026-08-20T00:00:00.000Z', excerpt: '来源正文' };
     }),
   };
   const createJournal = { execute: vi.fn(async (input: { date: string; body: string; projectIds: string[] }) => ({ schemaVersion: 1 as const, id: 'journal_created', date: input.date, createdAt: '2026-08-20T00:00:00.000Z', updatedAt: '2026-08-20T00:00:00.000Z', projectIds: input.projectIds, body: input.body })) };
@@ -42,7 +42,7 @@ describe('AgentToolDispatcher', () => {
     const { dispatcher, webSearch } = makeDispatcher();
     const result = await dispatcher.dispatch({ ...request('web.read-source', { searchSessionId: 'search_a1', sourceId: 'source_a1', url: 'https://attacker.example' }) });
 
-    expect(result).toEqual({ kind: 'error', message: '工具请求格式不合法，已拒绝执行。' });
+    expect(result).toEqual({ kind: 'error', code: 'INVALID_INPUT', message: '工具请求格式不合法，已拒绝执行。', retryable: false });
     expect(webSearch.readSource).not.toHaveBeenCalled();
   });
 
@@ -52,9 +52,9 @@ describe('AgentToolDispatcher', () => {
     const rejected = await dispatcher.dispatch(request('web.read-source', { searchSessionId: 'search_other', sourceId: 'source_a1' }));
     const accepted = await dispatcher.dispatch(request('web.read-source', { searchSessionId: 'search_a1', sourceId: 'source_a1' }));
 
-    expect(search).toEqual({ kind: 'web.search', searchSessionId: 'search_a1', results: [{ sourceId: 'source_a1', title: '可信来源', snippet: '搜索摘要' }] });
-    expect(rejected).toEqual({ kind: 'error', message: '工具输入不合法，已拒绝执行。' });
-    expect(accepted).toEqual({ kind: 'web.read-source', source: { title: '可信来源', excerpt: '来源正文' } });
+    expect(search).toEqual({ kind: 'web.search', searchSessionId: 'search_a1', results: [{ sourceId: 'source_a1', title: '可信来源', domain: 'example.com', snippet: '搜索摘要', publishedAt: null, retrievedAt: '2026-08-20T00:00:00.000Z' }] });
+    expect(rejected).toEqual({ kind: 'error', code: 'INVALID_INPUT', message: '工具输入不合法，已拒绝执行。', retryable: false });
+    expect(accepted).toEqual({ kind: 'web.read-source', source: { title: '可信来源', domain: 'example.com', publishedAt: null, retrievedAt: '2026-08-20T00:00:00.000Z', excerpt: '来源正文' } });
     expect(JSON.stringify(accepted)).not.toContain('https://');
     expect(webSearch.readSource).toHaveBeenCalledTimes(2);
   });
@@ -81,7 +81,7 @@ describe('AgentToolDispatcher', () => {
       { query: '任务', alternates: ['x'.repeat(81)] },
       { query: '任务', unexpected: true },
     ]) {
-      await expect(dispatcher.dispatch(request('memory.search', input))).resolves.toEqual({ kind: 'error', message: '工具请求格式不合法，已拒绝执行。' });
+      await expect(dispatcher.dispatch(request('memory.search', input))).resolves.toEqual({ kind: 'error', code: 'INVALID_INPUT', message: '工具请求格式不合法，已拒绝执行。', retryable: false });
     }
     expect(memorySearch.search).toHaveBeenCalledOnce();
   });
@@ -92,7 +92,7 @@ describe('AgentToolDispatcher', () => {
     const missing = await dispatcher.dispatch(request('ui.navigate', { target: { view: 'reviews', intent: 'project', projectId: 'project_missing' } }));
 
     expect(valid).toEqual({ kind: 'ui.navigate', target: { view: 'reviews', intent: 'project', projectId: 'project_a1' } });
-    expect(missing).toEqual({ kind: 'error', message: '知己工具暂时无法完成请求，请稍后重试。' });
+    expect(missing).toEqual({ kind: 'error', code: 'UNKNOWN', message: '知己工具暂时无法完成请求，请稍后重试。', retryable: false });
   });
 
   it('routes journal writes and daily feedback through the existing application services', async () => {
@@ -114,7 +114,7 @@ describe('AgentToolDispatcher', () => {
     expect(preview.kind).toBe('workflow.approval-required');
     if (preview.kind !== 'workflow.approval-required') return;
     const before = await dispatcher.dispatch(request('reviews.generate-periodic', { type: 'weekly', start: '2026-08-17', end: '2026-08-20', previewToken: preview.approval.preview.token, approvalId: preview.approval.approvalId }));
-    expect(before).toEqual({ kind: 'error', message: '请先在知己 Agent 页面确认预览材料，再生成正式内容。' });
+    expect(before).toEqual({ kind: 'error', code: 'INVALID_INPUT', message: '请先在知己 Agent 页面确认预览材料，再生成正式内容。', retryable: false });
     expect(dispatcher.approve(sessionId, preview.approval.approvalId)).toBe(true);
     const generated = await dispatcher.dispatch(request('reviews.generate-periodic', { type: 'weekly', start: '2026-08-17', end: '2026-08-20', previewToken: preview.approval.preview.token, approvalId: preview.approval.approvalId }));
     expect(generated).toMatchObject({ kind: 'workflow.completed', workflow: 'reviews.generate-periodic', review: { id: 'review_new1' }, navigation: { view: 'reviews', intent: 'weekly' } });

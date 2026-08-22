@@ -22,6 +22,9 @@ const config: ForgeConfig = {
       const keptPaths = [
         '/.vite',
         '/node_modules/@deepseek-ai',
+        // Keep the declared provider package visible in app.asar as well as
+        // bundling its hot path into the Main Process Vite output.
+        '/node_modules/@tavily',
         // DSH packages are externalized and import these non-DSH runtime
         // dependencies from their own ESM entry points.
         '/node_modules/@standard-schema',

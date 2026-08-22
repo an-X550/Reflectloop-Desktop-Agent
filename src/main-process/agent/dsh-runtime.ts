@@ -34,12 +34,24 @@ const ToolOutputSchema = { type: 'object' as const, additionalProperties: true }
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'] as const;
 const DEFAULT_MODEL_CONFIG: AgentRuntimeModelConfig = { providerId: 'deepseek', model: 'deepseek-v4-flash' };
 const DEEPSEEK_V4_CONTEXT_WINDOW = 1_048_576;
+
+type SearchTurnState = {
+  result?: AgentToolResult;
+  timeoutRetries: number;
+};
+
+function normalizedSearchQuery(input: unknown): string | null {
+  if (typeof input !== 'object' || input === null || !('query' in input)) return null;
+  const query = (input as { query?: unknown }).query;
+  return typeof query === 'string' && query.trim() ? query.trim().replace(/\s+/g, ' ').toLocaleLowerCase() : null;
+}
 const AGENT_PERSONA = [
   '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。',
   '周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。',
   '输出格式要求：普通回复使用自然语言或 Markdown，不要默认输出 JSON。标题、列表、引用、表格和代码块必须使用真实换行；块级结构之间留空行；Markdown 标记与正文不能挤在同一行。短答也要保留清晰的段落边界；只有确实适合时才使用表格。',
   '能力自述必须以当前宿主事实为准，不要把模型 API 的理论能力说成知己已经具备：上下文压缩已由 DSH 官方 TokenMeter、ToolResultPruner 和 BasicCompactionEngine 提供；Function Calling、有限多步工具规划和工具结果结构化校验已具备；本地长期记忆可通过 zhiji.memory.search 做关键词/短语检索，但不是向量记忆。',
   '能力边界：知己没有标准 MCP Client、图片/音频/视频输入、通用 Computer Use 或递归自我修改能力；内部 MessagePort 工具桥不是 MCP。Structured Output 只用于工具和明确的工作流，普通回复保持 Markdown。涉及日志、复盘和验证模式时，优先使用本地记忆检索；没有命中时明确说未检索到，不要编造“记得”。',
+  '受控联网规则：zhiji.web.search 只搜索公开来源并返回本次会话的 sourceId、标题、域名、摘要和时间；需要依据时再用 zhiji.web.read-source 读取同一会话中的来源。搜索错误会返回结构化 code、message、retryable 和可选 retryAfterSeconds：同一 query 每轮最多自动重试一次，retryable 为 false 或已经重试失败后不要重复相同 query；搜索无结果时改写关键词，来源不可读时改用本次会话中的其他来源。最终回答必须列出实际使用来源的标题和域名，不要编造引用。',
   '证据冲突规则：当 memory.search 返回相互矛盾的日志、复盘或已验证模式时，必须明确列出冲突双方。涉及事实是否发生、时间和用户原始表述时，以日志原文为最高依据。复盘和已验证模式只能作为归纳，不能静默覆盖冲突日志。若日志本身不足以裁决，明确说明无法确认，不得编造结论。',
 ].join('\n\n');
 const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; description: string; parameters: Record<string, unknown> }> = [
@@ -50,8 +62,8 @@ const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; des
   { name: 'zhiji.projects.list', action: 'projects.list', label: '读取项目列表', description: '读取项目名称、状态和 ID。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'zhiji.patterns.list', action: 'patterns.list', label: '读取已验证模式', description: '读取用户已确认的验证模式。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'zhiji.memory.search', action: 'memory.search', label: '检索长期记忆', description: '只读检索知己本地日志、复盘和已确认验证模式的词法证据；query 保留用户原始问题，只有存在有限词汇差异时才提供最多 3 个 alternates。alternates 只能是检索表达，不得填入未经证实的事实、结论或日期；空结果最多重试一次，不会写入记忆。', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 200 }, alternates: { type: 'array', maxItems: 3, items: { type: 'string', minLength: 1, maxLength: 80 } }, limit: { type: 'integer', minimum: 1, maximum: 8 } }, required: ['query'], additionalProperties: false } },
-  { name: 'zhiji.web.search', action: 'web.search', label: '搜索公开来源', description: '通过受控搜索查找公开来源；结果只提供本次会话的 sourceId。', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
-  { name: 'zhiji.web.read-source', action: 'web.read-source', label: '读取搜索来源', description: '只读取同一搜索会话返回的 sourceId 对应来源。', parameters: { type: 'object', properties: { searchSessionId: { type: 'string' }, sourceId: { type: 'string' } }, required: ['searchSessionId', 'sourceId'], additionalProperties: false } },
+  { name: 'zhiji.web.search', action: 'web.search', label: '搜索公开来源', description: '通过受控搜索查找公开来源；结果只提供本次会话的 sourceId、标题、域名、摘要和时间，不提供任意 URL。相同 query 每轮最多自动重试一次。', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
+  { name: 'zhiji.web.read-source', action: 'web.read-source', label: '读取搜索来源', description: '只读取同一搜索会话返回的 sourceId 对应来源；返回标题、域名、时间和有限正文，不接受任意 URL。', parameters: { type: 'object', properties: { searchSessionId: { type: 'string' }, sourceId: { type: 'string' } }, required: ['searchSessionId', 'sourceId'], additionalProperties: false } },
   { name: 'zhiji.journals.create', action: 'journals.create', label: '保存日志', description: '在用户明确要求记录时，通过知己正式日志服务保存一条日志。', parameters: { type: 'object', properties: { date: { type: 'string' }, body: { type: 'string' }, projectIds: { type: 'array', items: { type: 'string' } } }, required: ['date', 'body'], additionalProperties: false } },
   { name: 'zhiji.journals.update', action: 'journals.update', label: '更新日志', description: '在用户明确要求修改时，通过知己正式日志服务按乐观并发更新日志。', parameters: { type: 'object', properties: { id: { type: 'string' }, date: { type: 'string' }, body: { type: 'string' }, projectIds: { type: 'array', items: { type: 'string' } }, expectedUpdatedAt: { type: 'string' } }, required: ['id', 'date', 'body', 'expectedUpdatedAt'], additionalProperties: false } },
   { name: 'zhiji.reviews.generate-daily', action: 'reviews.generate-daily', label: '生成每日反馈', description: '调用知己既有每日反馈服务；证据不足时只返回补证问题，不写入残缺反馈。', parameters: { type: 'object', properties: { date: { type: 'string' }, regenerate: { type: 'boolean' } }, required: ['date'], additionalProperties: false } },
@@ -112,6 +124,7 @@ export class DshRuntime {
   private readonly modelRequests = new Map<string, { queue: AsyncQueue<StreamChunk>; text: string; abort: () => void }>();
   private readonly toolRequests = new Map<string, { resolve: (result: AgentToolResult) => void; reject: (error: Error) => void }>();
   private readonly assistantMessageIds = new Map<string, string>();
+  private readonly searchTurnStates = new Map<string, Map<string, SearchTurnState>>();
   private started = false;
 
   constructor(private readonly port: UtilityMessagePort, private readonly options: DshRuntimeOptions = {}) {
@@ -152,6 +165,7 @@ export class DshRuntime {
     this.modelRequests.clear();
     for (const request of this.toolRequests.values()) request.reject(new Error('知己工具连接已停止。'));
     this.toolRequests.clear();
+    this.searchTurnStates.clear();
     for (const handle of this.agents.values()) await handle.dispose();
     this.agents.clear();
     await this.ctx.fiber.dispose();
@@ -256,6 +270,7 @@ export class DshRuntime {
         await this.emitPersistedSessions();
       } else if (value.type === 'session.send') {
         const agent = await this.ensureAgent(value.sessionId);
+        this.searchTurnStates.set(value.sessionId, new Map());
         agent.followup(createUserMessage({ content: [{ type: 'text', text: value.message }], source: { kind: 'user' } }));
       } else if (value.type === 'session.cancel') {
         this.getAgent(value.sessionId).cancel({ kind: 'user' });
@@ -265,6 +280,7 @@ export class DshRuntime {
           await handle.dispose();
           this.agents.delete(value.sessionId);
         }
+        this.searchTurnStates.delete(value.sessionId);
       } else if (value.type === 'runtime.configure') {
         this.modelConfig = value.config;
       } else if (value.type === 'runtime.shutdown') {
@@ -385,9 +401,40 @@ export class DshRuntime {
   private async callTool(sessionId: string, action: string, input: unknown, exec: ToolRunContext, label: string): Promise<AgentToolResult> {
     if (!sessionId) throw new Error('知己工具未关联到有效会话。');
     if (exec.signal.aborted) throw new Error('已停止本次工具调用。');
+    const query = action === 'web.search' ? normalizedSearchQuery(input) : null;
+    const turnStates = query ? this.searchTurnStates.get(sessionId) ?? new Map<string, SearchTurnState>() : undefined;
+    if (query && turnStates && !this.searchTurnStates.has(sessionId)) this.searchTurnStates.set(sessionId, turnStates);
+    const previous = query ? turnStates?.get(query) : undefined;
+    if (previous?.result) return previous.result;
+
+    const activityId = randomUUID();
+    this.post({ type: 'tool.activity', sessionId, callId: activityId, phase: 'started', label });
+    let result: AgentToolResult | undefined;
+    let timeoutRetries = 0;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      result = await this.requestTool(sessionId, action, input, exec);
+      if (result.kind === 'error' && action === 'web.search' && result.code === 'SEARCH_TIMEOUT' && result.retryable && timeoutRetries === 0) {
+        timeoutRetries += 1;
+        continue;
+      }
+      break;
+    }
+    if (!result) throw new Error('知己工具未返回结果。');
+    if (result.kind === 'error') {
+      this.post({ type: 'tool.activity', sessionId, callId: activityId, phase: 'failed', label });
+      if (query && turnStates) turnStates.set(query, { result, timeoutRetries });
+      return result;
+    }
+    if (query && turnStates) turnStates.set(query, { result, timeoutRetries });
+    this.post({ type: 'tool.activity', sessionId, callId: activityId, phase: 'completed', label });
+    if (result.kind === 'ui.navigate') this.post({ type: 'ui.navigate', sessionId, target: result.target });
+    if (result.kind === 'ui.present') this.post({ type: 'ui.present', sessionId, card: result.card });
+    return result;
+  }
+
+  private requestTool(sessionId: string, action: string, input: unknown, exec: ToolRunContext): Promise<AgentToolResult> {
     const requestId = randomUUID();
-    this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'started', label });
-    const result = await new Promise<AgentToolResult>((resolve, reject) => {
+    return new Promise<AgentToolResult>((resolve, reject) => {
       const abort = () => { this.post({ type: 'tool.cancel', sessionId, requestId }); this.toolRequests.delete(requestId); reject(new Error('已停止本次工具调用。')); };
       exec.signal.addEventListener('abort', abort, { once: true });
       this.toolRequests.set(requestId, {
@@ -396,14 +443,6 @@ export class DshRuntime {
       });
       this.post({ type: 'tool.request', requestId, sessionId, action: action as never, input: input as never });
     });
-    if (result.kind === 'error') {
-      this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'failed', label });
-      throw new Error(result.message);
-    }
-    this.post({ type: 'tool.activity', sessionId, callId: requestId, phase: 'completed', label });
-    if (result.kind === 'ui.navigate') this.post({ type: 'ui.navigate', sessionId, target: result.target });
-    if (result.kind === 'ui.present') this.post({ type: 'ui.present', sessionId, card: result.card });
-    return result;
   }
 }
 

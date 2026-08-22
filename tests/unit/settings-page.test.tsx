@@ -9,7 +9,7 @@ beforeEach(() => {
     dataDirectory: { getInfo: vi.fn(async () => ({ path: 'D:\\知己', writable: true, fileCount: 6, totalBytes: 100, categories: { journals: 3, reviews: 2, projects: 1, profile: 0, settings: 0 } })), open: vi.fn(async () => undefined), pickFolder: vi.fn(async () => ({ canceled: true })), changeLocation: vi.fn() },
     transfer: { exportBackup: vi.fn(async () => ({ canceled: true })), previewRestore: vi.fn(async () => ({ canceled: true })), restore: vi.fn(async () => ({ fileCount: 0 })) },
     templates: { list: vi.fn(async () => []), get: vi.fn(), save: vi.fn(), delete: vi.fn() },
-    app: { getInfo: vi.fn(async () => ({ version: '2.6.3' })) },
+     app: { getInfo: vi.fn(async () => ({ version: '2.6.5' })) },
     settings: {
       getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', agentThinking: 'disabled' as const, hasApiKey: true })),
       save: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', agentThinking: 'disabled' as const, hasApiKey: true })),

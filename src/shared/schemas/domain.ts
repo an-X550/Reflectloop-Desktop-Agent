@@ -85,6 +85,7 @@ export const WebSearchResultSchema = z.object({
   sourceId: z.string().regex(/^source_[a-z0-9]+$/),
   title: z.string().trim().min(1).max(300),
   url: z.url().max(2048),
+  domain: z.string().trim().min(1).max(255),
   snippet: z.string().max(1000),
   publishedAt: z.string().max(40).nullable(),
   retrievedAt: IsoDateTime,
@@ -94,7 +95,9 @@ export type WebSearchResult = z.infer<typeof WebSearchResultSchema>;
 export const WebSourceContentSchema = z.object({
   title: z.string().trim().min(1).max(300),
   url: z.url().max(2048),
+  domain: z.string().trim().min(1).max(255),
   publishedAt: z.string().max(40).nullable(),
+  retrievedAt: IsoDateTime,
   excerpt: z.string().max(2000),
 }).strict();
 export type WebSourceContent = z.infer<typeof WebSourceContentSchema>;

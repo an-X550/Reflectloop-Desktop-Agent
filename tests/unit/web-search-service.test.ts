@@ -1,80 +1,127 @@
 import { describe, expect, it, vi } from 'vitest';
 import { WebSearchService } from '../../src/main-process/infrastructure/web/web-search-service';
+import type { WebSearchProvider, WebSearchProviderResult } from '../../src/main-process/infrastructure/web/tavily-web-search-provider';
 
-const ddgHtml = `
-<html><body>
-<div class="result"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Farticle-1&amp;rut=abc">化债对行业的影响</a>
-<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Farticle-1">2026年 &amp; 化债政策下的行业观察摘要</a></div>
-<div class="result"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fother.org%2Fpost&amp;rut=def">第二个来源</a>
-<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fother.org%2Fpost">第二段摘要</a></div>
-</body></html>`;
+const makeResult = (overrides: Partial<WebSearchProviderResult> = {}): WebSearchProviderResult => ({
+  title: '可信来源',
+  url: 'https://example.com/article-1',
+  content: '来源正文，包含足够的公开信息供读取。',
+  publishedAt: null,
+  ...overrides,
+});
 
-const articleHtml = `<html><head><title>化债对行业的影响 - 示例站</title></head><body><script>var x=1;</script><style>.a{}</style><article>这里是正文内容，讨论化债背景下的行业选择。它包含足够的细节供阅读参考。</article></body></html>`;
-
-const makeFetch = (handler: (url: string) => string) => vi.fn(async (url: unknown) => new Response(handler(String(url)), { status: 200 })) as unknown as typeof fetch;
+function makeProvider(
+  results: WebSearchProviderResult[] = [makeResult()],
+  extracted: WebSearchProviderResult[] = [],
+): WebSearchProvider & { search: ReturnType<typeof vi.fn>; extract: ReturnType<typeof vi.fn> } {
+  return {
+    search: vi.fn(async () => ({ requestId: 'request_search', results })),
+    extract: vi.fn(async () => ({ requestId: 'request_extract', results: extracted })),
+  };
+}
 
 describe('WebSearchService.search', () => {
-  it('passes a timeout signal to fetch and reports hanging requests in Chinese', async () => {
-    let capturedSignal: AbortSignal | undefined;
-    const hanging = vi.fn((_url: unknown, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
-      capturedSignal = init?.signal ?? undefined;
-      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
-      void resolve;
-    })) as unknown as typeof fetch;
-    const service = new WebSearchService(hanging, () => '2026-08-14T10:00:00.000Z', 20);
-    const error = await service.search({ query: '化债' }).catch((value) => value);
-    expect(capturedSignal).toBeInstanceOf(AbortSignal);
-    expect(error).toMatchObject({ code: 'NETWORK_TIMEOUT' });
-    expect(error.message).toMatch(/[\u4e00-\u9fa5]/);
+  it('maps provider results to bounded provenance with a search session', async () => {
+    const provider = makeProvider([makeResult({ title: 'Electron 官方说明', url: 'https://www.electronjs.org/docs/latest/api/net', content: 'Chromium 原生网络栈说明。', publishedAt: '2026-08-21' })]);
+    const service = new WebSearchService(provider, () => '2026-08-14T10:00:00.000Z');
+    const response = await service.search({ query: 'Electron net.fetch' });
+
+    expect(provider.search).toHaveBeenCalledWith('Electron net.fetch');
+    expect(response.searchSessionId).toMatch(/^search_[a-z0-9]+$/);
+    expect(response.results).toEqual([expect.objectContaining({
+      title: 'Electron 官方说明',
+      url: 'https://www.electronjs.org/docs/latest/api/net',
+      domain: 'www.electronjs.org',
+      snippet: 'Chromium 原生网络栈说明。',
+      publishedAt: '2026-08-21',
+      retrievedAt: '2026-08-14T10:00:00.000Z',
+    })]);
+    expect(response.results[0].sourceId).toMatch(/^source_[a-z0-9]+$/);
   });
 
-  it('parses results with source, url, snippet and retrieval date', async () => {
-    const service = new WebSearchService(makeFetch(() => ddgHtml), () => '2026-08-14T10:00:00.000Z');
-    const { searchSessionId, results } = await service.search({ query: '化债 行业选择' });
-    expect(searchSessionId).toMatch(/^search_[a-z0-9]+$/);
-    expect(results).toHaveLength(2);
-    expect(results[0]).toMatchObject({ title: '化债对行业的影响', url: 'https://example.com/article-1', publishedAt: null, retrievedAt: '2026-08-14T10:00:00.000Z' });
-    expect(results[0].snippet).toContain('化债政策下的行业观察摘要');
-    expect(results[0].sourceId).toMatch(/^source_[a-z0-9]+$/);
+  it('classifies a provider timeout without exposing the provider error', async () => {
+    const provider = makeProvider();
+    provider.search.mockRejectedValue(Object.assign(new Error('axios timeout and secret=do-not-leak'), { code: 'ETIMEDOUT' }));
+    const service = new WebSearchService(provider);
+
+    await expect(service.search({ query: '超时' })).rejects.toMatchObject({ code: 'SEARCH_TIMEOUT' });
+    await expect(service.search({ query: '超时' })).rejects.not.toThrow('do-not-leak');
   });
 
-  it('returns an empty result list when the search page has no results', async () => {
-    const service = new WebSearchService(makeFetch(() => '<html><body>no results</body></html>'));
-    const { results } = await service.search({ query: 'nothing' });
-    expect(results).toEqual([]);
+  it('turns an empty or invalid provider response into SEARCH_EMPTY', async () => {
+    const provider = makeProvider([
+      makeResult({ title: '', url: 'javascript:alert(1)' }),
+      makeResult({ title: '也无效', url: 'file:///private/note', content: 'secret' }),
+    ]);
+    const service = new WebSearchService(provider);
+
+    await expect(service.search({ query: '没有来源' })).rejects.toMatchObject({ code: 'SEARCH_EMPTY' });
   });
 
-  it('evicts the oldest search session once the session limit is exceeded', async () => {
+  it('does not create an empty session and evicts the oldest bounded session', async () => {
     let tick = 0;
-    const service = new WebSearchService(makeFetch(() => ddgHtml), () => `2026-08-14T10:${String(tick).padStart(2, '0')}:00.000Z`);
+    const provider = makeProvider();
+    provider.search.mockImplementation(async (query: string) => ({
+      requestId: query,
+      results: [makeResult({ url: `https://example.com/${query}` })],
+    }));
+    const service = new WebSearchService(provider, () => `2026-08-14T10:${String(tick).padStart(2, '0')}:00.000Z`);
     const first = await service.search({ query: 'first' });
     for (let index = 0; index < 20; index += 1) {
       tick += 1;
       await service.search({ query: `query-${index}` });
     }
-    await expect(service.readSource({ searchSessionId: first.searchSessionId, sourceId: 'source_x' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+
+    await expect(service.readSource({ searchSessionId: first.searchSessionId, sourceId: first.results[0].sourceId })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 });
 
 describe('WebSearchService.readSource', () => {
-  it('reads a source that belongs to the current search session', async () => {
-    const service = new WebSearchService(makeFetch((url) => url.includes('duckduckgo') ? ddgHtml : articleHtml), () => '2026-08-14T10:00:00.000Z');
-    const { searchSessionId, results } = await service.search({ query: '化债' });
-    const source = await service.readSource({ searchSessionId, sourceId: results[0].sourceId });
-    expect(source.title).toBe('化债对行业的影响 - 示例站');
-    expect(source.url).toBe('https://example.com/article-1');
-    expect(source.excerpt).toContain('化债背景下的行业选择');
-    expect(source.excerpt).not.toContain('var x=1');
+  it('reads bounded content already returned by the provider without fetching an arbitrary URL', async () => {
+    const provider = makeProvider([makeResult({ content: '搜索阶段已经返回的正文。' })]);
+    const service = new WebSearchService(provider, () => '2026-08-14T10:00:00.000Z');
+    const search = await service.search({ query: '受控来源' });
+    const source = await service.readSource({ searchSessionId: search.searchSessionId, sourceId: search.results[0].sourceId });
+
+    expect(provider.extract).not.toHaveBeenCalled();
+    expect(source).toEqual({
+      title: '可信来源',
+      url: 'https://example.com/article-1',
+      domain: 'example.com',
+      publishedAt: null,
+      retrievedAt: '2026-08-14T10:00:00.000Z',
+      excerpt: '搜索阶段已经返回的正文。',
+    });
   });
 
-  it('rejects a forged sourceId that does not belong to the search session', async () => {
-    const service = new WebSearchService(makeFetch((url) => url.includes('duckduckgo') ? ddgHtml : articleHtml));
-    const { searchSessionId } = await service.search({ query: '化债' });
-    await expect(service.readSource({ searchSessionId, sourceId: 'source_forged99' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  it('uses provider extract only for a source saved in the current session', async () => {
+    const provider = makeProvider(
+      [makeResult({ content: '' })],
+      [makeResult({ title: '提取后的来源', content: 'Tavily extract 返回的有限正文。' })],
+    );
+    const service = new WebSearchService(provider);
+    const search = await service.search({ query: '需要读取正文' });
+    const source = await service.readSource({ searchSessionId: search.searchSessionId, sourceId: search.results[0].sourceId });
+
+    expect(provider.extract).toHaveBeenCalledWith('https://example.com/article-1');
+    expect(source.title).toBe('提取后的来源');
+    expect(source.excerpt).toContain('Tavily extract');
   });
 
-  it('rejects reads from an unknown search session', async () => {
-    const service = new WebSearchService(makeFetch(() => ddgHtml));
-    await expect(service.readSource({ searchSessionId: 'search_unknown1', sourceId: 'source_a1' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+  it('classifies an unavailable extraction as SOURCE_UNAVAILABLE', async () => {
+    const provider = makeProvider([makeResult({ content: '' })]);
+    provider.extract.mockRejectedValue(Object.assign(new Error('connection refused secret=do-not-leak'), { code: 'ECONNREFUSED' }));
+    const service = new WebSearchService(provider);
+    const search = await service.search({ query: '来源不可读' });
+
+    await expect(service.readSource({ searchSessionId: search.searchSessionId, sourceId: search.results[0].sourceId })).rejects.toMatchObject({ code: 'SOURCE_UNAVAILABLE' });
+  });
+
+  it('rejects forged source IDs and unknown sessions', async () => {
+    const service = new WebSearchService(makeProvider());
+    const search = await service.search({ query: '绑定' });
+
+    await expect(service.readSource({ searchSessionId: search.searchSessionId, sourceId: 'source_forged99' })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
+    await expect(service.readSource({ searchSessionId: 'search_unknown1', sourceId: search.results[0].sourceId })).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 });

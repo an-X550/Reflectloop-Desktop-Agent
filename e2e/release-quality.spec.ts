@@ -113,7 +113,7 @@ test('settings information architecture and journal template flow are usable in 
     await expect(page.getByRole('button', { name: '创建备份' })).toBeVisible();
     await expect(page.getByRole('button', { name: '从备份恢复' })).toBeVisible();
     await expect(page.getByText(/发布地址|保存地址|检查更新/)).toHaveCount(0);
-    await expect(page.getByText('版本 2.6.3')).toBeVisible();
+    await expect(page.getByText('版本 2.6.5')).toBeVisible();
 
     await page.getByRole('button', { name: '日志', exact: true }).click();
     await page.getByRole('button', { name: '管理模板' }).click();
@@ -226,6 +226,31 @@ test('installed executable starts Agent and creates a session', async () => {
     await expect(page.getByRole('heading', { name: '知己 Agent', level: 1 })).toBeVisible();
     await page.getByRole('button', { name: '新建会话' }).click();
     await expect(page.getByText('新对话').first()).toBeVisible();
+  } finally {
+    await closeClean(running);
+  }
+});
+
+test('installed executable completes a real Agent search-read-answer round', async () => {
+  test.setTimeout(180_000);
+  test.skip(!process.env.ZHIJI_E2E_EXECUTABLE, '仅在安装版 Agent 验收中运行。');
+  test.skip(!process.env.ZHIJI_E2E_API_KEY, '需要显式提供 ZHIJI_E2E_API_KEY；测试不会读取、打印或提交它。');
+  const running = await launchClean();
+  try {
+    const { page } = running;
+    const apiKey = process.env.ZHIJI_E2E_API_KEY;
+    if (!apiKey) return;
+    await page.evaluate(async (key) => {
+      await window.zhiji.settings.save({ providerId: 'deepseek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash', agentThinking: 'disabled', apiKey: key });
+    }, apiKey);
+    await page.getByRole('button', { name: '知己 Agent', exact: true }).click();
+    await page.getByRole('button', { name: '新建会话' }).click();
+    await page.getByRole('textbox', { name: '向知己 Agent 发送消息' }).fill('请查找 Electron net.fetch 官方文档的关键点。必须先搜索公开来源，再读取本次搜索会话中的一个来源，最后用中文简要回答，并列出实际使用来源的标题和域名。');
+    await page.getByRole('button', { name: '发送' }).click();
+    await expect(page.getByText('已完成：搜索公开来源')).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText('已完成：读取搜索来源')).toBeVisible({ timeout: 120_000 });
+    await expect.poll(async () => page.locator('.agent-message--assistant').last().textContent(), { timeout: 120_000 }).toMatch(/Electron|来源|域名/);
+    await expect(page.locator('.agent-message--assistant').last()).not.toContainText('https://');
   } finally {
     await closeClean(running);
   }

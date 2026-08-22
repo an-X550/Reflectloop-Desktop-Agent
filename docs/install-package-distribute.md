@@ -1,6 +1,6 @@
 # 知己桌面端：安装 · 打包 · 分发指南
 
-> 适用版本：v2.6.3 起。本文回答三个问题：怎么装、怎么打包、怎么发给别人；并附当前产品的文件职责清单。
+> 适用版本：当前源码与 v2.6.5 发布包。本文回答三个问题：怎么装、怎么打包、怎么发给别人；并附当前产品的文件职责清单。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 形态 | 路径 | 说明 |
 | --- | --- | --- |
-| **安装版**（推荐分发） | `out/release-candidate/v2.6.3/Zhiji-Setup-v2.6.3.exe` | Windows 安装程序，双击下一步即装好，会建开始菜单/桌面快捷方式 |
+| **安装版**（推荐分发） | `out/release-candidate/v2.6.5/Zhiji-Setup-v2.6.5.exe` | Windows 安装程序，双击下一步即装好，会建开始菜单/桌面快捷方式 |
 | **免安装版**（直接运行） | `out/知己-win32-x64/知己.exe` | 解压即用，双击 `知己.exe` 直接运行，无需安装 |
 
 ### 安装版流程（Setup.exe）
@@ -30,10 +30,10 @@
 
 ## 二、如何打包
 
-在 `apps/zhiji-desktop` 目录下执行。**先同步版本号**：改 `apps/zhiji-desktop/package.json` 的 `version` 与仓库根目录 `VERSION` 文件，保持一致（`app.getVersion()` 读取的是 package.json 的 version）。
+在仓库根目录执行。**先同步版本号**：改 `package.json` 的 `version` 与仓库根目录 `VERSION` 文件，保持一致（`app.getVersion()` 读取的是 package.json 的 version）。
 
 ```bash
-cd apps/zhiji-desktop
+cd zhiji-desktop
 
 # 安装依赖（首次）
 npm install
@@ -108,7 +108,7 @@ if ($existing) {
   $createdJunction = $true
 }
 
-Push-Location "$junctionPath\apps\zhiji-desktop"
+Push-Location $junctionPath
 try {
   npm run make
   if ($LASTEXITCODE -ne 0) { throw "make failed with exit code $LASTEXITCODE" }
@@ -127,7 +127,7 @@ try {
 **给普通用户安装 → 只需发一个文件：**
 
 ```
-out/release-candidate/v2.6.3/Zhiji-Setup-v2.6.3.exe
+out/release-candidate/v2.6.5/Zhiji-Setup-v2.6.5.exe
 ```
 
 **一次发布的安装包由这三个 Squirrel 文件组成；对普通用户直接提供安装器即可：**
@@ -147,7 +147,7 @@ Setup.exe                # 引导安装器
 ### 当前限制（诚实边界）
 
 - **未代码签名**：Windows SmartScreen 可能提示「未知发布者」，需点「仍要运行」。正式对外分发前建议购买代码签名证书。
-- 未做自动更新、未验证 Windows 10 干净虚拟机、未做升级/卸载的完整回归；v2.6.3 只承诺用隔离临时数据根完成核心安装冒烟。
+- 未做自动更新、未验证 Windows 10 干净虚拟机、未做升级/卸载的完整回归；v2.6.5 只承诺用隔离临时数据根完成核心安装冒烟。
 - 数据目录与用户数据（API Key）是两处：换机器或重装需用「设置 → 数据与隐私 → 创建备份」迁移。
 
 ### 版本独立的本地 Release Candidate
@@ -155,13 +155,13 @@ Setup.exe                # 引导安装器
 每次准备分发时，先完成 `npm run package`、`npm run test:e2e`，再执行 `npm run make`。确认 `out/make/squirrel.windows/x64/` 是本次新生成的目录后，把本次三件套复制到版本独立目录：
 
 ```text
-out/release-candidate/v2.6.3/
-├─ Zhiji-Setup-v2.6.3.exe
-├─ zhiji-2.6.3-full.nupkg
+out/release-candidate/v2.6.5/
+├─ Zhiji-Setup-v2.6.5.exe
+├─ zhiji-2.6.5-full.nupkg
 └─ RELEASES
 ```
 
-只用该目录中的 `Zhiji-Setup-v2.6.3.exe` 做全新用户数据和核心功能验收；不要把旧 `out/make` 中的 `Setup.exe` 当成本次构建。旧 v2.6.2 RC 保留不覆盖。后续远程发布只能上传已经验收的同一份文件，且需要单独明确授权。
+只用该目录中的 `Zhiji-Setup-v2.6.5.exe` 做全新用户数据和核心功能验收；不要把旧 `out/make` 中的 `Setup.exe` 当成本次构建。旧 v2.6.3 RC 保留不覆盖。后续远程发布只能上传已经验收的同一份文件，且需要明确授权。
 
 ---
 
@@ -189,7 +189,7 @@ out/release-candidate/v2.6.3/
 | `credentials.json` | 加密的 API Key | 用 Windows safeStorage 加密，仅主进程读取 |
 | `zhiji-config.json` | 应用级配置 | 自定义数据目录路径；历史 `updateUrl` 仅兼容读取，不再有用户界面或运行行为 |
 
-### 4.3 源码结构（`apps/zhiji-desktop/src/`）
+### 4.3 源码结构（`src/`）
 
 | 目录/文件 | 职责 |
 | --- | --- |

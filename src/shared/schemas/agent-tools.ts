@@ -97,8 +97,24 @@ const AgentReviewSummarySchema = z.object({ id: StableReviewId, type: z.enum(['d
 const AgentProjectSummarySchema = z.object({ id: StableProjectId, name: z.string().trim().min(1).max(80), status: z.enum(['active', 'archived']) }).strict();
 const AgentPatternSummarySchema = z.object({ id: z.string().regex(/^pattern_[a-z0-9]+$/), statement: SafeExcerpt, evidenceSummary: SafeExcerpt, sourceReviewIds: z.array(StableReviewId).max(20) }).strict();
 export const AgentMemoryHitSchema = z.object({ id: z.string().regex(/^(journal|review|pattern)_[a-z0-9]+$/), kind: z.enum(['journal', 'review', 'pattern']), date: IsoDate.nullable(), excerpt: z.string().trim().min(1).max(800) }).strict();
-const AgentSearchResultSchema = z.object({ sourceId: SourceIdSchema, title: z.string().trim().min(1).max(300), snippet: z.string().max(1_000) }).strict();
+const AgentSearchResultSchema = z.object({ sourceId: SourceIdSchema, title: z.string().trim().min(1).max(300), domain: z.string().trim().min(1).max(255), snippet: z.string().max(1_000), publishedAt: z.string().max(40).nullable(), retrievedAt: IsoDateTime }).strict();
 const AgentReviewPreviewSourceSchema = z.object({ id: z.string().regex(/^(journal|review)_[a-z0-9]+$/), date: IsoDate, excerpt: SafeExcerpt }).strict();
+export const AgentToolErrorCodeSchema = z.enum([
+  'INVALID_INPUT',
+  'NOT_FOUND',
+  'CANCELLED',
+  'TASK_ALREADY_RUNNING',
+  'INVALID_MODEL_OUTPUT',
+  'FILE_CONFLICT',
+  'SEARCH_UNAVAILABLE',
+  'SEARCH_TIMEOUT',
+  'SEARCH_RATE_LIMITED',
+  'SEARCH_EMPTY',
+  'SOURCE_UNAVAILABLE',
+  'SEARCH_NOT_CONFIGURED',
+  'UNKNOWN',
+]);
+export type AgentToolErrorCode = z.infer<typeof AgentToolErrorCodeSchema>;
 export const AgentReviewPreviewSchema = z.object({ token: z.string().uuid(), type: z.enum(['weekly', 'monthly', 'project', 'coach', 'yearly', 'life-design']), start: IsoDate, end: IsoDate, sources: z.array(AgentReviewPreviewSourceSchema).max(100) }).strict();
 const AgentWorkflowSchema = z.enum(['journals.create', 'journals.update', 'reviews.generate-daily', 'reviews.generate-periodic', 'reviews.generate-insight']);
 export const AgentWorkflowApprovalSchema = z.object({ approvalId: ApprovalIdSchema, workflow: z.enum(['reviews.generate-periodic', 'reviews.generate-insight']), title: z.string().trim().min(1).max(120), summary: SafeExcerpt, preview: AgentReviewPreviewSchema }).strict();
@@ -112,13 +128,13 @@ export const AgentToolResultSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('patterns.list'), patterns: z.array(AgentPatternSummarySchema).max(100) }).strict(),
   z.object({ kind: z.literal('memory.search'), hits: z.array(AgentMemoryHitSchema).max(8) }).strict(),
   z.object({ kind: z.literal('web.search'), searchSessionId: SearchSessionIdSchema, results: z.array(AgentSearchResultSchema).max(8) }).strict(),
-  z.object({ kind: z.literal('web.read-source'), source: z.object({ title: z.string().trim().min(1).max(300), excerpt: z.string().max(2_000) }).strict() }).strict(),
+  z.object({ kind: z.literal('web.read-source'), source: z.object({ title: z.string().trim().min(1).max(300), domain: z.string().trim().min(1).max(255), publishedAt: z.string().max(40).nullable(), retrievedAt: IsoDateTime, excerpt: z.string().max(2_000) }).strict() }).strict(),
   z.object({ kind: z.literal('workflow.approval-required'), approval: AgentWorkflowApprovalSchema }).strict(),
   z.object({ kind: z.literal('workflow.clarification'), workflow: z.enum(['reviews.generate-daily', 'reviews.generate-periodic']), question: SafeText }).strict(),
   z.object({ kind: z.literal('workflow.completed'), workflow: AgentWorkflowSchema, journal: AgentJournalSummarySchema.optional(), review: AgentReviewSummarySchema.optional(), navigation: AgentNavigationTargetSchema }).strict(),
   z.object({ kind: z.literal('ui.navigate'), target: AgentNavigationTargetSchema }).strict(),
   z.object({ kind: z.literal('ui.present'), card: AgentPresentationCardSchema }).strict(),
-  z.object({ kind: z.literal('error'), message: z.string().trim().min(1).max(500) }).strict(),
+  z.object({ kind: z.literal('error'), code: AgentToolErrorCodeSchema, message: z.string().trim().min(1).max(500), retryable: z.boolean(), retryAfterSeconds: z.number().int().min(0).max(86_400).optional() }).strict(),
 ]);
 
 export const AgentToolBridgeResponseSchema = z.object({ type: z.literal('tool.result'), requestId: RequestIdSchema, result: AgentToolResultSchema }).strict();

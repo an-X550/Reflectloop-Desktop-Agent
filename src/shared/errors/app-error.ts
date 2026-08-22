@@ -11,6 +11,12 @@ export type AppError =
   | { code: 'IMPORT_REJECTED'; reason: string }
   | { code: 'TASK_ALREADY_RUNNING' }
   | { code: 'CANCELLED' }
+  | { code: 'SEARCH_UNAVAILABLE' }
+  | { code: 'SEARCH_TIMEOUT' }
+  | { code: 'SEARCH_RATE_LIMITED'; retryAfterSeconds?: number }
+  | { code: 'SEARCH_EMPTY' }
+  | { code: 'SOURCE_UNAVAILABLE' }
+  | { code: 'SEARCH_NOT_CONFIGURED' }
   | { code: 'WEB_SEARCH_FAILED'; message: string }
   | { code: 'WEB_SOURCE_FAILED'; message: string }
   | { code: 'UNKNOWN'; message: string };
@@ -46,6 +52,12 @@ function defaultMessage(error: AppError): string {
     case 'IMPORT_REJECTED': return `导入被拒绝：${error.reason}`;
     case 'TASK_ALREADY_RUNNING': return '已有任务正在运行，请等待完成或取消后再试。';
     case 'CANCELLED': return '已取消本次生成。';
+    case 'SEARCH_UNAVAILABLE': return '搜索服务暂时不可用，请稍后再试。';
+    case 'SEARCH_TIMEOUT': return '搜索公开来源响应超时，可以稍后重试一次。';
+    case 'SEARCH_RATE_LIMITED': return '搜索服务共享额度已用尽，请稍后再试。';
+    case 'SEARCH_EMPTY': return '没有找到相关公开来源，可以修改关键词后再搜索。';
+    case 'SOURCE_UNAVAILABLE': return '该公开来源暂时无法读取，可以尝试本次搜索会话中的其他来源。';
+    case 'SEARCH_NOT_CONFIGURED': return '搜索服务尚未配置，请稍后再试。';
     case 'WEB_SEARCH_FAILED': return '联网搜索失败，请稍后重试。';
     case 'WEB_SOURCE_FAILED': return '读取网页来源失败，请稍后重试。';
     case 'UNKNOWN': return '发生未知错误，请重试。';

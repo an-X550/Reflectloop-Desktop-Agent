@@ -1,7 +1,7 @@
 {
   "name": "zhiji-desktop",
   "productName": "知己",
-  "version": "2.6.3",
+  "version": "2.6.5",
   "description": "本地优先的 AI 日志复盘客户端",
   "main": ".vite/build/main.js",
   "private": true,
@@ -12,6 +12,7 @@
     "publish": "electron-forge publish",
     "lint": "eslint --ext .ts,.tsx .",
     "test": "vitest run",
+    "provider:smoke": "vitest run --config vite.smoke.config.ts --testTimeout 120000",
     "pretest:e2e": "electron-forge package",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
@@ -80,6 +81,7 @@
     "@deepseek-ai/dsh-user-approval": "0.1.0-rc.8",
     "@langchain/core": "^1.2.7",
     "@langchain/langgraph": "^1.4.9",
+    "@tavily/core": "0.7.7",
     "adm-zip": "^0.6.0",
     "electron-squirrel-startup": "^1.0.1",
     "gray-matter": "^4.0.3",

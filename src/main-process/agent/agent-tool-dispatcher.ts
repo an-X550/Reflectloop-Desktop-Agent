@@ -14,23 +14,50 @@ import type { ConfigureAi } from '../application/configure-ai';
 import { appError } from '../../shared/errors/app-error';
 
 const PATH_OR_URL = /(?:[a-z]:[\\/]|\\\\|\/[a-z0-9._~-]+(?:[\\/]|$)|https?:\/\/)/i;
+type AgentToolErrorResult = Extract<AgentToolResult, { kind: 'error' }>;
 
 function safeText(value: string, limit = 1_000): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   return PATH_OR_URL.test(normalized) ? '内容包含受保护位置，已省略。' : (normalized || '暂无可展示内容。').slice(0, limit);
 }
 
-function safeError(error: unknown): string {
-  const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
-  if (code === 'NOT_FOUND') return '未找到所需内容，可能已被移动或删除。';
-  if (code === 'FILE_CONFLICT') return '内容已在其他位置更新，请刷新后重试。';
-  if (code === 'CANCELLED') return '已停止本次工具调用。';
-  if (code === 'NETWORK_TIMEOUT' || code === 'WEB_SEARCH_FAILED' || code === 'WEB_SOURCE_FAILED') return '联网内容暂时不可用，请稍后重试。';
-  if (code === 'TASK_ALREADY_RUNNING') return '已有复盘任务正在运行，请等待它完成或先停止。';
-  if (code === 'INVALID_MODEL_OUTPUT') return 'AI 返回的正式内容格式不完整，请重试。';
-  if (code === 'INVALID_INPUT') return '工具输入不合法，已拒绝执行。';
-  if (error instanceof Error && error.message.includes('请先在知己 Agent 页面确认')) return error.message;
-  return '知己工具暂时无法完成请求，请稍后重试。';
+function errorCode(error: unknown): unknown {
+  return typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: unknown }).code : undefined;
+}
+
+function retryAfterSeconds(error: unknown): number | undefined {
+  const value = typeof error === 'object' && error !== null && 'retryAfterSeconds' in error
+    ? (error as { retryAfterSeconds?: unknown }).retryAfterSeconds
+    : undefined;
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? Math.min(value, 86_400) : undefined;
+}
+
+function toolError(code: AgentToolErrorResult['code'], message: string, retryable = false, retryAfter?: number): AgentToolErrorResult {
+  return {
+    kind: 'error',
+    code,
+    message,
+    retryable,
+    ...(retryAfter === undefined ? {} : { retryAfterSeconds: retryAfter }),
+  };
+}
+
+function safeError(error: unknown): AgentToolErrorResult {
+  const code = errorCode(error);
+  if (code === 'NOT_FOUND') return toolError('NOT_FOUND', '未找到所需内容，可能已被移动或删除。');
+  if (code === 'FILE_CONFLICT') return toolError('FILE_CONFLICT', '内容已在其他位置更新，请刷新后重试。');
+  if (code === 'CANCELLED') return toolError('CANCELLED', '已停止本次工具调用。');
+  if (code === 'NETWORK_TIMEOUT' || code === 'SEARCH_TIMEOUT') return toolError('SEARCH_TIMEOUT', '搜索公开来源响应超时，可以自动重试一次。', true);
+  if (code === 'SEARCH_RATE_LIMITED') return toolError('SEARCH_RATE_LIMITED', '搜索服务共享额度已用尽，请稍后再试。', false, retryAfterSeconds(error));
+  if (code === 'SEARCH_EMPTY') return toolError('SEARCH_EMPTY', '没有找到相关公开来源，可以修改关键词后再搜索。');
+  if (code === 'SOURCE_UNAVAILABLE' || code === 'WEB_SOURCE_FAILED') return toolError('SOURCE_UNAVAILABLE', '该来源暂时无法读取，可以尝试本次搜索会话中的其他来源。');
+  if (code === 'SEARCH_NOT_CONFIGURED') return toolError('SEARCH_NOT_CONFIGURED', '搜索服务尚未配置，请稍后再试。');
+  if (code === 'SEARCH_UNAVAILABLE' || code === 'WEB_SEARCH_FAILED') return toolError('SEARCH_UNAVAILABLE', '搜索服务暂时不可用，请稍后再试。');
+  if (code === 'TASK_ALREADY_RUNNING') return toolError('TASK_ALREADY_RUNNING', '已有复盘任务正在运行，请等待它完成或先停止。');
+  if (code === 'INVALID_MODEL_OUTPUT') return toolError('INVALID_MODEL_OUTPUT', 'AI 返回的正式内容格式不完整，请重试。');
+  if (code === 'INVALID_INPUT') return toolError('INVALID_INPUT', '工具输入不合法，已拒绝执行。');
+  if (error instanceof Error && error.message.includes('请先在知己 Agent 页面确认')) return toolError('INVALID_INPUT', error.message);
+  return toolError('UNKNOWN', '知己工具暂时无法完成请求，请稍后重试。');
 }
 
 type PendingApproval = {
@@ -65,11 +92,11 @@ export class AgentToolDispatcher {
 
   async dispatch(raw: unknown, signal?: AbortSignal): Promise<AgentToolResult> {
     const request = AgentToolBridgeRequestSchema.safeParse(raw);
-    if (!request.success) return { kind: 'error', message: '工具请求格式不合法，已拒绝执行。' };
+    if (!request.success) return toolError('INVALID_INPUT', '工具请求格式不合法，已拒绝执行。');
     try {
       return AgentToolResultSchema.parse(await this.execute(request.data, signal));
     } catch (error) {
-      return { kind: 'error', message: safeError(error) };
+      return safeError(error);
     }
   }
 
@@ -122,11 +149,11 @@ export class AgentToolDispatcher {
       }
       case 'web.search': {
         const response = await this.deps.webSearch.search(request.input);
-        return { kind: 'web.search', searchSessionId: response.searchSessionId, results: response.results.map((item) => ({ sourceId: item.sourceId, title: safeText(item.title, 300), snippet: safeText(item.snippet) })) };
+        return { kind: 'web.search', searchSessionId: response.searchSessionId, results: response.results.map((item) => ({ sourceId: item.sourceId, title: safeText(item.title, 300), domain: safeText(item.domain, 255), snippet: safeText(item.snippet), publishedAt: item.publishedAt, retrievedAt: item.retrievedAt })) };
       }
       case 'web.read-source': {
         const source = await this.deps.webSearch.readSource(request.input);
-        return { kind: 'web.read-source', source: { title: safeText(source.title, 300), excerpt: safeText(source.excerpt, 2_000) } };
+        return { kind: 'web.read-source', source: { title: safeText(source.title, 300), domain: safeText(source.domain, 255), publishedAt: source.publishedAt, retrievedAt: source.retrievedAt, excerpt: safeText(source.excerpt, 2_000) } };
       }
       case 'journals.create': {
         await this.assertKnownProjects(request.input.projectIds);

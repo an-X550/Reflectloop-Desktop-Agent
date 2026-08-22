@@ -252,7 +252,7 @@ Markdown 仓储（`infrastructure/markdown/`）统一模式：
 - `transfer/data-transfer-service.ts` + `archive-manifest.ts` + `business-archive-validator.ts`：导出 `.zhiji.zip`（manifest 含 formatVersion/appVersion/逐文件 sha256）；恢复两段式——preview 校验（路径白名单、哈希、业务 schema）返回 previewId，restore 只允许写入空数据目录；API Key 与缓存不入包。
 - `agent/dsh-runtime.ts` + `@deepseek-ai/dsh-session-persistence-jsonl`：Agent 事件日志写入数据根 `agent/sessions/`；Main 负责路径、恢复列表和安全投影，Utility 负责 DSH session loop，不把领域正文复制进会话。
 - `patterns/verified-pattern-repository.ts`：单一 JSON 快照，原子写 + zod 复读；损坏报错。
-- `web/web-search-service.ts`：受控联网。DuckDuckGo HTML 端点解析 ≤8 条结果；结果绑定 `search_` 会话；`readSource` 只接受本会话返回过的 `sourceId`，只允许 http/https；正文去标签截断 2000 字。
+- `web/tavily-web-search-provider.ts` + `web/web-search-service.ts`：受控联网。官方 `@tavily/core@0.7.7` 走 keyless `search/extract`；搜索最多保存 8 条 HTTPS/HTTP 公开来源及域名、时间和有限正文，结果绑定 `search_` 会话；`readSource` 只接受本会话返回过的 `sourceId`，正文最多 2000 字，不向 Agent 暴露任意 URL。Provider 错误在 Main Process 收敛为不可用、超时、共享限额、空结果或来源不可读。
 
 ## 8. 数据模型与存储布局
 
@@ -377,10 +377,14 @@ patterns:confirm（候选）→ 生成 pattern_ id → 快照 add（原子写 + 
 | DATA_CORRUPTED | 本地数据损坏 | 快照/索引复读校验失败 |
 | IMPORT_REJECTED | 备份校验拒绝 | manifest/哈希/路径/业务 schema 不合格 |
 | TASK_ALREADY_RUNNING | 已有进行中的生成任务 | ReviewTaskManager 并发拦截 |
-| WEB_SEARCH_FAILED / WEB_SOURCE_FAILED | 联网失败 | 搜索或读源 HTTP 非 2xx |
+| SEARCH_UNAVAILABLE / SEARCH_TIMEOUT | 搜索服务不可用或超时 | Tavily provider 网络失败、请求超时；超时只允许同轮自动重试一次 |
+| SEARCH_RATE_LIMITED | keyless 共享额度受限 | Tavily keyless 返回限额错误，可带 `retryAfterSeconds` |
+| SEARCH_EMPTY | 搜索没有可用结果 | provider 返回空结果或不合格来源 |
+| SOURCE_UNAVAILABLE | 搜索会话中的来源不可读 | `extract` 失败或返回空正文 |
+| SEARCH_NOT_CONFIGURED | 搜索服务未配置 | 仅作安全兜底，当前默认走 keyless，不读取 API Key |
 | UNKNOWN | 兜底 | 附 message |
 
-前端统一以 message 展示；新增错误优先复用现有 code。
+Agent 工具错误统一返回 `code/message/retryable/retryAfterSeconds?`；普通回复保持 Markdown。Main Process 不向 Agent 或 Renderer 传递 provider 原始错误、凭据、文件路径或任意 URL。
 
 ## 11. 测试与验证
 
