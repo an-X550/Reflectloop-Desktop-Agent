@@ -4,6 +4,12 @@ last_updated: 2026-08-22
 
 # 更新记录
 
+## [2026-08-22] [配置] 同步 ReflectLoop Desktop 仓库地址与包元数据（v2.6.5 -> v2.6.5）
+
+- 仓库改名后，将 README、克隆命令、Release、Issues、主页和 Git remote 统一到 `an-X550/ReflectLoop-Desktop`，主项目链接更新为 `an-X550/Reflectloop`。
+- 私有 npm 包名与锁文件根名称同步为 `reflectloop-desktop`；应用显示名“知己”、可执行文件、数据目录、版本和发布制品均不改变。
+- 旧桌面仓库地址在当前文档与 metadata 中完成零残留检查；历史 CHANGELOG 保留当时事实。
+
 ## [2026-08-22] [文档] 采用 ReflectLoop Desktop 英文项目名（v2.6.5 -> v2.6.5）
 
 - 保留“知己 Windows 客户端”作为中文产品名，采用 ReflectLoop Desktop 作为英文项目名；版本和发布制品保持 2.6.5。
