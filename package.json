@@ -1,5 +1,5 @@
 {
-  "name": "reflectloop-desktop-agent",
+  "name": "zhiji-desktop-agent",
   "productName": "知己",
   "version": "2.6.5",
   "description": "本地优先、内置受控 Agent 的 AI 日志复盘客户端",
@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/an-X550/Reflectloop-Desktop-Agent.git"
+    "url": "git+https://github.com/an-X550/zhiji-Desktop-Agent.git"
   },
   "bugs": {
-    "url": "https://github.com/an-X550/Reflectloop-Desktop-Agent/issues"
+    "url": "https://github.com/an-X550/zhiji-Desktop-Agent/issues"
   },
-  "homepage": "https://github.com/an-X550/Reflectloop-Desktop-Agent",
+  "homepage": "https://github.com/an-X550/zhiji-Desktop-Agent",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",

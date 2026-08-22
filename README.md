@@ -1,14 +1,14 @@
-# ReflectLoop Desktop Agent（知己 Windows 客户端）
+# zhiji Desktop Agent（知己 Windows 客户端）
 
 > A local-first Windows app with a controlled evidence-grounded Agent for journaling, reflection, and testable actions.
 
-这是 ReflectLoop（知己）的独立 Windows 单机应用。它把日志、项目、复盘和行动验证放在本机，并内置一个受控 Agent，帮助你从自己的记录中找出有证据支撑的模式，形成下一步小行动，再用后续结果校准判断。
+这是 zhiji（知己）的独立 Windows 单机应用。它把日志、项目、复盘和行动验证放在本机，并内置一个受控 Agent，帮助你从自己的记录中找出有证据支撑的模式，形成下一步小行动，再用后续结果校准判断。
 
-它不是整个 ReflectLoop，也不是通用电脑控制 Agent：不运行 Claude/Codex Skill，不要求 DeepSeek Harness，不提供云同步、Shell、任意文件操作或浏览器控制。
+它不是整个 zhiji，也不是通用电脑控制 Agent：不运行 Claude/Codex Skill，不要求 DeepSeek Harness，不提供云同步、Shell、任意文件操作或浏览器控制。
 
-- [下载 v2.6.5](https://github.com/an-X550/Reflectloop-Desktop-Agent/releases/tag/v2.6.5)
-- [提交问题](https://github.com/an-X550/Reflectloop-Desktop-Agent/issues)
-- [查看主项目](https://github.com/an-X550/Reflectloop)
+- [下载 v2.6.5](https://github.com/an-X550/zhiji-Desktop-Agent/releases/tag/v2.6.5)
+- [提交问题](https://github.com/an-X550/zhiji-Desktop-Agent/issues)
+- [查看主项目](https://github.com/an-X550/zhiji)
 - 许可证：[MIT](LICENSE)
 
 ## 先判断它是否适合你
@@ -25,13 +25,13 @@
 - 手机、macOS、Linux 或多用户协作；
 - 自动后台同步、云端托管或跨设备实时同步；
 - 任意文件读取、Shell、浏览器控制或通用 Computer Use；
-- 自动把桌面数据同步到 ReflectLoop Skill、用户版或 DSH 插件。
+- 自动把桌面数据同步到 zhiji Skill、用户版或 DSH 插件。
 
 ## 最短使用路径
 
 ### 1. 安装
 
-从 [v2.6.5 Release](https://github.com/an-X550/Reflectloop-Desktop-Agent/releases/tag/v2.6.5) 下载 `Zhiji-Setup-v2.6.5.exe`。GitHub 自动生成的 `Source code (zip)` 是源码，不是安装程序。
+从 [v2.6.5 Release](https://github.com/an-X550/zhiji-Desktop-Agent/releases/tag/v2.6.5) 下载 `Zhiji-Setup-v2.6.5.exe`。GitHub 自动生成的 `Source code (zip)` 是源码，不是安装程序。
 
 当前安装包未进行代码签名，也不承诺应用内自动更新或完整的 Windows 10/11 干净机安装矩阵。SmartScreen 显示“未知发布者”时，请先确认下载来源。
 
@@ -95,16 +95,16 @@ Agent 是完成复盘闭环的一种受控能力，不是能够操作整台电�
 
 备份可以包含日志、复盘、项目、个人背景和公开配置，但不包含 API Key 或缓存。真实日志默认只保存在你选择的本地目录；本地保存不等于磁盘加密或访问控制。
 
-## 与其他 ReflectLoop 入口的关系
+## 与其他 zhiji 入口的关系
 
 四个入口各自拥有运行时和数据边界：
 
 | 你想做什么 | 应进入哪里 | 是否与本应用自动共享数据 |
 | --- | --- | --- |
 | Windows 本地日志、复盘和受控 Agent | 本仓库 | 本应用自己的数据目录 |
-| 用 Codex/Claude 读取 Markdown 并运行完整 Skill | [用户版分发包](https://github.com/an-X550/knowing-yourself-zhiji-user) | 否 |
-| 在 DeepSeek Harness Profile 中使用复盘 Skill | [DSH 插件](https://github.com/an-X550/zhiji-dsh-plugin) | 否 |
-| 查看产品总览、共享契约和开发入口 | [ReflectLoop 主项目](https://github.com/an-X550/Reflectloop) | 不代表运行时同步 |
+| 用 Codex/Claude 读取 Markdown 并运行完整 Skill | [用户版分发包](https://github.com/an-X550/zhiji-Agent-Skill) | 否 |
+| 在 DeepSeek Harness Profile 中使用复盘 Skill | [DSH 插件](https://github.com/an-X550/zhiji-DSH-Plugin) | 否 |
+| 查看产品总览、共享契约和开发入口 | [zhiji 主项目](https://github.com/an-X550/zhiji) | 不代表运行时同步 |
 
 桌面端不读取、执行或修改 Claude/Codex 的 `.claude` Skill 系统，也不要求安装 DSH。需要手机消息入口或飞书/滴答结果分发时，请从用户版说明开始，而不是把本应用当作同步服务。
 
@@ -113,8 +113,8 @@ Agent 是完成复盘闭环的一种受控能力，不是能够操作整台电�
 需要 Windows、Git、Node.js 22 或更新版本以及 npm：
 
 ```powershell
-git clone https://github.com/an-X550/Reflectloop-Desktop-Agent.git
-cd Reflectloop-Desktop-Agent
+git clone https://github.com/an-X550/zhiji-Desktop-Agent.git
+cd zhiji-Desktop-Agent
 npm ci
 npm start
 ```

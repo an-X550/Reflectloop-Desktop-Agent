@@ -33,7 +33,7 @@
 在仓库根目录执行。**先同步版本号**：改 `package.json` 的 `version` 与仓库根目录 `VERSION` 文件，保持一致（`app.getVersion()` 读取的是 package.json 的 version）。
 
 ```bash
-cd Reflectloop-Desktop-Agent
+cd zhiji-Desktop-Agent
 
 # 安装依赖（首次）
 npm install
