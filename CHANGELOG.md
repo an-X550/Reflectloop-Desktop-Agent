@@ -4,6 +4,11 @@ last_updated: 2026-08-22
 
 # 更新记录
 
+## [2026-08-22] [文档] 依据第一性原理重构 Desktop Agent README（v2.6.5 -> v2.6.5）
+
+- README 首屏现在先回答产品是什么、适合谁、如何完成最短闭环，以及 Agent 的真实边界；删除把桌面端误解为整个 ReflectLoop 或通用 Computer Use 的空间。
+- 重新组织安装、数据隐私、入口分流和开发说明；版本、发布制品和运行能力不变。
+
 ## [2026-08-22] [配置] 将桌面仓库定位明确为 Desktop Agent（v2.6.5 -> v2.6.5）
 
 - README、安装说明、源码克隆命令、Release、Issues、主页和 package metadata 统一到 `Reflectloop-Desktop-Agent` / `reflectloop-desktop-agent`。
