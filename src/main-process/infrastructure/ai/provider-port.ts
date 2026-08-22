@@ -1,4 +1,4 @@
-import type { ChatMessage, CollectOptions } from './openai-compatible-provider';
+import type { ChatMessage, CollectOptions, StructuredCollectOptions, StructuredCompletion } from './openai-compatible-provider';
 
 /**
  * AI 服务商统一端口：应用层与 skill-runtime 共用这一处定义。
@@ -6,5 +6,6 @@ import type { ChatMessage, CollectOptions } from './openai-compatible-provider';
  */
 export interface ProviderPort {
   collect(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): Promise<string>;
+  collectStructured?(messages: ChatMessage[], signal: AbortSignal | undefined, options: StructuredCollectOptions): Promise<StructuredCompletion>;
   stream?(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string>;
 }

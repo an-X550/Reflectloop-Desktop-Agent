@@ -36,6 +36,7 @@ export const SaveProviderConfigInputSchema = z.object({
   providerId: z.enum(['openai', 'deepseek', 'custom']),
   baseUrl: z.string().trim().min(1).max(2048),
   model: z.string().trim().min(1).max(160),
+  agentThinking: z.enum(['disabled', 'enabled']).default('disabled'),
   apiKey: z.string().trim().min(1).max(4096).optional(),
 }).strict();
 export const SaveProfileInputSchema = z.object({ body: z.string().trim().min(1).max(100_000), enabledForAi: z.boolean() }).strict();

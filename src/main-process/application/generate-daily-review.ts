@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { appError } from '../../shared/errors/app-error';
+import { appError, isStructuredOutputError } from '../../shared/errors/app-error';
 import { isDailyReviewFresh, toSourceVersions } from '../../shared/domain/daily-freshness';
 import type { DailyGenerationResult, Review } from '../../shared/schemas/domain';
 import type { ReviewTaskManager } from '../domain/review-task';
@@ -29,7 +29,7 @@ export class GenerateDailyReview {
       this.tasks.transition(task.taskId, 'building_context');
       this.tasks.transition(task.taskId, 'generating');
       const profile = await this.profiles?.get();
-      const runtime = await runDailyFeedback({ journals, reviews: await this.reviews.list(), provider: this.provider, signal: task.controller.signal, ...(profile?.enabledForAi ? { profile: profile.body } : {}) });
+      const runtime = await runDailyFeedback({ journals, reviews: await this.reviews.list(), provider: this.provider, signal: task.controller.signal, onStructuredRetry: () => this.tasks.transition(task.taskId, 'retrying_format'), ...(profile?.enabledForAi ? { profile: profile.body } : {}) });
       if (runtime.kind === 'clarification') {
         await this.audit?.record({ date: input.date, sourceIds: journals.map((journal) => journal.id), grade: runtime.grade, outcome: 'clarification' });
         this.tasks.transition(task.taskId, 'completed');
@@ -43,7 +43,12 @@ export class GenerateDailyReview {
       await this.audit?.record({ date: input.date, sourceIds: review.sourceIds, grade: runtime.grade, outcome: 'review', ...(runtime.output.priorAction ? { priorActionStatus: runtime.output.priorAction.status } : {}) });
       this.tasks.transition(task.taskId, 'completed');
       return { kind: 'review', review };
-    } catch (error) { if (task.controller.signal.aborted || externalSignal?.aborted) this.tasks.transition(task.taskId, 'cancelled'); else this.tasks.transition(task.taskId, 'failed'); throw error; }
+    } catch (error) {
+      if (task.controller.signal.aborted || externalSignal?.aborted) this.tasks.transition(task.taskId, 'cancelled');
+      else this.tasks.transition(task.taskId, 'failed');
+      if (isStructuredOutputError(error)) return { kind: 'error', message: error.message, diagnostics: error.diagnostics };
+      throw error;
+    }
     finally { externalSignal?.removeEventListener('abort', abortExternal); }
   }
 }

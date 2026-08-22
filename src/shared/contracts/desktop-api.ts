@@ -28,10 +28,8 @@ export interface ZhijiDesktopApi {
     delete(name: string): Promise<void>;
   };
   app: {
-    /** 当前应用版本与构建信息（用于"关于"展示与更新检查）。 */
-    getInfo(): Promise<{ version: string; updateUrl: string | null }>;
-    /** 设置或清空发布地址（用于"检查更新"打开浏览器）。 */
-    setUpdateUrl(url: string | null): Promise<void>;
+    /** 当前应用版本，用于设置页页脚展示。 */
+    getInfo(): Promise<{ version: string }>;
   };
   profile: { get(): Promise<Profile | null>; save(input: SaveProfileInput): Promise<Profile>; clear(): Promise<void> };
   transfer: {

@@ -1,5 +1,5 @@
 import type { ConfigureAi } from '../application/configure-ai';
-import type { AgentModelRequest, AgentModelResponse } from '../../shared/schemas/agent-protocol';
+import type { AgentModelRequest, AgentModelResponse, AgentRuntimeModelConfig } from '../../shared/schemas/agent-protocol';
 
 /** Main-process-only model relay. It deliberately owns the API key boundary. */
 export class AgentModelTransport {
@@ -7,16 +7,24 @@ export class AgentModelTransport {
 
   constructor(private readonly configureAi: ConfigureAi) {}
 
+  async getRuntimeModelConfig(): Promise<AgentRuntimeModelConfig> {
+    const config = await this.configureAi.getPublicConfig();
+    return { providerId: config.providerId, model: config.model };
+  }
+
   async stream(request: AgentModelRequest, send: (command: AgentModelResponse) => void): Promise<void> {
     const controller = new AbortController();
     this.active.set(request.requestId, controller);
     try {
       const messages = [
         ...(request.system ? [{ role: 'system' as const, content: request.system }] : []),
-        ...request.messages,
+        ...request.messages.map((message) => message.role === 'assistant'
+          ? { role: 'assistant' as const, content: message.content, ...(message.reasoning ? { reasoning: message.reasoning } : {}), ...(message.toolCalls ? { toolCalls: message.toolCalls } : {}) }
+          : message),
       ];
       for await (const delta of this.configureAi.streamAgent(messages, request.tools ?? [], controller.signal)) {
         if (delta.kind === 'text') send({ type: 'model.delta', requestId: request.requestId, delta: delta.text });
+        else if (delta.kind === 'reasoning') send({ type: 'model.reasoning-delta', requestId: request.requestId, delta: delta.text });
         else send({ type: 'model.tool-call', requestId: request.requestId, index: delta.index, callId: delta.callId, ...(delta.name ? { name: delta.name } : {}), argumentsDelta: delta.argumentsDelta });
       }
       send({ type: 'model.completed', requestId: request.requestId });

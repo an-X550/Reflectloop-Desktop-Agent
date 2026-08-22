@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AgentFacade, type AgentRuntimePort } from '../../src/main-process/agent/agent-facade';
 import type { AgentModelTransport } from '../../src/main-process/agent/agent-model-transport';
 import type { AgentModelResponse, AgentUtilityCommand, AgentUtilityEvent } from '../../src/shared/schemas/agent-protocol';
+import type { AgentEvent } from '../../src/shared/schemas/agent';
 
 class FakeDshRuntime implements AgentRuntimePort {
   readonly commands: AgentUtilityCommand[] = [];
@@ -61,6 +62,30 @@ describe('AgentFacade', () => {
     expect(dispatcher.approve).toHaveBeenCalledWith(session.id, 'approval_abc123');
     expect(runtime.commands.map((item) => item.type)).toEqual(['session.start', 'session.send']);
     expect(facade.get(session.id).messages.at(-1)?.content).toContain('确认执行');
+  });
+
+  it('emits only non-empty memory evidence from the Main Process validated result', async () => {
+    const runtime = new FakeDshRuntime();
+    const model = { stream: vi.fn(), cancel: vi.fn(), dispose: vi.fn() } as unknown as AgentModelTransport;
+    const dispatcher = {
+      approve: vi.fn(() => true),
+      dispatch: vi.fn()
+        .mockResolvedValueOnce({ kind: 'memory.search', hits: [] })
+        .mockResolvedValueOnce({ kind: 'memory.search', hits: [{ id: 'journal_a1', kind: 'journal', date: '2026-08-20', excerpt: '真实日志摘录' }] }),
+    };
+    const facade = new AgentFacade(runtime, model, dispatcher as never);
+    const events: AgentEvent[] = [];
+    facade.subscribe((event) => events.push(event));
+    const session = await facade.start('检索历史');
+    const requestEvent = (requestId: string): AgentUtilityEvent => ({ type: 'tool.request', requestId, sessionId: session.id, action: 'memory.search', input: { query: '行动' } });
+
+    runtime.emit(requestEvent(crypto.randomUUID()));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    runtime.emit(requestEvent(crypto.randomUUID()));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(events.filter((event) => event.type === 'tool.evidence')).toEqual([expect.objectContaining({ type: 'tool.evidence', sessionId: session.id, source: 'memory.search', hits: [{ id: 'journal_a1', kind: 'journal', date: '2026-08-20', excerpt: '真实日志摘录' }] })]);
+    await facade.dispose();
   });
 
   it('deletes an idle session through the runtime and removes it from the facade', async () => {

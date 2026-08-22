@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { StructuredOutputDiagnostics } from '../errors/app-error';
 
 const StableId = z.string().regex(/^(journal|review|project)_[a-z0-9]+$/);
 const IsoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -69,7 +70,10 @@ export const VerifiedPatternCandidateSchema = z.object({
 export type Journal = z.infer<typeof JournalSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Review = z.infer<typeof ReviewSchema>;
-export type DailyGenerationResult = { kind: 'review'; review: Review } | { kind: 'clarification'; question: string };
+export type DailyGenerationResult =
+  | { kind: 'review'; review: Review }
+  | { kind: 'clarification'; question: string }
+  | { kind: 'error'; message: string; diagnostics: StructuredOutputDiagnostics };
 export type PeriodicGenerationResult = { kind: 'review'; review: Review } | { kind: 'clarification'; question: string };
 export type InsightReviewType = Extract<Review['type'], 'coach' | 'yearly' | 'life-design'>;
 export type Profile = z.infer<typeof ProfileSchema>;
@@ -97,10 +101,12 @@ export type WebSourceContent = z.infer<typeof WebSourceContentSchema>;
 
 // —— 契约层共享类型（S5：从 main-process 归位到 shared，消除反向依赖） ——
 
+export const AgentThinkingModeSchema = z.enum(['disabled', 'enabled']).default('disabled');
 export const ProviderConfigSchema = z.object({
   providerId: z.enum(['openai', 'deepseek', 'custom']),
   baseUrl: z.string().trim().min(1).max(2048),
   model: z.string().trim().min(1).max(160),
+  agentThinking: AgentThinkingModeSchema,
 }).strict();
 export const PublicProviderConfigSchema = ProviderConfigSchema.extend({ hasApiKey: z.boolean() }).strict();
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;

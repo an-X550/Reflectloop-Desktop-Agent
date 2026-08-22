@@ -53,6 +53,65 @@ describe('AgentPage', () => {
     expect(onNavigate).toHaveBeenCalledTimes(2);
   });
 
+  it('shows bounded evidence for the current session, expands it, and does not mix sessions', async () => {
+    const otherSession = { ...session, id: 'agent_other123', title: '其他会话' };
+    let listener: ((event: AgentEvent) => void) | undefined;
+    const onNavigate = vi.fn();
+    window.zhiji.agent.list = vi.fn(async () => [session, otherSession]);
+    window.zhiji.agent.onEvent = vi.fn((next) => { listener = next; return () => undefined; });
+    render(<AgentPage onNavigate={onNavigate}/>);
+    await waitFor(() => expect(listener).toBeTypeOf('function'));
+
+    listener?.({ type: 'tool.evidence', sessionId: session.id, callId: crypto.randomUUID(), source: 'memory.search', hits: Array.from({ length: 5 }, (_, index) => ({ id: `journal_e${index}`, kind: 'journal' as const, date: '2026-08-20', excerpt: `证据 ${index + 1}` })) });
+    expect(await screen.findByText('证据 1')).toBeInTheDocument();
+    expect(screen.queryByText('证据 4')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开全部证据（最多 5 条）' }));
+    expect(await screen.findByText('证据 5')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /其他会话/ }));
+    expect(screen.queryByText('证据 1')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /周复盘/ }));
+    expect(await screen.findByText('证据 1')).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '查看日志' })[0]);
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'journal', intent: { type: 'records.journals' } });
+  });
+
+  it('clears only the selected session evidence when sending a new turn', async () => {
+    const otherSession = { ...session, id: 'agent_other123', title: '其他会话' };
+    let listener: ((event: AgentEvent) => void) | undefined;
+    window.zhiji.agent.list = vi.fn(async () => [session, otherSession]);
+    window.zhiji.agent.send = vi.fn(async () => undefined);
+    window.zhiji.agent.onEvent = vi.fn((next) => { listener = next; return () => undefined; });
+    render(<AgentPage/>);
+    await waitFor(() => expect(listener).toBeTypeOf('function'));
+
+    listener?.({ type: 'tool.evidence', sessionId: session.id, callId: crypto.randomUUID(), source: 'memory.search', hits: Array.from({ length: 8 }, (_, index) => ({ id: `journal_old${index}`, kind: 'journal' as const, date: '2026-08-20', excerpt: `A 旧证据 ${index + 1}` })) });
+    listener?.({ type: 'tool.evidence', sessionId: otherSession.id, callId: crypto.randomUUID(), source: 'memory.search', hits: [{ id: 'journal_other1', kind: 'journal', date: '2026-08-21', excerpt: 'B 会话证据' }] });
+
+    expect(await screen.findByText('A 旧证据 1')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /其他会话/ }));
+    expect(await screen.findByText('B 会话证据')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /周复盘/ }));
+    expect(screen.queryByText('A 旧证据 4')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '展开全部证据（最多 8 条）' }));
+    expect(await screen.findByText('A 旧证据 8')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox', { name: '向知己 Agent 发送消息' }), { target: { value: '开始新一回合' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送' }));
+    await waitFor(() => expect(window.zhiji.agent.send).toHaveBeenCalledWith({ sessionId: session.id, message: '开始新一回合' }));
+    expect(screen.queryByText('A 旧证据 1')).not.toBeInTheDocument();
+    expect(screen.queryByText('A 旧证据 8')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /其他会话/ }));
+    expect(await screen.findByText('B 会话证据')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /周复盘/ }));
+    expect(screen.queryByText('A 旧证据 1')).not.toBeInTheDocument();
+
+    listener?.({ type: 'tool.evidence', sessionId: session.id, callId: crypto.randomUUID(), source: 'memory.search', hits: [{ id: 'journal_new1', kind: 'journal', date: '2026-08-22', excerpt: 'A 新回合证据' }] });
+    expect(await screen.findByText('A 新回合证据')).toBeInTheDocument();
+    expect(screen.queryByText('A 旧证据 1')).not.toBeInTheDocument();
+  });
+
   it('requires an explicit page confirmation before resuming a formal workflow', async () => {
     let listener: ((event: AgentEvent) => void) | undefined;
     window.zhiji.agent.onEvent = vi.fn((next) => { listener = next; return () => undefined; });
@@ -74,6 +133,6 @@ describe('AgentPage', () => {
 
     expect(await screen.findByText('请先在设置中保存可用的 API Key。')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '打开设置' }));
-    expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
+    expect(onNavigate).toHaveBeenCalledWith({ view: 'settings', settingsSection: 'ai' });
   });
 });

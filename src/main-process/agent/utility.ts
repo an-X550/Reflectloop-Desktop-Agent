@@ -8,7 +8,11 @@ process.parentPort?.on('message', (event) => {
     ? (event.data as { sessionRoot: string }).sessionRoot
     : undefined;
   const runtime = new DshRuntime(port as unknown as UtilityMessagePort, { sessionRoot });
-  void runtime.start().catch(() => {
-    port.postMessage({ type: 'runtime.error', message: '知己 Agent 无法启动，请稍后重试。' });
+  void runtime.start().catch((error: unknown) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    port.postMessage({
+      type: 'runtime.error',
+      message: `知己 Agent 初始化失败：${(detail || '未知运行时错误').slice(0, 450)}`,
+    });
   });
 });

@@ -2,11 +2,13 @@ import { appError } from '../../../shared/errors/app-error';
 
 export type ChatMessage =
   | { role: 'system' | 'user'; content: string }
-  | { role: 'assistant'; content: string; toolCalls?: Array<{ id: string; name: string; arguments: string }> }
+  | { role: 'assistant'; content: string; reasoning?: string; toolCalls?: Array<{ id: string; name: string; arguments: string }> }
   | { role: 'tool'; content: string; toolCallId: string };
 export interface CollectOptions { jsonObject?: boolean }
+export interface StructuredCompletion { content: string; finishReason: string | null }
+export interface StructuredCollectOptions { maxTokens: number }
 export interface AgentToolSpec { name: string; description: string; parameters: Record<string, unknown> }
-export type AgentStreamDelta = { kind: 'text'; text: string } | { kind: 'tool-call'; index: number; callId: string; name?: string; argumentsDelta: string };
+export type AgentStreamDelta = { kind: 'text'; text: string } | { kind: 'reasoning'; text: string } | { kind: 'tool-call'; index: number; callId: string; name?: string; argumentsDelta: string };
 
 function normalizeAgentToolName(name: string, used: Set<string>): string {
   const base = (name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'tool').slice(0, 64);
@@ -38,17 +40,19 @@ function ensureSuccessfulResponse(response: Response, model: string): void {
 }
 
 export class OpenAiCompatibleProvider {
-  constructor(private readonly config: { providerId?: string; baseUrl: string; model: string; apiKey: string }) {}
+  constructor(private readonly config: { providerId?: string; baseUrl: string; model: string; apiKey: string; agentThinking?: 'disabled' | 'enabled' }) {}
 
   async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {
     for await (const delta of this.streamFrames(messages, signal, options)) if (delta.kind === 'text') yield delta.text;
   }
 
   async *streamAgent(messages: ChatMessage[], tools: AgentToolSpec[], signal?: AbortSignal): AsyncGenerator<AgentStreamDelta> {
-    yield* this.streamFrames(messages, signal, undefined, tools, this.config.providerId === 'deepseek');
+    const deepSeek = this.config.providerId === 'deepseek';
+    const thinkingEnabled = deepSeek && this.config.agentThinking === 'enabled';
+    yield* this.streamFrames(messages, signal, undefined, tools, deepSeek, thinkingEnabled);
   }
 
-  private async *streamFrames(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions, tools?: AgentToolSpec[], disableThinking = false): AsyncGenerator<AgentStreamDelta> {
+  private async *streamFrames(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions, tools?: AgentToolSpec[], deepSeek = false, thinkingEnabled = false): AsyncGenerator<AgentStreamDelta> {
     const combined = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)])
       : AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
@@ -69,8 +73,8 @@ export class OpenAiCompatibleProvider {
         body: JSON.stringify({ model: this.config.model, messages: messages.map((message) => message.role === 'tool'
           ? { role: 'tool', content: message.content, tool_call_id: message.toolCallId }
           : message.role === 'assistant' && message.toolCalls?.length
-            ? { role: 'assistant', content: message.content, tool_calls: message.toolCalls.map((call) => ({ id: call.id, type: 'function', function: { name: internalToolNames.get(call.name) ?? call.name, arguments: call.arguments } })) }
-            : { role: message.role, content: message.content }), stream: true, ...(disableThinking ? { thinking: { type: 'disabled' } } : {}), ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}), ...(apiTools?.length ? { tools: apiTools.map((tool) => ({ type: 'function', function: tool })) } : {}) }),
+            ? { role: 'assistant', content: message.content, ...(message.reasoning ? { reasoning_content: message.reasoning } : {}), tool_calls: message.toolCalls.map((call) => ({ id: call.id, type: 'function', function: { name: internalToolNames.get(call.name) ?? call.name, arguments: call.arguments } })) }
+            : { role: message.role, content: message.content }), stream: true, ...(deepSeek ? { thinking: { type: thinkingEnabled ? 'enabled' : 'disabled' } } : {}), ...(options?.jsonObject ? { response_format: { type: 'json_object' } } : {}), ...(apiTools?.length ? { tools: apiTools.map((tool) => ({ type: 'function', function: tool })) } : {}) }),
       });
     } catch {
       throw mapNetworkError(signal);
@@ -100,9 +104,11 @@ export class OpenAiCompatibleProvider {
           let payload: unknown;
           try { payload = JSON.parse(data); }
           catch { continue; }
-          const delta = (payload as { choices?: Array<{ delta?: { content?: unknown; tool_calls?: Array<{ index?: unknown; id?: unknown; function?: { name?: unknown; arguments?: unknown } }> } }> } | null)?.choices?.[0]?.delta;
+          const delta = (payload as { choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown; tool_calls?: Array<{ index?: unknown; id?: unknown; function?: { name?: unknown; arguments?: unknown } }> } }> } | null)?.choices?.[0]?.delta;
           const text = delta?.content;
           if (typeof text === 'string') yield { kind: 'text', text };
+          const reasoning = delta?.reasoning_content;
+          if (typeof reasoning === 'string') yield { kind: 'reasoning', text: reasoning };
           for (const call of delta?.tool_calls ?? []) {
             if (typeof call.index !== 'number' || !Number.isInteger(call.index)) continue;
             const callId = typeof call.id === 'string' ? call.id : toolCallIds.get(call.index);
@@ -122,6 +128,40 @@ export class OpenAiCompatibleProvider {
     let output = '';
     for await (const delta of this.stream(messages, signal, options)) output += delta;
     return output;
+  }
+
+  /**
+   * 结构化内容专用的非流式收集路径：保留服务商的 finish_reason，
+   * 让日反馈可以区分空内容、截断、JSON 错误和 Schema 错误。
+   */
+  async collectStructured(messages: ChatMessage[], signal?: AbortSignal, options: StructuredCollectOptions = { maxTokens: 1200 }): Promise<StructuredCompletion> {
+    const combined = signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS)])
+      : AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+        method: 'POST', signal: combined,
+        headers: { authorization: `Bearer ${this.config.apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: this.config.model,
+          messages: messages.map((message) => ({ role: message.role, content: message.content })),
+          stream: false,
+          max_tokens: options.maxTokens,
+          response_format: { type: 'json_object' },
+        }),
+      });
+    } catch {
+      throw mapNetworkError(signal);
+    }
+    ensureSuccessfulResponse(response, this.config.model);
+    let payload: unknown;
+    try { payload = await response.json(); }
+    catch { throw appError({ code: 'UNKNOWN', message: '接口返回内容无法读取。' }); }
+    const choice = (payload as { choices?: Array<{ message?: { content?: unknown }; finish_reason?: unknown }> } | null)?.choices?.[0];
+    const content = typeof choice?.message?.content === 'string' ? choice.message.content : '';
+    const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : null;
+    return { content, finishReason };
   }
 
   async testConnection(signal?: AbortSignal): Promise<void> {

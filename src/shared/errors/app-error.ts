@@ -5,7 +5,7 @@ export type AppError =
   | { code: 'MODEL_NOT_FOUND'; model: string }
   | { code: 'RATE_LIMITED'; retryAfter?: number }
   | { code: 'NETWORK_TIMEOUT' }
-  | { code: 'INVALID_MODEL_OUTPUT'; message?: string }
+  | { code: 'INVALID_MODEL_OUTPUT'; message?: string; diagnostics?: StructuredOutputDiagnostics }
   | { code: 'FILE_CONFLICT'; path: string }
   | { code: 'DATA_CORRUPTED'; path: string }
   | { code: 'IMPORT_REJECTED'; reason: string }
@@ -15,6 +15,23 @@ export type AppError =
   | { code: 'WEB_SOURCE_FAILED'; message: string }
   | { code: 'UNKNOWN'; message: string };
 
+export type StructuredOutputFailureKind = 'empty_content' | 'truncated' | 'invalid_json' | 'schema_mismatch';
+
+/** 只包含可安全展示的结构化输出元数据，不包含模型原文、日志、个人背景或凭据。 */
+export interface StructuredOutputDiagnostics {
+  kind: StructuredOutputFailureKind;
+  finishReason: string | null;
+  outputLength: number;
+  schemaPaths: string[];
+  at: string;
+}
+
+export function isStructuredOutputError(error: unknown): error is Error & { code: 'INVALID_MODEL_OUTPUT'; diagnostics: StructuredOutputDiagnostics } {
+  if (!(error instanceof Error)) return false;
+  const candidate = error as Error & { code?: unknown; diagnostics?: unknown };
+  return candidate.code === 'INVALID_MODEL_OUTPUT' && Boolean(candidate.diagnostics);
+}
+
 function defaultMessage(error: AppError): string {
   switch (error.code) {
     case 'INVALID_INPUT': return '输入不合法，请检查后重试。';
@@ -23,7 +40,7 @@ function defaultMessage(error: AppError): string {
     case 'MODEL_NOT_FOUND': return `模型「${error.model}」不存在，请在设置中更换模型。`;
     case 'RATE_LIMITED': return '请求过于频繁被限流，请稍后重试。';
     case 'NETWORK_TIMEOUT': return '网络请求失败或超时，请检查网络后重试。';
-    case 'INVALID_MODEL_OUTPUT': return 'AI 返回的内容不符合预期，请重试。';
+    case 'INVALID_MODEL_OUTPUT': return 'AI 这次没有返回可用的反馈，日志和已有数据没有受到影响。';
     case 'FILE_CONFLICT': return `文件冲突：${error.path}，请刷新后重试。`;
     case 'DATA_CORRUPTED': return `数据文件损坏：${error.path}，请从备份恢复。`;
     case 'IMPORT_REJECTED': return `导入被拒绝：${error.reason}`;

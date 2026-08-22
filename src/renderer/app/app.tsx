@@ -23,13 +23,13 @@ export function App() {
     if (target.view === 'journal' && journalDirty && next.view !== 'journal') { setPendingTarget(next); return; }
     setTarget(next);
   };
-  return <AppShell view={target.view} onNavigate={navigate} connectionReady={data.hasApiKey} dataPath={data.dataDirectory?.path}>
+  return <AppShell view={target.view} onNavigate={navigate} connectionReady={data.hasApiKey}>
     {target.view === 'start' ? <StartPage journals={data.journals} reviews={data.reviews} hasApiKey={data.hasApiKey} onNavigate={navigate}/>
       : target.view === 'agent' ? <AgentPage onNavigate={navigate}/>
       : target.view === 'journal' ? <TodayPage journals={data.journals} projects={data.projects} reviews={data.reviews} intent={target.intent} hasApiKey={data.hasApiKey} onRefresh={data.refresh} onNavigate={navigate} onDirtyChange={setJournalDirty}/>
       : target.view === 'reviews' ? <ReviewsPage projects={data.projects.filter((item) => item.status === 'active')} reviews={data.reviews} intent={target.intent} onRefresh={data.refresh}/>
       : target.view === 'projects' ? <ProjectsPage projects={data.projects} journals={data.journals} onRefresh={data.refresh} onNavigate={navigate}/>
-      : <SettingsPage onSaved={data.refresh}/>}
+      : <SettingsPage initialSection={target.settingsSection} onSaved={data.refresh}/>}
     <ConfirmDialog
       open={pendingTarget !== null}
       title="离开日志编辑？"

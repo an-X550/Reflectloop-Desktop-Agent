@@ -21,6 +21,7 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
   private ready = false;
   private resolveStartup: (() => void) | undefined;
   private rejectStartup: ((error: Error) => void) | undefined;
+  private startupDiagnostics = '';
 
   private readonly options: ElectronAgentRuntimeOptions;
 
@@ -34,7 +35,7 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
     catch (error) { this.startup = undefined; throw error; }
   }
 
-  async request(command: Exclude<AgentUtilityCommand, { type: 'model.delta' | 'model.completed' | 'model.failed' | 'model.cancelled' }>): Promise<void> {
+  async request(command: Exclude<AgentUtilityCommand, { type: 'model.delta' | 'model.reasoning-delta' | 'model.completed' | 'model.failed' | 'model.cancelled' }>): Promise<void> {
     await this.start();
     const port = this.port;
     if (!port) throw new Error('知己 Agent 未启动。');
@@ -76,10 +77,16 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
       const channel = new MessageChannelMain();
       this.child = child;
       this.port = channel.port1;
+      this.startupDiagnostics = '';
       this.stopping = false;
       this.ready = false;
       this.resolveStartup = resolve;
       this.rejectStartup = reject;
+      child.stderr?.on('data', (chunk) => this.appendStartupDiagnostics(chunk));
+      // Drain stdout as well: a piped child stream can otherwise block startup
+      // after enough diagnostic output, while stderr remains the user-facing
+      // failure source.
+      child.stdout?.on('data', () => undefined);
       channel.port1.on('message', (event) => this.handleMessage(event.data));
       channel.port1.start();
       child.once('spawn', () => child.postMessage({ type: 'agent-port', ...(this.options.sessionRoot ? { sessionRoot: this.options.sessionRoot } : {}) }, [channel.port2]));
@@ -100,7 +107,8 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
   }
 
   private handleExit(): void {
-    const error = new Error('知己 Agent 运行已停止。');
+    const detail = this.startupDiagnostics.trim();
+    const error = new Error(detail ? `知己 Agent 运行已停止：${detail}` : '知己 Agent 运行已停止。');
     if (!this.ready) this.rejectStartup?.(error);
     this.resolveStartup = undefined;
     this.rejectStartup = undefined;
@@ -113,5 +121,14 @@ export class ElectronAgentRuntime implements AgentRuntimePort {
     this.port = undefined;
     this.startup = undefined;
     if (notify) for (const listener of this.exitListeners) listener();
+  }
+
+  private appendStartupDiagnostics(chunk: unknown): void {
+    const text = String(chunk).replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    this.startupDiagnostics = `${this.startupDiagnostics} ${text}`
+      .replace(/(authorization|bearer|api[-_ ]?key)\s*[:=]\s*\S+/gi, '$1=[REDACTED]')
+      .trim()
+      .slice(-2_000);
   }
 }

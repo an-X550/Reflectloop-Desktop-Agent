@@ -34,6 +34,21 @@ describe('TodayPage', () => {
     expect(window.zhiji.journals.create).toHaveBeenCalledWith({ date, body: '新的日志内容', projectIds: [] });
   });
 
+  it('manages templates from the journal editor and refreshes the selector', async () => {
+    const initial = [{ name: '每日回顾', body: '今天发生了什么？' }];
+    const updated = [...initial, { name: '事件记录', body: '事实：' }];
+    vi.mocked(window.zhiji.templates.list).mockResolvedValueOnce(initial).mockResolvedValueOnce(updated);
+    render(<TodayPage journals={[]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
+    expect(await screen.findByRole('option', { name: '每日回顾' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '管理模板' }));
+    fireEvent.click(screen.getByRole('button', { name: '新建模板' }));
+    fireEvent.change(screen.getByRole('textbox', { name: '模板名称' }), { target: { value: '事件记录' } });
+    fireEvent.change(screen.getByRole('textbox', { name: '模板正文' }), { target: { value: '事实：' } });
+    vi.mocked(window.zhiji.templates.save).mockResolvedValueOnce(updated[1]);
+    fireEvent.click(screen.getByRole('button', { name: '保存模板' }));
+    expect(await screen.findByRole('option', { name: '事件记录' })).toBeInTheDocument();
+  });
+
   it('retains the draft and exposes a retryable error when saving fails', async () => {
     vi.mocked(window.zhiji.journals.create).mockRejectedValueOnce(new Error('disk full'));
     render(<TodayPage journals={[]} projects={[]} reviews={[]} onRefresh={vi.fn()} onNavigate={vi.fn()}/>);
@@ -62,7 +77,7 @@ describe('TodayPage', () => {
   it('keeps saving available while pointing an unconfigured user to AI settings', () => {
     const onNavigate = vi.fn(); render(<TodayPage journals={[]} projects={[]} reviews={[]} hasApiKey={false} onRefresh={vi.fn()} onNavigate={onNavigate}/>);
     expect(screen.getByText('日志可直接保存；配置后还能生成反馈。')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith({ view: 'settings' });
+    fireEvent.click(screen.getByRole('button', { name: '配置 AI' })); expect(onNavigate).toHaveBeenCalledWith({ view: 'settings', settingsSection: 'ai' });
   });
 
   it('opens past journals from a records intent and focuses writing from a compose intent', async () => {

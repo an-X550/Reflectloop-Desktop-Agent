@@ -49,11 +49,7 @@ export function registerHandlers(deps: { createJournal: CreateJournal; updateJou
   ipcMain.handle('templates:get', (_event, raw) => deps.templates.get(TemplateNameSchema.parse(raw)));
   ipcMain.handle('templates:save', (_event, raw) => deps.templates.save(SaveTemplateInputSchema.parse(raw)));
   ipcMain.handle('templates:delete', (_event, raw) => deps.templates.delete(TemplateNameSchema.parse(raw)));
-  ipcMain.handle('app:get-info', async () => { const config = await deps.dataRootConfig.load(); return { version: deps.appVersion, updateUrl: config.updateUrl ?? null }; });
-  ipcMain.handle('app:set-update-url', async (_event, raw) => {
-    const url = raw === null || raw === '' ? null : z.string().url().parse(raw);
-    await deps.dataRootConfig.patch(url ? { updateUrl: url } : { updateUrl: undefined });
-  });
+  ipcMain.handle('app:get-info', () => ({ version: deps.appVersion }));
   ipcMain.handle('profile:get', () => deps.profile.get()); ipcMain.handle('profile:save', (_event, raw) => deps.profile.save(SaveProfileInputSchema.parse(raw))); ipcMain.handle('profile:clear', () => deps.profile.clear());
   ipcMain.handle('transfer:export', async () => {
     const result = await deps.dialog.showSaveDialog({ title: '导出知己备份', defaultPath: `知己备份-${new Date().toISOString().slice(0, 10)}.zhiji.zip`, filters: [{ name: '知己备份', extensions: ['zip'] }] });

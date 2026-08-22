@@ -12,19 +12,20 @@ const config: ForgeConfig = {
       unpack: '**/*.node',
     },
     appBundleId: 'com.zhiji.desktop',
-    // Keep the Windows executable name ASCII-safe for Squirrel's nupkg
-    // archive. The UI/product name remains the Chinese "知己".
-    executableName: 'zhiji',
     // The Vite plugin normally excludes every node_modules entry because
     // application dependencies are bundled. DSH must stay external so its
-    // package-relative package.json lookup remains valid, therefore keep only
-    // the DSH runtime and its Windows FFI dependency in the production asar.
+    // package-relative package.json lookup remains valid, therefore keep the
+    // DSH runtime and its small set of external runtime dependencies in asar.
     ignore: (file) => {
       if (!file) return false;
       const normalized = file.replace(/\\/g, '/').toLowerCase();
       const keptPaths = [
         '/.vite',
         '/node_modules/@deepseek-ai',
+        // DSH packages are externalized and import these non-DSH runtime
+        // dependencies from their own ESM entry points.
+        '/node_modules/@standard-schema',
+        '/node_modules/zod',
         '/node_modules/koffi',
         '/node_modules/@koromix',
       ];

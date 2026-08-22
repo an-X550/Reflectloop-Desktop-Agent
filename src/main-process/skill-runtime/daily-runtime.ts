@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
 import { Annotation, END, MemorySaver, START, StateGraph } from '@langchain/langgraph';
+import { z } from 'zod';
 import type { Journal, Review } from '../../shared/schemas/domain';
-import { appError } from '../../shared/errors/app-error';
+import { appError, isStructuredOutputError, type StructuredOutputDiagnostics, type StructuredOutputFailureKind } from '../../shared/errors/app-error';
 import { buildDailyContext } from '../domain/daily-context';
 import type { ProviderPort } from '../infrastructure/ai/provider-port';
+import type { ChatMessage, StructuredCompletion } from '../infrastructure/ai/openai-compatible-provider';
 import { DAILY_REVIEW_SYSTEM_PROMPT, parseDailyReviewOutput, renderDailyReview, type DailyReviewOutput } from '../prompts/daily-review-v1';
 import { buildDailyEvidence, type DailyEvidence, type DailyEvidenceGrade } from './daily-evidence';
 import { confirmPersonalExperience } from './daily-grade-review';
@@ -20,6 +22,7 @@ interface RuntimeInput {
   provider: ProviderPort;
   profile?: string;
   signal?: AbortSignal;
+  onStructuredRetry?(): void;
 }
 
 interface RuntimeState {
@@ -45,17 +48,51 @@ function gradeInstruction(grade: Exclude<DailyEvidenceGrade, 'D'>): string {
   return '本次是 A 级证据：仅在给定材料支持时才可填写 patternConnection。';
 }
 
+const DAILY_REVIEW_MAX_TOKENS = 1200;
+
+function diagnostics(kind: StructuredOutputFailureKind, completion: StructuredCompletion, schemaPaths: string[] = []): StructuredOutputDiagnostics {
+  return { kind, finishReason: completion.finishReason, outputLength: completion.content.length, schemaPaths, at: new Date().toISOString() };
+}
+
+function parseStructuredReview(completion: StructuredCompletion): DailyReviewOutput {
+  if (!completion.content.trim()) throw appError({ code: 'INVALID_MODEL_OUTPUT', diagnostics: diagnostics('empty_content', completion) });
+  if (completion.finishReason === 'length' || completion.finishReason === 'max_tokens') throw appError({ code: 'INVALID_MODEL_OUTPUT', diagnostics: diagnostics('truncated', completion) });
+  try { return parseDailyReviewOutput(completion.content); }
+  catch (error) {
+    if (error instanceof z.ZodError) {
+      const paths = [...new Set(error.issues.map((issue) => issue.path.length ? issue.path.join('.') : '<root>'))].slice(0, 12);
+      throw appError({ code: 'INVALID_MODEL_OUTPUT', diagnostics: diagnostics('schema_mismatch', completion, paths) });
+    }
+    throw appError({ code: 'INVALID_MODEL_OUTPUT', diagnostics: diagnostics('invalid_json', completion) });
+  }
+}
+
+async function collectStructured(provider: ProviderPort, messages: ChatMessage[], signal?: AbortSignal): Promise<StructuredCompletion> {
+  if (provider.collectStructured) return provider.collectStructured(messages, signal, { maxTokens: DAILY_REVIEW_MAX_TOKENS });
+  return { content: await provider.collect(messages, signal, { jsonObject: true }), finishReason: null };
+}
+
 async function generateReview(state: RuntimeState): Promise<Partial<RuntimeState>> {
   const evidence = state.evidence;
   if (!evidence || evidence.grade === 'D') throw appError({ code: 'UNKNOWN', message: '日反馈工作流缺少可生成的证据等级。' });
   const context = buildDailyContext(state.input.journals, state.input.reviews);
-  const raw = await state.input.provider.collect([
+  const messages: ChatMessage[] = [
     { role: 'system', content: `${DAILY_REVIEW_SYSTEM_PROMPT}\n\n${gradeInstruction(evidence.grade)}` },
     { role: 'user', content: JSON.stringify({ context, evidence, ...(state.input.profile ? { profile: state.input.profile } : {}) }) },
-  ], state.input.signal, { jsonObject: true });
+  ];
+  let completion = await collectStructured(state.input.provider, messages, state.input.signal);
   let output: DailyReviewOutput;
-  try { output = parseDailyReviewOutput(raw); }
-  catch { throw appError({ code: 'INVALID_MODEL_OUTPUT', message: 'AI 返回的日反馈格式无效。' }); }
+  try { output = parseStructuredReview(completion); }
+  catch (error) {
+    if (!isStructuredOutputError(error)) throw error;
+    if (state.input.signal?.aborted) throw appError({ code: 'CANCELLED' });
+    state.input.onStructuredRetry?.();
+    completion = await collectStructured(state.input.provider, [
+      { role: 'system', content: `${messages[0].content}\n\n上一次结构化输出未通过校验。请只返回符合既有字段和类型的单个 JSON 对象，不要 Markdown、代码围栏或额外说明。` },
+      messages[1],
+    ], state.input.signal);
+    output = parseStructuredReview(completion);
+  }
   const normalized = evidence.grade === 'C' ? { ...output, patternConnection: null } : output;
   const date = state.input.journals[0]?.date;
   if (!date) throw appError({ code: 'UNKNOWN', message: '日反馈工作流缺少日志日期。' });

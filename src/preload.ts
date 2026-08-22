@@ -30,7 +30,6 @@ const api: ZhijiDesktopApi = {
   },
   app: {
     getInfo: () => ipcRenderer.invoke('app:get-info'),
-    setUpdateUrl: (url) => ipcRenderer.invoke('app:set-update-url', url),
   },
   profile: { get: () => ipcRenderer.invoke('profile:get'), save: (input) => ipcRenderer.invoke('profile:save', input), clear: () => ipcRenderer.invoke('profile:clear') },
   transfer: {

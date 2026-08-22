@@ -4,13 +4,15 @@ import { AgentNavigationTargetSchema, AgentPresentationCardSchema, AgentToolBrid
 
 const RequestIdSchema = z.string().uuid();
 const AgentTextSchema = z.string().trim().min(1).max(20_000);
+const AgentDeltaSchema = z.string().max(20_000);
 const ModelToolCallSchema = z.object({ id: z.string().trim().min(1).max(200), name: z.string().trim().min(1).max(200), arguments: z.string().max(20_000) }).strict();
 const ModelMessageSchema = z.discriminatedUnion('role', [
   z.object({ role: z.enum(['system', 'user']), content: AgentTextSchema }).strict(),
-  z.object({ role: z.literal('assistant'), content: z.string().max(20_000), toolCalls: z.array(ModelToolCallSchema).min(1).max(20).optional() }).strict(),
+  z.object({ role: z.literal('assistant'), content: z.string().max(20_000), reasoning: z.string().max(100_000).optional(), toolCalls: z.array(ModelToolCallSchema).min(1).max(20).optional() }).strict(),
   z.object({ role: z.literal('tool'), content: z.string().max(20_000), toolCallId: z.string().trim().min(1).max(200) }).strict(),
 ]);
 const ModelToolSchema = z.object({ name: z.string().trim().min(1).max(200), description: z.string().trim().min(1).max(2_000), parameters: z.record(z.string(), z.unknown()) }).strict();
+const AgentRuntimeModelConfigSchema = z.object({ providerId: z.enum(['openai', 'deepseek', 'custom']), model: z.string().trim().min(1).max(160) }).strict();
 
 export const AgentUtilityCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session.start'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema }).strict(),
@@ -18,8 +20,10 @@ export const AgentUtilityCommandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('session.send'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, message: AgentTextSchema }).strict(),
   z.object({ type: z.literal('session.cancel'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema }).strict(),
   z.object({ type: z.literal('session.delete'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema }).strict(),
+  z.object({ type: z.literal('runtime.configure'), requestId: RequestIdSchema, config: AgentRuntimeModelConfigSchema }).strict(),
   z.object({ type: z.literal('runtime.shutdown'), requestId: RequestIdSchema }).strict(),
-  z.object({ type: z.literal('model.delta'), requestId: RequestIdSchema, delta: AgentTextSchema }).strict(),
+  z.object({ type: z.literal('model.delta'), requestId: RequestIdSchema, delta: AgentDeltaSchema }).strict(),
+  z.object({ type: z.literal('model.reasoning-delta'), requestId: RequestIdSchema, delta: AgentDeltaSchema }).strict(),
   z.object({ type: z.literal('model.tool-call'), requestId: RequestIdSchema, index: z.number().int().nonnegative(), callId: z.string().trim().min(1).max(200), name: z.string().trim().min(1).max(200).optional(), argumentsDelta: z.string().max(20_000) }).strict(),
   z.object({ type: z.literal('model.completed'), requestId: RequestIdSchema }).strict(),
   z.object({ type: z.literal('model.failed'), requestId: RequestIdSchema, message: z.string().trim().min(1).max(500) }).strict(),
@@ -48,6 +52,7 @@ export const AgentUtilityEventSchema = z.discriminatedUnion('type', [
 
 export type AgentUtilityCommand = z.infer<typeof AgentUtilityCommandSchema>;
 export type AgentUtilityEvent = z.infer<typeof AgentUtilityEventSchema>;
+export type AgentRuntimeModelConfig = z.infer<typeof AgentRuntimeModelConfigSchema>;
 export type AgentModelRequest = Extract<AgentUtilityEvent, { type: 'model.request' }>;
-export type AgentModelResponse = Extract<AgentUtilityCommand, { type: 'model.delta' | 'model.tool-call' | 'model.completed' | 'model.failed' | 'model.cancelled' }>;
+export type AgentModelResponse = Extract<AgentUtilityCommand, { type: 'model.delta' | 'model.reasoning-delta' | 'model.tool-call' | 'model.completed' | 'model.failed' | 'model.cancelled' }>;
 export type AgentRuntimeResponse = AgentModelResponse | Extract<AgentUtilityCommand, { type: 'tool.result' }>;

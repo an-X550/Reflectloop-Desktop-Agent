@@ -7,13 +7,13 @@ describe('provider configuration', () => {
   });
 
   it('accepts HTTPS and explicit loopback development endpoints', () => {
-    expect(normalizeProviderConfig({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1/', model: 'gpt-5-mini' }).baseUrl)
+    expect(normalizeProviderConfig({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1/', model: 'gpt-5-mini', agentThinking: 'disabled' }).baseUrl)
       .toBe('https://api.openai.com/v1');
-    expect(normalizeProviderConfig({ providerId: 'custom', baseUrl: 'http://127.0.0.1:11434/v1', model: 'local' }, true).baseUrl)
+    expect(normalizeProviderConfig({ providerId: 'custom', baseUrl: 'http://127.0.0.1:11434/v1', model: 'local', agentThinking: 'disabled' }, true).baseUrl)
       .toBe('http://127.0.0.1:11434/v1');
   });
 
   it.each(['http://example.com/v1', 'file:///tmp/model', 'https://user:secret@example.com/v1', 'http://192.168.1.2/v1'])('rejects unsafe endpoint %s', (baseUrl) => {
-    expect(() => normalizeProviderConfig({ providerId: 'custom', baseUrl, model: 'model' }, true)).toThrow();
+    expect(() => normalizeProviderConfig({ providerId: 'custom', baseUrl, model: 'model', agentThinking: 'disabled' }, true)).toThrow();
   });
 });

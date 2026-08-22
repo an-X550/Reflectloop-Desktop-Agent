@@ -5,10 +5,10 @@ import { appError } from '../../shared/errors/app-error';
 import { atomicWriteUtf8 } from '../infrastructure/markdown/atomic-write';
 import { normalizeProviderConfig, PROVIDER_PRESETS, ProviderConfigSchema, type ProviderConfig, type PublicProviderConfig } from '../infrastructure/ai/provider-config';
 import { OpenAiCompatibleProvider } from '../infrastructure/ai/openai-compatible-provider';
-import type { AgentStreamDelta, AgentToolSpec, ChatMessage, CollectOptions } from '../infrastructure/ai/openai-compatible-provider';
+import type { AgentStreamDelta, AgentToolSpec, ChatMessage, CollectOptions, StructuredCollectOptions, StructuredCompletion } from '../infrastructure/ai/openai-compatible-provider';
 import type { CredentialStore } from '../infrastructure/credentials/credential-store';
 
-const defaults: ProviderConfig = { providerId: 'openai', baseUrl: PROVIDER_PRESETS.openai.baseUrl, model: PROVIDER_PRESETS.openai.defaultModel };
+const defaults: ProviderConfig = { providerId: 'openai', baseUrl: PROVIDER_PRESETS.openai.baseUrl, model: PROVIDER_PRESETS.openai.defaultModel, agentThinking: 'disabled' };
 
 function migrateProviderConfig(config: ProviderConfig): ProviderConfig {
   if (config.providerId === 'deepseek' && (config.model === 'deepseek-chat' || config.model === 'deepseek-reasoner')) {
@@ -60,6 +60,13 @@ export class ConfigureAi {
     const apiKey = await this.credentials.read(config.providerId);
     if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
     return new OpenAiCompatibleProvider({ ...config, apiKey }).collect(messages, signal, options);
+  }
+
+  async collectStructured(messages: ChatMessage[], signal: AbortSignal | undefined, options: StructuredCollectOptions): Promise<StructuredCompletion> {
+    const config = await this.readConfig();
+    const apiKey = await this.credentials.read(config.providerId);
+    if (!apiKey) throw appError({ code: 'INVALID_INPUT', message: '请先在设置中保存 API Key。' });
+    return new OpenAiCompatibleProvider({ ...config, apiKey }).collectStructured(messages, signal, options);
   }
 
   async *stream(messages: ChatMessage[], signal?: AbortSignal, options?: CollectOptions): AsyncGenerator<string> {

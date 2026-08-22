@@ -10,7 +10,7 @@ describe('ConfigureAi 缺少 API Key 时的错误', () => {
   it('testConnection 抛出带中文文案的结构化错误', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'zhiji-configure-ai-'));
     const service = new ConfigureAi(root, emptyCredentials);
-    await expect(service.testConnection({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini' }))
+    await expect(service.testConnection({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', agentThinking: 'disabled' }))
       .rejects.toMatchObject({ code: 'INVALID_INPUT', message: '请先填写 API Key。' });
   });
 

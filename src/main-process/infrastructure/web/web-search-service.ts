@@ -13,6 +13,8 @@ interface WebSearchSession {
   createdAt: string;
 }
 
+type FetchImpl = (url: string, init?: RequestInit) => Promise<Response>;
+
 function decodeEntities(value: string): string {
   return value
     .replace(/&amp;/g, '&')
@@ -54,7 +56,7 @@ export class WebSearchService {
   private readonly sessions = new Map<string, WebSearchSession>();
 
   constructor(
-    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly fetchImpl: FetchImpl = (url, init) => fetch(url, init),
     private readonly now: () => string = () => new Date().toISOString(),
     private readonly timeoutMs = 15_000,
   ) {}

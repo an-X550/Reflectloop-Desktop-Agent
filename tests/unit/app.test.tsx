@@ -14,7 +14,7 @@ function api() {
     reviews: { list: vi.fn(async () => []), generateDaily: vi.fn(), cancel: vi.fn(), preview: vi.fn(), generatePeriodic: vi.fn(), onTaskPhase: vi.fn(() => () => undefined) },
     templates: { list: vi.fn(async () => []), get: vi.fn(), save: vi.fn(), delete: vi.fn() },
     app: { getInfo: vi.fn(async () => ({ version: '1.27.0', updateUrl: null })), setUpdateUrl: vi.fn() },
-    settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
+    settings: { getPublicConfig: vi.fn(async () => ({ providerId: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', agentThinking: 'disabled' as const, hasApiKey: false })), save: vi.fn(), testConnection: vi.fn() },
   } as unknown as Window['zhiji'];
 }
 

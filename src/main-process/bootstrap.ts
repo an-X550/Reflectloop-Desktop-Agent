@@ -1,4 +1,4 @@
-import { app, dialog, safeStorage, shell } from 'electron';
+import { app, dialog, net, safeStorage, shell } from 'electron';
 import path from 'node:path';
 import { CreateJournal, UpdateJournal } from './application/save-journal';
 import { registerHandlers } from './ipc/register-handlers';
@@ -25,6 +25,7 @@ import { AgentFacade } from './agent/agent-facade';
 import { AgentModelTransport } from './agent/agent-model-transport';
 import { ElectronAgentRuntime } from './agent/electron-agent-runtime';
 import { AgentToolDispatcher } from './agent/agent-tool-dispatcher';
+import { AgentMemorySearchService } from './agent/agent-memory-search-service';
 
 export async function bootstrap() {
   const config = new DataRootConfig();
@@ -46,10 +47,13 @@ export async function bootstrap() {
   const generatePeriodicReview = new GeneratePeriodicReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const generateInsightReview = new GenerateInsightReview(journals, reviews, configureAi, reviewTasks, undefined, profile);
   const verifiedPatterns = new VerifiedPatternService(reviews, new VerifiedPatternRepository(dataRoot), configureAi);
-  const webSearch = new WebSearchService();
+  const memorySearch = new AgentMemorySearchService(journals, reviews, verifiedPatterns);
+  // Use Chromium's network stack so controlled web access follows Windows
+  // proxy/WPAD settings instead of Node/Undici's independent network path.
+  const webSearch = new WebSearchService((url, init) => net.fetch(url, init) as Promise<Response>);
   const transfer = new DataTransferService(dataRoot, app.getVersion());
   const dataDirectory = new DataDirectoryService(dataRoot, (target) => shell.openPath(target));
-  const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, verifiedPatterns, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi });
+  const agentToolDispatcher = new AgentToolDispatcher({ journals, reviews, projects, verifiedPatterns, memorySearch, webSearch, createJournal, updateJournal, generateDailyReview, generatePeriodicReview, generateInsightReview, configureAi });
   const agentSessionRoot = path.join(dataRoot, 'agent', 'sessions');
   const agentFacade = new AgentFacade(new ElectronAgentRuntime({ sessionRoot: agentSessionRoot }), new AgentModelTransport(configureAi), agentToolDispatcher, { sessionRoot: agentSessionRoot, trashItem });
   registerHandlers({ journals, projects, reviews, profile, reviewTasks, generateDailyReview, generatePeriodicReview, generateInsightReview, verifiedPatterns, webSearch, templates, dataRootHolder, dataRootConfig: config, appVersion: app.getVersion(), createJournal, updateJournal, configureAi, transfer, dataDirectory, dialog, agentFacade });

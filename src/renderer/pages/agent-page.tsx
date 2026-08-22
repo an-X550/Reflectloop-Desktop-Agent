@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AgentSession } from '../../shared/schemas/agent';
-import { AgentPresentationCardSchema, type AgentPresentationCard, type AgentWorkflowApproval } from '../../shared/schemas/agent-tools';
+import { AgentEventSchema, type AgentEvidenceEvent, type AgentSession } from '../../shared/schemas/agent';
+import { AgentPresentationCardSchema, type AgentNavigationTarget, type AgentPresentationCard, type AgentWorkflowApproval } from '../../shared/schemas/agent-tools';
 import { Button } from '../components/button';
 import { ConfirmDialog } from '../components/confirm-dialog';
 import { MarkdownDocument } from '../components/markdown-document';
@@ -8,17 +8,34 @@ import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
 import { agentNavigationTarget, type NavigationTarget } from '../app/navigation';
 
+const PROVIDER_LABELS = { openai: 'OpenAI', deepseek: 'DeepSeek', custom: '自定义' } as const;
+
+type ToolActivity = { id: string; label: string; phase: 'started' | 'completed' | 'failed' };
+type EvidenceGroup = Pick<AgentEvidenceEvent, 'callId' | 'source' | 'hits'> & { expanded: boolean };
+
+function evidenceKindLabel(kind: AgentEvidenceEvent['hits'][number]['kind']): string {
+  return kind === 'journal' ? '日志' : kind === 'review' ? '复盘' : '已验证模式';
+}
+
+function evidenceNavigationTarget(kind: AgentEvidenceEvent['hits'][number]['kind']): AgentNavigationTarget | null {
+  if (kind === 'journal') return { view: 'journal', intent: 'records' };
+  if (kind === 'review') return { view: 'reviews' };
+  return null;
+}
+
 export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (target: NavigationTarget) => void }) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [stream, setStream] = useState<{ sessionId: string; messageId: string; content: string } | null>(null);
   const [error, setError] = useState('');
-  const [activities, setActivities] = useState<Array<{ id: string; label: string; phase: 'started' | 'completed' | 'failed' }>>([]);
-  const [cards, setCards] = useState<AgentPresentationCard[]>([]);
+  const [activities, setActivities] = useState<Record<string, ToolActivity[]>>({});
+  const [cards, setCards] = useState<Record<string, AgentPresentationCard[]>>({});
+  const [evidenceGroups, setEvidenceGroups] = useState<Record<string, EvidenceGroup[]>>({});
   const [approvals, setApprovals] = useState<Array<{ sessionId: string; approval: AgentWorkflowApproval }>>([]);
   const [needsApiKey, setNeedsApiKey] = useState(false);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+  const [aiConfig, setAiConfig] = useState<Awaited<ReturnType<Window['zhiji']['settings']['getPublicConfig']>> | null>(null);
 
   useEffect(() => {
     void window.zhiji.agent.list().then((items) => {
@@ -32,7 +49,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
       }
       if (event.type === 'message.delta') setStream((current) => current?.messageId === event.messageId ? { ...current, content: current.content + event.delta } : { sessionId: event.sessionId, messageId: event.messageId, content: event.delta });
       if (event.type === 'message.completed') setStream((current) => current?.messageId === event.message.id ? null : current);
-      if (event.type === 'tool.activity') setActivities((items) => [{ id: event.callId, label: event.label, phase: event.phase }, ...items.filter((item) => item.id !== event.callId)].slice(0, 8));
+      if (event.type === 'tool.activity') setActivities((items) => ({ ...items, [event.sessionId]: [{ id: event.callId, label: event.label, phase: event.phase }, ...(items[event.sessionId] ?? []).filter((item) => item.id !== event.callId)].slice(0, 8) }));
       if (event.type === 'ui.navigate') {
         const target = agentNavigationTarget(event.target);
         if (target) onNavigate(target);
@@ -40,8 +57,14 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
       }
       if (event.type === 'ui.present') {
         const card = AgentPresentationCardSchema.safeParse(event.card);
-        if (card.success) setCards((items) => [card.data, ...items].slice(0, 6));
+        if (card.success) setCards((items) => ({ ...items, [event.sessionId]: [card.data, ...(items[event.sessionId] ?? [])].slice(0, 6) }));
         else setError('Agent 请求的结果卡片无效，已拒绝展示。');
+      }
+      if (event.type === 'tool.evidence') {
+        const evidence = AgentEventSchema.safeParse(event);
+        if (evidence.success && evidence.data.type === 'tool.evidence' && evidence.data.hits.length > 0) {
+          setEvidenceGroups((items) => ({ ...items, [event.sessionId]: [{ callId: event.callId, source: event.source, hits: event.hits, expanded: false }, ...(items[event.sessionId] ?? []).filter((item) => item.callId !== event.callId)].slice(0, 6) }));
+        } else if (!evidence.success) setError('Agent 返回的检索证据无效，已拒绝展示。');
       }
       if (event.type === 'workflow.approval') setApprovals((items) => [{ sessionId: event.sessionId, approval: event.approval }, ...items.filter((item) => item.approval.approvalId !== event.approval.approvalId)].slice(0, 6));
       if (event.type === 'error') {
@@ -49,6 +72,11 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
         setNeedsApiKey(/API Key|密钥/.test(event.message));
       }
     });
+  }, []);
+
+  useEffect(() => {
+    if (!window.zhiji.settings) return;
+    void window.zhiji.settings.getPublicConfig().then(setAiConfig).catch(() => setAiConfig(null));
   }, []);
 
   const selected = useMemo(() => sessions.find((item) => item.id === selectedId) ?? null, [selectedId, sessions]);
@@ -72,6 +100,7 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
     setMessage('');
     setError('');
     setNeedsApiKey(false);
+    setEvidenceGroups((items) => { const next = { ...items }; delete next[session.id]; return next; });
     try { await window.zhiji.agent.send({ sessionId: session.id, message: content }); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '发送失败，请重试。'); }
   };
@@ -90,8 +119,9 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
       if (selectedId === id) setSelectedId(remaining[0]?.id ?? null);
       setDeleteSessionId(null);
       setStream(null);
-      setActivities([]);
-      setCards([]);
+      setActivities((items) => { const next = { ...items }; delete next[id]; return next; });
+      setCards((items) => { const next = { ...items }; delete next[id]; return next; });
+      setEvidenceGroups((items) => { const next = { ...items }; delete next[id]; return next; });
       setApprovals((items) => items.filter((item) => item.sessionId !== id));
       setError('');
     } catch (reason) { setError(reason instanceof Error ? reason.message : '删除会话失败，请重试。'); }
@@ -103,9 +133,15 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
       setApprovals((items) => items.filter((current) => current.approval.approvalId !== item.approval.approvalId));
     } catch (reason) { setError(reason instanceof Error ? reason.message : '确认失败，请重新预览材料。'); }
   };
+  const toggleEvidence = (sessionId: string, callId: string) => {
+    setEvidenceGroups((items) => ({ ...items, [sessionId]: (items[sessionId] ?? []).map((group) => group.callId === callId ? { ...group, expanded: !group.expanded } : group) }));
+  };
+  const selectedActivities = selected ? activities[selected.id] ?? [] : [];
+  const selectedCards = selected ? cards[selected.id] ?? [] : [];
+  const selectedEvidenceGroups = selected ? evidenceGroups[selected.id] ?? [] : [];
 
   return <div className="agent-page">
-    <PageHeader title="知己 Agent" description="用自然语言组织目标；已有日志与复盘能力会继续沿用原有的校验和确认流程。" action={<Button variant="secondary" onClick={() => void createSession()}>新建会话</Button>}/>
+      <PageHeader title="知己 Agent" description="用自然语言组织目标；已有日志与复盘能力会继续沿用原有的校验和确认流程。" action={<div className="button-row"><Button variant="ghost" onClick={() => onNavigate({ view: 'settings', settingsSection: 'ai' })}>模型设置</Button><Button variant="secondary" onClick={() => void createSession()}>新建会话</Button></div>}/>
     <div className="agent-layout">
       <aside className="agent-sessions card" aria-label="Agent 会话列表">
         <h3>会话</h3>
@@ -115,20 +151,21 @@ export function AgentPage({ onNavigate = () => undefined }: { onNavigate?: (targ
       <section className="agent-conversation card">
         {!selected && <div className="agent-empty"><h3>从一个目标开始</h3><p>例如：帮我梳理本周值得复盘的问题。</p><Button variant="primary" onClick={() => void createSession()}>开始对话</Button></div>}
         {selected && <>
-          <div className="agent-conversation__header"><div><h3>{selected.title}</h3><span className="muted">{selected.status === 'running' ? 'Agent 正在思考与组织回复' : selected.status === 'failed' ? '运行已停止，可新建会话继续' : '可以继续输入'}</span></div><div className="button-row">{selected.status === 'running' && <Button variant="ghost" onClick={() => void stop()}>停止</Button>}<Button variant="danger" disabled={selected.status === 'running'} onClick={() => setDeleteSessionId(selected.id)}>删除会话</Button></div></div>
+          <div className="agent-conversation__header"><div><h3>{selected.title}</h3><span className="muted">{selected.status === 'running' ? 'Agent 正在思考与组织回复' : selected.status === 'failed' ? '运行已停止，可新建会话继续' : '可以继续输入'}</span>{aiConfig && <span className="agent-model-status" aria-label="当前 Agent 模型">模型：{PROVIDER_LABELS[aiConfig.providerId]} / {aiConfig.model} · 思考：{aiConfig.providerId === 'deepseek' && aiConfig.agentThinking === 'enabled' ? '开启' : '关闭'}</span>}</div><div className="button-row">{selected.status === 'running' && <Button variant="ghost" onClick={() => void stop()}>停止</Button>}<Button variant="danger" disabled={selected.status === 'running'} onClick={() => setDeleteSessionId(selected.id)}>删除会话</Button></div></div>
           <div className="agent-messages">{selected.messages.map((item) => <article key={item.id} className={`agent-message agent-message--${item.role}`}><strong>{item.role === 'user' ? '你' : '知己 Agent'}</strong>{item.role === 'assistant' ? <MarkdownDocument>{item.content}</MarkdownDocument> : <p>{item.content}</p>}</article>)}
             {stream?.sessionId === selected.id && <article className="agent-message agent-message--assistant"><strong>知己 Agent</strong><MarkdownDocument>{stream.content}</MarkdownDocument><span className="stream-caret" aria-hidden="true"/></article>}
           </div>
-          {(activities.length > 0 || cards.length > 0 || approvals.some((item) => item.sessionId === selected.id)) && <section className="agent-tool-results" aria-label="Agent 工具活动">
-            {activities.map((item) => <p key={item.id} className={`agent-tool-results__activity agent-tool-results__activity--${item.phase}`}>{item.phase === 'started' ? '正在' : item.phase === 'completed' ? '已完成' : '未完成'}：{item.label}</p>)}
+          {(selectedActivities.length > 0 || selectedCards.length > 0 || selectedEvidenceGroups.length > 0 || approvals.some((item) => item.sessionId === selected.id)) && <section className="agent-tool-results" aria-label="Agent 工具活动">
+            {selectedActivities.map((item) => <p key={item.id} className={`agent-tool-results__activity agent-tool-results__activity--${item.phase}`}>{item.phase === 'started' ? '正在' : item.phase === 'completed' ? '已完成' : '未完成'}：{item.label}</p>)}
             {approvals.filter((item) => item.sessionId === selected.id).map((item) => <article className="agent-result-card" key={item.approval.approvalId}><h4>{item.approval.title}</h4><p>{item.approval.summary}</p><p className="muted">材料：{item.approval.preview.sources.length} 条；确认后才会写入正式复盘。</p><ul>{item.approval.preview.sources.slice(0, 8).map((source) => <li key={source.id}>{source.date}：{source.excerpt}</li>)}</ul><Button variant="primary" disabled={selected.status === 'running'} onClick={() => void confirmApproval(item)}>确认并继续</Button></article>)}
-            {cards.map((card, index) => <article className="agent-result-card" key={`${card.title}-${index}`}><h4>{card.title}</h4><p>{card.summary}</p><div>{card.links.map((link, linkIndex) => <Button key={`${link.label}-${linkIndex}`} variant="secondary" onClick={() => { const target = agentNavigationTarget(link.target); if (target) onNavigate(target); else setError('结果链接无效，已拒绝打开。'); }}>{link.label}</Button>)}</div></article>)}
+            {selectedEvidenceGroups.map((group) => <article className="agent-evidence-group agent-result-card" key={group.callId} aria-label="检索证据"><div className="agent-evidence-group__header"><div><h4>本次检索证据</h4><p className="muted">来自已校验的本地记录；候选查询不会作为原文展示。</p></div><span className="agent-evidence-group__count">{group.hits.length} 条</span></div><ul className="agent-evidence-list">{group.hits.slice(0, group.expanded ? 8 : 3).map((hit) => { const rawTarget = evidenceNavigationTarget(hit.kind); return <li key={hit.id} className="agent-evidence-card"><div className="agent-evidence-card__meta"><span>{evidenceKindLabel(hit.kind)}</span><time>{hit.date ?? '日期未知'}</time></div><p>{hit.excerpt}</p>{rawTarget && <Button variant="secondary" onClick={() => { const target = agentNavigationTarget(rawTarget); if (target) onNavigate(target); else setError('证据来源页面无效，已拒绝打开。'); }}>查看{evidenceKindLabel(hit.kind)}</Button>}</li>; })}</ul>{group.hits.length > 3 && <Button variant="ghost" onClick={() => toggleEvidence(selected.id, group.callId)}>{group.expanded ? '收起证据' : `展开全部证据（最多 ${Math.min(group.hits.length, 8)} 条）`}</Button>}</article>)}
+            {selectedCards.map((card, index) => <article className="agent-result-card" key={`${card.title}-${index}`}><h4>{card.title}</h4><p>{card.summary}</p><div>{card.links.map((link, linkIndex) => <Button key={`${link.label}-${linkIndex}`} variant="secondary" onClick={() => { const target = agentNavigationTarget(link.target); if (target) onNavigate(target); else setError('结果链接无效，已拒绝打开。'); }}>{link.label}</Button>)}</div></article>)}
           </section>}
           <div className="agent-composer"><textarea aria-label="向知己 Agent 发送消息" value={message} rows={3} placeholder="描述你的目标、补充材料或继续追问…" disabled={selected.status === 'running'} onChange={(event) => setMessage(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }}/><Button variant="primary" disabled={!message.trim() || selected.status === 'running'} onClick={() => void send()}>发送</Button></div>
         </>}
       </section>
     </div>
     <ConfirmDialog open={deleteSessionId !== null} title="删除这个 Agent 会话？" description="会话消息会移入系统回收站，日志、复盘和其他会话不受影响。" confirmLabel="确认删除" onCancel={() => setDeleteSessionId(null)} onConfirm={() => void removeSession()}/>
-    {error && <StatusBanner tone="error"><span>{error}</span>{needsApiKey && <Button variant="secondary" onClick={() => onNavigate({ view: 'settings' })}>打开设置</Button>}</StatusBanner>}
+    {error && <StatusBanner tone="error"><span>{error}</span>{needsApiKey && <Button variant="secondary" onClick={() => onNavigate({ view: 'settings', settingsSection: 'ai' })}>打开设置</Button>}</StatusBanner>}
   </div>;
 }

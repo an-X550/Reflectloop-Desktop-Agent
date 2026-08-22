@@ -4,12 +4,14 @@ import type { MarkdownJournalRepository } from '../infrastructure/markdown/journ
 import type { MarkdownReviewRepository } from '../infrastructure/markdown/review-repository';
 import type { JsonProjectRepository } from '../infrastructure/markdown/project-repository';
 import type { VerifiedPatternService } from '../application/verified-patterns';
+import type { AgentMemorySearchService } from './agent-memory-search-service';
 import type { WebSearchService } from '../infrastructure/web/web-search-service';
 import type { CreateJournal, UpdateJournal } from '../application/save-journal';
 import type { GenerateDailyReview } from '../application/generate-daily-review';
 import type { GeneratePeriodicReview } from '../application/generate-periodic-review';
 import type { GenerateInsightReview } from '../application/generate-insight-review';
 import type { ConfigureAi } from '../application/configure-ai';
+import { appError } from '../../shared/errors/app-error';
 
 const PATH_OR_URL = /(?:[a-z]:[\\/]|\\\\|\/[a-z0-9._~-]+(?:[\\/]|$)|https?:\/\/)/i;
 
@@ -51,6 +53,7 @@ export class AgentToolDispatcher {
     reviews: Pick<MarkdownReviewRepository, 'list' | 'get'>;
     projects: Pick<JsonProjectRepository, 'list'>;
     verifiedPatterns: Pick<VerifiedPatternService, 'list'>;
+    memorySearch: Pick<AgentMemorySearchService, 'search'>;
     webSearch: Pick<WebSearchService, 'search' | 'readSource'>;
     createJournal: Pick<CreateJournal, 'execute'>;
     updateJournal: Pick<UpdateJournal, 'execute'>;
@@ -113,6 +116,10 @@ export class AgentToolDispatcher {
         const snapshot = await this.deps.verifiedPatterns.list();
         return { kind: 'patterns.list', patterns: snapshot.patterns.slice(-100).map((item) => ({ id: item.id, statement: safeText(item.statement, 500), evidenceSummary: safeText(item.evidenceSummary), sourceReviewIds: item.sourceReviewIds })) };
       }
+      case 'memory.search': {
+        const response = await this.deps.memorySearch.search(request.input);
+        return { kind: 'memory.search', hits: response.hits.map((item) => ({ id: item.id, kind: item.kind, date: item.date, excerpt: safeText(item.excerpt, 800) })) };
+      }
       case 'web.search': {
         const response = await this.deps.webSearch.search(request.input);
         return { kind: 'web.search', searchSessionId: response.searchSessionId, results: response.results.map((item) => ({ sourceId: item.sourceId, title: safeText(item.title, 300), snippet: safeText(item.snippet) })) };
@@ -134,6 +141,7 @@ export class AgentToolDispatcher {
       case 'reviews.generate-daily': {
         const result = await this.deps.generateDailyReview.execute({ ...request.input, model: (await this.deps.configureAi.getPublicConfig()).model }, signal);
         if (result.kind === 'clarification') return { kind: 'workflow.clarification', workflow: 'reviews.generate-daily', question: result.question };
+        if (result.kind === 'error') throw appError({ code: 'INVALID_MODEL_OUTPUT', message: result.message, diagnostics: result.diagnostics });
         return { kind: 'workflow.completed', workflow: 'reviews.generate-daily', review: this.reviewSummary(result.review), navigation: { view: 'journal', intent: 'records' } };
       }
       case 'reviews.preview-periodic': {

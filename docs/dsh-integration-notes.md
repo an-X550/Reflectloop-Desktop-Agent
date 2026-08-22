@@ -11,7 +11,7 @@
 
 | 项目 | 证据 |
 |---|---|
-| 源码目录 | 本地 DSH 源码检出目录，仅用于接口核验和源码构建复验，不是桌面端运行依赖；实际路径通过 `DSH_SOURCE_ROOT` 指定。 |
+| 源码目录 | `D:\AI\deepseek-harness`；当前执行进程已读取 `DSH_SOURCE_ROOT=D:\AI\deepseek-harness`，User/Machine 持久化变量未设定；本阶段只读/构建该目录，后续启动需确保进程继承该变量。 |
 | 源码版本 | Git `141eb6fef83422698aef7a981029e843e8161534`，`0.1.0-rc.8`，提交时间 `2026-08-19T23:11:50+08:00`。 |
 | 运行要求 | 根 `package.json` 声明 Node `^22.19.0 || >=24.0.0`、`pnpm@11.7.0`；本机构建使用 Node `24.18.0`。 |
 | 构建 | 在源码目录执行 `pnpm run build` 成功；`.dsh-build/client-build-environment.json` 更新时间为 2026-08-20 17:37:48。 |

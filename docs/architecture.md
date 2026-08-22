@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-21
 >
-> 读者：需要修改或优化本仓库的 AI 代理与开发者
+> 读者：需要修改或优化 `apps/zhiji-desktop/` 的 AI 代理与开发者
 >
 > 证据口径：本文所有描述均核对过当前 `main` 分支源码；行为描述与代码不一致时，以代码为准并同步修正本文
 >
@@ -37,7 +37,7 @@
 | 压缩 | adm-zip | 备份导出/恢复 |
 | 测试 | vitest ^2 + @testing-library/react + playwright | unit + integration + e2e |
 
-命令（在本仓库根目录下）：
+命令（在 `apps/zhiji-desktop/` 下）：
 
 ```text
 npm start          开发运行

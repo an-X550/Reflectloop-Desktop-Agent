@@ -4,13 +4,16 @@ import { Context } from '@deepseek-ai/cordis';
 import { readFile, readdir } from 'node:fs/promises';
 import { AgentRegistry, type Agent, type AgentHandle } from '@deepseek-ai/dsh-agent';
 import { AgentLoop } from '@deepseek-ai/dsh-agent-loop';
+import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic';
+import { ToolResultPruner } from '@deepseek-ai/dsh-compaction-tool-result-pruner';
 import { LlmRuntime, LlmAdapter, type GenerateOptions, type StreamChunk, createUserMessage } from '@deepseek-ai/dsh-llm';
 import { SessionId, type SessionEvent, type SessionHeader } from '@deepseek-ai/dsh-session';
 import { SessionStore } from '@deepseek-ai/dsh-session';
 import { JsonlSessionPersistence } from '@deepseek-ai/dsh-session-persistence-jsonl';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
+import { TokenMeter } from '@deepseek-ai/dsh-token-meter';
 import { ToolRuntime, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools';
-import { AgentUtilityCommandSchema, type AgentModelRequest, type AgentModelResponse, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
+import { AgentUtilityCommandSchema, type AgentModelRequest, type AgentModelResponse, type AgentRuntimeModelConfig, type AgentUtilityEvent } from '../../shared/schemas/agent-protocol';
 import type { AgentMessage, AgentSession } from '../../shared/schemas/agent';
 import type { AgentToolResult } from '../../shared/schemas/agent-tools';
 
@@ -23,10 +26,22 @@ export interface UtilityMessagePort {
 export interface DshRuntimeOptions {
   /** The data-root-owned directory for durable DSH session logs. */
   sessionRoot?: string;
+  /** Safe model metadata used by the official token-meter/compaction plugins. */
+  modelConfig?: AgentRuntimeModelConfig;
 }
 
 const ToolOutputSchema = { type: 'object' as const, additionalProperties: true };
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'] as const;
+const DEFAULT_MODEL_CONFIG: AgentRuntimeModelConfig = { providerId: 'deepseek', model: 'deepseek-v4-flash' };
+const DEEPSEEK_V4_CONTEXT_WINDOW = 1_048_576;
+const AGENT_PERSONA = [
+  '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。',
+  '周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。',
+  '输出格式要求：普通回复使用自然语言或 Markdown，不要默认输出 JSON。标题、列表、引用、表格和代码块必须使用真实换行；块级结构之间留空行；Markdown 标记与正文不能挤在同一行。短答也要保留清晰的段落边界；只有确实适合时才使用表格。',
+  '能力自述必须以当前宿主事实为准，不要把模型 API 的理论能力说成知己已经具备：上下文压缩已由 DSH 官方 TokenMeter、ToolResultPruner 和 BasicCompactionEngine 提供；Function Calling、有限多步工具规划和工具结果结构化校验已具备；本地长期记忆可通过 zhiji.memory.search 做关键词/短语检索，但不是向量记忆。',
+  '能力边界：知己没有标准 MCP Client、图片/音频/视频输入、通用 Computer Use 或递归自我修改能力；内部 MessagePort 工具桥不是 MCP。Structured Output 只用于工具和明确的工作流，普通回复保持 Markdown。涉及日志、复盘和验证模式时，优先使用本地记忆检索；没有命中时明确说未检索到，不要编造“记得”。',
+  '证据冲突规则：当 memory.search 返回相互矛盾的日志、复盘或已验证模式时，必须明确列出冲突双方。涉及事实是否发生、时间和用户原始表述时，以日志原文为最高依据。复盘和已验证模式只能作为归纳，不能静默覆盖冲突日志。若日志本身不足以裁决，明确说明无法确认，不得编造结论。',
+].join('\n\n');
 const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; description: string; parameters: Record<string, unknown> }> = [
   { name: 'zhiji.journals.list', action: 'journals.list', label: '读取日志摘要', description: '读取经过脱敏的日志摘要，可按日期或项目筛选。', parameters: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' }, projectId: { type: 'string' } }, additionalProperties: false } },
   { name: 'zhiji.journals.get', action: 'journals.get', label: '读取日志摘要', description: '按日志 ID 读取经过脱敏的摘要。', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
@@ -34,6 +49,7 @@ const TOOL_DEFINITIONS: Array<{ name: string; action: string; label: string; des
   { name: 'zhiji.reviews.get', action: 'reviews.get', label: '读取复盘摘要', description: '按复盘 ID 读取经过脱敏的摘要。', parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false } },
   { name: 'zhiji.projects.list', action: 'projects.list', label: '读取项目列表', description: '读取项目名称、状态和 ID。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'zhiji.patterns.list', action: 'patterns.list', label: '读取已验证模式', description: '读取用户已确认的验证模式。', parameters: { type: 'object', properties: {}, additionalProperties: false } },
+  { name: 'zhiji.memory.search', action: 'memory.search', label: '检索长期记忆', description: '只读检索知己本地日志、复盘和已确认验证模式的词法证据；query 保留用户原始问题，只有存在有限词汇差异时才提供最多 3 个 alternates。alternates 只能是检索表达，不得填入未经证实的事实、结论或日期；空结果最多重试一次，不会写入记忆。', parameters: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 200 }, alternates: { type: 'array', maxItems: 3, items: { type: 'string', minLength: 1, maxLength: 80 } }, limit: { type: 'integer', minimum: 1, maximum: 8 } }, required: ['query'], additionalProperties: false } },
   { name: 'zhiji.web.search', action: 'web.search', label: '搜索公开来源', description: '通过受控搜索查找公开来源；结果只提供本次会话的 sourceId。', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } },
   { name: 'zhiji.web.read-source', action: 'web.read-source', label: '读取搜索来源', description: '只读取同一搜索会话返回的 sourceId 对应来源。', parameters: { type: 'object', properties: { searchSessionId: { type: 'string' }, sourceId: { type: 'string' } }, required: ['searchSessionId', 'sourceId'], additionalProperties: false } },
   { name: 'zhiji.journals.create', action: 'journals.create', label: '保存日志', description: '在用户明确要求记录时，通过知己正式日志服务保存一条日志。', parameters: { type: 'object', properties: { date: { type: 'string' }, body: { type: 'string' }, projectIds: { type: 'array', items: { type: 'string' } } }, required: ['date', 'body'], additionalProperties: false } },
@@ -78,6 +94,11 @@ class AsyncQueue<T> implements AsyncIterable<T> {
 class MainProcessModelAdapter extends LlmAdapter {
   constructor(private readonly runtime: DshRuntime) { super(); }
   stream(options: GenerateOptions): AsyncIterable<StreamChunk> { return this.runtime.streamModel(options); }
+  resolveModel(provider: string, model: string): Promise<{ provider: string; id: string; name: string; context?: { contextWindow: number } }> {
+    const configured = this.runtime.getModelConfig();
+    const contextWindow = knownContextWindow(configured.providerId, configured.model);
+    return Promise.resolve({ provider, id: model, name: configured.model, ...(contextWindow ? { context: { contextWindow } } : {}) });
+  }
 }
 
 /**
@@ -86,18 +107,24 @@ class MainProcessModelAdapter extends LlmAdapter {
  */
 export class DshRuntime {
   private readonly ctx = new Context();
+  private modelConfig: AgentRuntimeModelConfig;
   private readonly agents = new Map<string, AgentHandle>();
   private readonly modelRequests = new Map<string, { queue: AsyncQueue<StreamChunk>; text: string; abort: () => void }>();
   private readonly toolRequests = new Map<string, { resolve: (result: AgentToolResult) => void; reject: (error: Error) => void }>();
   private readonly assistantMessageIds = new Map<string, string>();
   private started = false;
 
-  constructor(private readonly port: UtilityMessagePort, private readonly options: DshRuntimeOptions = {}) {}
+  constructor(private readonly port: UtilityMessagePort, private readonly options: DshRuntimeOptions = {}) {
+    this.modelConfig = options.modelConfig ?? DEFAULT_MODEL_CONFIG;
+  }
 
   async start(): Promise<void> {
     if (this.started) return;
     await this.ctx.plugin(LlmRuntime);
     await this.ctx.plugin(SessionStore);
+    await this.ctx.plugin(TokenMeter);
+    await this.ctx.plugin(ToolResultPruner);
+    await this.ctx.plugin(BasicCompactionEngine);
     if (this.options.sessionRoot) {
       await this.ctx.plugin(JsonlSessionPersistence, {
         root: this.options.sessionRoot,
@@ -105,7 +132,7 @@ export class DshRuntime {
         packChunks: false,
       });
     }
-    await this.ctx.plugin(SystemPrompt, { persona: '你是知己的对话助手。通过已注册的知己能力帮助用户完成目标；可读取经脱敏的日志、复盘、项目和验证模式，也可在用户明确要求时保存或更新日志、生成每日反馈。周/月/项目复盘和洞察复盘必须先预览材料，再等待用户点击知己 Agent 页面中的确认按钮；不要把自己的判断或普通聊天中的“确认”当成用户确认。不要声称已写入或生成正式内容，除非对应工具返回成功；正式内容始终由知己既有校验、证据降级和保存服务负责。' });
+    await this.ctx.plugin(SystemPrompt, { persona: AGENT_PERSONA });
     await this.ctx.plugin(ToolRuntime, {});
     for (const definition of TOOL_DEFINITIONS) this.ctx.tools.register(this.createTool(definition));
     await this.ctx.plugin(AgentRegistry);
@@ -138,6 +165,9 @@ export class DshRuntime {
     const controller = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
     let output = '';
+    let reasoningOutput = '';
+    let textStarted = false;
+    let reasoningStarted = false;
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
     const onAbort = () => {
       this.post({ type: 'model.cancel', requestId });
@@ -149,10 +179,11 @@ export class DshRuntime {
     const messages: AgentModelRequest['messages'] = [];
     for (const message of options.messages) {
       const text = message.content.filter((block) => block.type === 'text').map((block) => block.text).join('');
+      const reasoning = message.content.filter((block) => block.type === 'reasoning').map((block) => block.text).join('');
       const calls = message.content.filter((block) => block.type === 'tool-call').map((block) => ({ id: String(block.id), name: block.name, arguments: block.arguments }));
       const result = message.content.find((block) => block.type === 'tool-result');
       if (result?.type === 'tool-result') messages.push({ role: 'tool', toolCallId: String(result.toolCallId), content: result.content.filter((block) => block.type === 'text').map((block) => block.text).join('') });
-      else if (message.role === 'assistant' && (text || calls.length)) messages.push({ role: 'assistant', content: text, ...(calls.length ? { toolCalls: calls } : {}) });
+      else if (message.role === 'assistant' && (text || reasoning || calls.length)) messages.push({ role: 'assistant', content: text, ...(reasoning ? { reasoning } : {}), ...(calls.length ? { toolCalls: calls } : {}) });
       else if ((message.role === 'user' || message.role === 'system') && text) messages.push({ role: message.role, content: text });
     }
     this.post({
@@ -164,20 +195,40 @@ export class DshRuntime {
       ...(options.tools?.length ? { tools: options.tools.map(({ name, description, parameters }) => ({ name, description, parameters })) } : {}),
     });
     try {
-      yield { type: 'block-start', index: 0, blockType: 'text' };
+      let terminal: Extract<StreamChunk, { type: 'finish' }> | undefined;
       for await (const chunk of queue) {
-        if (chunk.type === 'text-delta') output += chunk.text;
+        if (chunk.type === 'finish') { terminal = chunk; continue; }
+        if (chunk.type === 'text-delta') {
+          if (!textStarted) { textStarted = true; yield { type: 'block-start', index: 0, blockType: 'text' }; }
+          output += chunk.text;
+          yield { ...chunk, index: 0 };
+          continue;
+        }
+        if (chunk.type === 'reasoning-delta') {
+          if (!reasoningStarted) { reasoningStarted = true; yield { type: 'block-start', index: 1, blockType: 'reasoning' }; }
+          reasoningOutput += chunk.text;
+          yield { ...chunk, index: 1 };
+          continue;
+        }
         if (chunk.type === 'tool-call-delta') {
-          const current = toolCalls.get(chunk.index) ?? { id: String(chunk.id), name: '', arguments: '' };
+          const blockIndex = chunk.index + 2;
+          const current = toolCalls.get(blockIndex) ?? { id: String(chunk.id), name: '', arguments: '' };
           if (chunk.name) current.name = chunk.name;
           current.arguments += chunk.argumentsDelta;
-          toolCalls.set(chunk.index, current);
-          if (current.arguments === chunk.argumentsDelta) yield { type: 'block-start', index: chunk.index, blockType: 'tool-call' };
+          toolCalls.set(blockIndex, current);
+          if (current.arguments === chunk.argumentsDelta) yield { type: 'block-start', index: blockIndex, blockType: 'tool-call' };
+          yield { ...chunk, index: blockIndex };
+          continue;
         }
         yield chunk;
       }
-      for (const [index, tool] of toolCalls) yield { type: 'block-end', index, block: { type: 'tool-call', id: tool.id as never, name: tool.name, arguments: tool.arguments } };
-      if (output) yield { type: 'block-end', index: 0, block: { type: 'text', text: output } };
+      const finish = terminal ?? { type: 'finish' as const, reason: { kind: 'stop' as const } };
+      if (finish.reason.kind === 'stop') {
+        for (const [index, tool] of toolCalls) yield { type: 'block-end', index, block: { type: 'tool-call', id: tool.id as never, name: tool.name, arguments: tool.arguments } };
+      }
+      if (reasoningStarted) yield { type: 'block-end', index: 1, block: { type: 'reasoning', text: reasoningOutput } };
+      if (textStarted) yield { type: 'block-end', index: 0, block: { type: 'text', text: output } };
+      yield finish;
     } finally {
       signal.removeEventListener('abort', onAbort);
       this.modelRequests.delete(requestId);
@@ -188,7 +239,7 @@ export class DshRuntime {
     const command = AgentUtilityCommandSchema.safeParse(raw);
     if (!command.success) return;
     const value = command.data;
-    if (value.type === 'model.delta' || value.type === 'model.tool-call' || value.type === 'model.completed' || value.type === 'model.failed' || value.type === 'model.cancelled') {
+    if (value.type === 'model.delta' || value.type === 'model.reasoning-delta' || value.type === 'model.tool-call' || value.type === 'model.completed' || value.type === 'model.failed' || value.type === 'model.cancelled') {
       this.resolveModel(value);
       return;
     }
@@ -214,6 +265,8 @@ export class DshRuntime {
           await handle.dispose();
           this.agents.delete(value.sessionId);
         }
+      } else if (value.type === 'runtime.configure') {
+        this.modelConfig = value.config;
       } else if (value.type === 'runtime.shutdown') {
         await this.dispose();
       }
@@ -227,6 +280,7 @@ export class DshRuntime {
     const request = this.modelRequests.get(command.requestId);
     if (!request) return;
     if (command.type === 'model.delta') request.queue.push({ type: 'text-delta', index: 0, text: command.delta });
+    if (command.type === 'model.reasoning-delta') request.queue.push({ type: 'reasoning-delta', index: 1, text: command.delta });
     if (command.type === 'model.tool-call') request.queue.push({ type: 'tool-call-delta', index: command.index, id: command.callId as never, ...(command.name ? { name: command.name } : {}), argumentsDelta: command.argumentsDelta });
     if (command.type === 'model.completed') { request.queue.push({ type: 'finish', reason: { kind: 'stop' } }); request.queue.close(); }
     if (command.type === 'model.cancelled') { request.queue.push({ type: 'finish', reason: { kind: 'aborted', failure: { code: 'ABORTED', message: '请求已取消。' } } }); request.queue.close(); }
@@ -316,6 +370,8 @@ export class DshRuntime {
 
   private post(event: AgentUtilityEvent): void { this.port.postMessage(event); }
 
+  getModelConfig(): AgentRuntimeModelConfig { return this.modelConfig; }
+
   private createTool(definition: typeof TOOL_DEFINITIONS[number]): ToolDefinition {
     return {
       name: definition.name,
@@ -354,6 +410,10 @@ export class DshRuntime {
 function currentDateInstruction(now = new Date()): string {
   const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   return `知己桌面端当前本地日期是 ${date}，今天是星期${WEEKDAYS[now.getDay()]}。涉及“今天、昨天、明天、本周、星期几”等日期问题时，必须以此为准直接回答，不要声称需要联网，也不要猜测其他日期。`;
+}
+
+function knownContextWindow(providerId: AgentRuntimeModelConfig['providerId'], model: string): number | undefined {
+  return providerId === 'deepseek' && /^deepseek-v4-(flash|pro)$/i.test(model.trim()) ? DEEPSEEK_V4_CONTEXT_WINDOW : undefined;
 }
 
 function sessionSummary(meta: SessionHeader, events: readonly SessionEvent[]): AgentSession {

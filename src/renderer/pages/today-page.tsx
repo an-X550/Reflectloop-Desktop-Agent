@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { StructuredOutputDiagnostics } from '../../shared/errors/app-error';
 import type { Journal, JournalTemplate, Project, Review } from '../../shared/schemas/domain';
 import type { NavigationIntent, NavigationTarget } from '../app/navigation';
 import { Button } from '../components/button';
@@ -8,6 +9,7 @@ import { Field } from '../components/field';
 import { PageHeader } from '../components/page-header';
 import { StatusBanner } from '../components/status-banner';
 import { MarkdownDocument } from '../components/markdown-document';
+import { TemplateManager } from '../features/templates/template-manager';
 import { RecordBrowser } from './history-page';
 import { toLocalDateString } from '../utils/local-date';
 
@@ -18,8 +20,17 @@ const TASK_PHASE_LABELS: Record<string, string> = {
   building_context: '正在整理材料…',
   generating: 'AI 正在生成反馈…',
   validating: '正在校验结构…',
+  retrying_format: '正在重新整理反馈格式…',
   saving: '正在保存到本机…',
 };
+
+function safeGenerationError(reason: unknown): string {
+  if (reason instanceof Error) {
+    const message = reason.message.replace(/^Error invoking remote method '[^']+':\s*/, '').trim();
+    if (message && message.length <= 140 && !/[\\/]|https?:\/\//i.test(message)) return `生成失败：${message}`;
+  }
+  return '生成失败：请检查 AI 设置或稍后重试。';
+}
 
 export function TodayPage({ journals, projects, reviews, intent, hasApiKey = true, onRefresh, onNavigate, onDirtyChange }: { journals: Journal[]; projects: Project[]; reviews: Review[]; intent?: NavigationIntent; hasApiKey?: boolean; onRefresh(): Promise<void> | void; onNavigate(target: NavigationTarget): void; onDirtyChange?(dirty: boolean): void }) {
   const [section, setSection] = useState<'compose' | 'records'>(intent?.type === 'records.journals' ? 'records' : 'compose');
@@ -36,6 +47,9 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
   const [taskPhase, setTaskPhase] = useState('');
   const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null);
   const [templates, setTemplates] = useState<JournalTemplate[]>([]);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [dailyFailure, setDailyFailure] = useState<StructuredOutputDiagnostics | null>(null);
+  const [retryDate, setRetryDate] = useState<string | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const dirty = Boolean(body.trim()) || Boolean(editing);
   // 未保存时先弹确认框，确认后才执行动作；干净时直接执行
@@ -68,13 +82,16 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
     } catch (reason) { setSaveState('error'); setSaveMessage(`保存失败：${reason instanceof Error ? reason.message : '请稍后重试'}`); return null; }
   };
   const runDailyReview = async (reviewDate: string, pendingBody: boolean) => {
-    setReviewState('loading'); setReviewMessage(''); setDailyReviewBody(null);
+    setReviewState('loading'); setReviewMessage(''); setDailyReviewBody(null); setDailyFailure(null); setRetryDate(null);
     try {
       if (pendingBody) { const journal = await save(); if (!journal) return; }
       const result = await window.zhiji.reviews.generateDaily({ date: reviewDate });
       if (result.kind === 'clarification') { setReviewState('info'); setReviewMessage(result.question); return; }
+      if (result.kind === 'error') {
+        setReviewState('error'); setReviewMessage(result.message); setDailyFailure(result.diagnostics); setRetryDate(reviewDate); return;
+      }
       await onRefresh(); setReviewState('success'); setReviewMessage('今日反馈已生成'); setDailyReviewBody(result.review.body);
-    } catch (reason) { setReviewState('error'); setReviewMessage(`生成失败：${reason instanceof Error ? reason.message : '请检查 AI 设置'}`); }
+    } catch (reason) { setReviewState('error'); setReviewMessage(safeGenerationError(reason)); setRetryDate(reviewDate); }
   };
   const generate = async () => {
     const reviewDate = body.trim() ? date : (journals.some((item) => item.date === today) ? today : null);
@@ -82,7 +99,7 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
     await runDailyReview(reviewDate, Boolean(body.trim()));
   };
   const generateForDate = async (reviewDate: string) => {
-    if (!hasApiKey) { onNavigate({ view: 'settings' }); return; }
+    if (!hasApiKey) { onNavigate({ view: 'settings', settingsSection: 'ai' }); return; }
     await runDailyReview(reviewDate, false);
   };
   const removeJournal = async () => {
@@ -101,7 +118,7 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
   const primaryLabel = canGenerate ? (body.trim() ? '保存并生成今日反馈' : '生成今日反馈') : '保存日志';
 
   return <>
-    {!hasApiKey && <div className="ai-hint"><span>日志可直接保存；配置后还能生成反馈。</span><Button variant="secondary" onClick={() => onNavigate({ view: 'settings' })}>配置 AI</Button></div>}
+    {!hasApiKey && <div className="ai-hint"><span>日志可直接保存；配置后还能生成反馈。</span><Button variant="secondary" onClick={() => onNavigate({ view: 'settings', settingsSection: 'ai' })}>配置 AI</Button></div>}
     <PageHeader
       title={section === 'compose' ? '写一条日志' : '过去日志'}
       description={section === 'compose' ? '选择今天或过去日期，真实地写就够了。' : '按日期找到过去的原始记录。'}
@@ -121,15 +138,13 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
           <Field label="日志日期"><input aria-label="日志日期" type="date" max={today} value={date} onChange={(event) => { setDate(event.target.value); setSaveState('idle'); }}/></Field>
           <Field label="关联项目（可选）"><select value={projectId} onChange={(event) => { setProjectId(event.target.value); setSaveState('idle'); }}><option value="">不关联项目</option>{projects.filter((item) => item.status === 'active').map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
           <Field label="日志内容">
-            {templates.length > 0 && (
-              <div className="editor-meta" style={{ marginBottom: 8 }}>
-                <select aria-label="选择模板" value="" onChange={(event) => { if (event.target.value) { const tpl = templates.find((t) => t.name === event.target.value); if (tpl) setBody((old) => (old ? `${old}\n\n${tpl.body}` : tpl.body)); setSaveState('idle'); } event.target.value = ''; }}>
-                  <option value="">从模板开始…</option>
-                  {templates.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
-                </select>
-                <button type="button" className="reader-actions" style={{ border: 0, background: 'transparent', color: 'var(--accent)', font: 'var(--text-footnote)', fontWeight: 600, cursor: 'pointer' }} onClick={() => onNavigate({ view: 'settings' })}>管理模板</button>
-              </div>
-            )}
+            <div className="editor-meta template-entry" style={{ marginBottom: 8 }}>
+              <select aria-label="选择模板" value="" onChange={(event) => { if (event.target.value) { const tpl = templates.find((t) => t.name === event.target.value); if (tpl) setBody((old) => (old ? `${old}\n\n${tpl.body}` : tpl.body)); setSaveState('idle'); } event.target.value = ''; }}>
+                <option value="">从模板开始…</option>
+                {templates.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+              </select>
+              <button type="button" className="reader-actions" style={{ border: 0, background: 'transparent', color: 'var(--accent)', font: 'var(--text-footnote)', fontWeight: 600, cursor: 'pointer' }} onClick={() => setTemplateManagerOpen(true)}>管理模板</button>
+            </div>
             <textarea ref={editorRef} aria-label="日志内容" value={body} onChange={(event) => { setBody(event.target.value); setSaveState('idle'); }} placeholder={templates.length ? '选择模板或直接开始记录…' : '发生了什么？你做了什么？结果怎样？'}/>
           </Field>
           <div className="editor-meta"><span className="tag">{date === today ? '今天' : date}</span><span className="tag">{body.length} 字</span></div>
@@ -141,6 +156,10 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
           </div>
           {reviewState === 'loading' && <StatusBanner tone="info">{taskPhase || '正在根据日志生成反馈…'}</StatusBanner>}
           {reviewState !== 'loading' && reviewMessage && <StatusBanner tone={reviewState === 'error' ? 'error' : reviewState === 'success' ? 'success' : 'info'}>{reviewMessage}</StatusBanner>}
+          {reviewState === 'error' && retryDate && <div className="review-failure-actions">
+            <Button variant="secondary" onClick={() => void runDailyReview(retryDate, false)}>重新生成</Button>
+            {dailyFailure && <details><summary>查看技术信息</summary><dl className="diagnostic-list"><div><dt>失败类型</dt><dd>{dailyFailure.kind}</dd></div><div><dt>结束原因</dt><dd>{dailyFailure.finishReason ?? '未提供'}</dd></div><div><dt>输出长度</dt><dd>{dailyFailure.outputLength}</dd></div>{dailyFailure.schemaPaths.length > 0 && <div><dt>字段位置</dt><dd>{dailyFailure.schemaPaths.join('、')}</dd></div>}</dl></details>}
+          </div>}
           {dailyReviewBody && <article className="card inline-review">
             <MarkdownDocument>{dailyReviewBody}</MarkdownDocument>
           </article>}
@@ -160,5 +179,6 @@ export function TodayPage({ journals, projects, reviews, intent, hasApiKey = tru
       </section>
     </>}
     <ConfirmDialog open={pendingDiscard !== null} title="放弃未保存的内容？" description="这条日志还没有保存，继续操作会丢失未保存的内容。" confirmLabel="放弃" onCancel={() => setPendingDiscard(null)} onConfirm={() => { const action = pendingDiscard; setPendingDiscard(null); action?.(); }}/>
+    <TemplateManager open={templateManagerOpen} templates={templates} onClose={() => setTemplateManagerOpen(false)} onChanged={setTemplates}/>
   </>;
 }

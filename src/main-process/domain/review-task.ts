@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { appError } from '../../shared/errors/app-error';
 
-export type ReviewTaskPhase = 'queued' | 'building_context' | 'generating' | 'validating' | 'saving' | 'completed' | 'failed' | 'cancelled';
+export type ReviewTaskPhase = 'queued' | 'building_context' | 'generating' | 'retrying_format' | 'validating' | 'saving' | 'completed' | 'failed' | 'cancelled';
 export interface ReviewTask { taskId: string; phase: ReviewTaskPhase; controller: AbortController }
 const terminal = new Set<ReviewTaskPhase>(['completed', 'failed', 'cancelled']);
 

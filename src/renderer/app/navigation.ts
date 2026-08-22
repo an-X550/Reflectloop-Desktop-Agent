@@ -1,4 +1,5 @@
 export type AppView = 'start' | 'agent' | 'journal' | 'reviews' | 'projects' | 'settings';
+export type SettingsSection = 'general' | 'ai' | 'data';
 
 export type NavigationIntent =
   | { type: 'journal.compose' }
@@ -10,7 +11,7 @@ export type NavigationIntent =
   | { type: 'review.coach' }
   | { type: 'review.project'; projectId: string };
 
-export type NavigationTarget = { view: AppView; intent?: NavigationIntent };
+export type NavigationTarget = { view: AppView; intent?: NavigationIntent; settingsSection?: SettingsSection };
 
 /** 将 Agent 传来的受校验数据映射为既有页面意图；不解释文本或执行脚本。 */
 export function agentNavigationTarget(raw: unknown): NavigationTarget | null {

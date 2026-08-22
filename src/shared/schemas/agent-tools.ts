@@ -31,6 +31,25 @@ export const AgentPresentationCardSchema = z.object({
 const JournalListInputSchema = z.object({ start: IsoDate.optional(), end: IsoDate.optional(), projectId: StableProjectId.optional() }).strict();
 const JournalGetInputSchema = z.object({ id: StableJournalId }).strict();
 const ReviewGetInputSchema = z.object({ id: StableReviewId }).strict();
+const MemorySearchAlternatesSchema = z.preprocess(
+  (value) => {
+    if (!Array.isArray(value)) {
+      return value;
+    }
+
+    const trimmed = value.map((item) =>
+      typeof item === 'string' ? item.trim() : item,
+    );
+    return trimmed.filter((item, index) => trimmed.indexOf(item) === index);
+  },
+  z.array(z.string().min(1).max(80)).max(3).optional(),
+);
+
+const MemorySearchInputSchema = z.object({
+  query: z.string().trim().min(1).max(200),
+  alternates: MemorySearchAlternatesSchema,
+  limit: z.number().int().min(1).max(8).optional(),
+}).strict();
 const WebSearchInputSchema = z.object({ query: z.string().trim().min(1).max(500) }).strict();
 const WebReadInputSchema = z.object({ searchSessionId: SearchSessionIdSchema, sourceId: SourceIdSchema }).strict();
 const validDateRange = (value: { start: string; end: string }) => value.start <= value.end;
@@ -59,6 +78,7 @@ export const AgentToolBridgeRequestSchema = z.discriminatedUnion('action', [
   z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('reviews.get'), input: ReviewGetInputSchema }).strict(),
   z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('projects.list'), input: z.object({}).strict() }).strict(),
   z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('patterns.list'), input: z.object({}).strict() }).strict(),
+  z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('memory.search'), input: MemorySearchInputSchema }).strict(),
   z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('web.search'), input: WebSearchInputSchema }).strict(),
   z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('web.read-source'), input: WebReadInputSchema }).strict(),
   z.object({ type: z.literal('tool.request'), requestId: RequestIdSchema, sessionId: AgentSessionIdSchema, action: z.literal('journals.create'), input: JournalCreateInputSchema }).strict(),
@@ -76,6 +96,7 @@ const AgentJournalSummarySchema = z.object({ id: StableJournalId, date: IsoDate,
 const AgentReviewSummarySchema = z.object({ id: StableReviewId, type: z.enum(['daily', 'weekly', 'monthly', 'project', 'coach', 'yearly', 'life-design']), periodStart: IsoDate, periodEnd: IsoDate, projectId: StableProjectId.nullable(), excerpt: SafeExcerpt }).strict();
 const AgentProjectSummarySchema = z.object({ id: StableProjectId, name: z.string().trim().min(1).max(80), status: z.enum(['active', 'archived']) }).strict();
 const AgentPatternSummarySchema = z.object({ id: z.string().regex(/^pattern_[a-z0-9]+$/), statement: SafeExcerpt, evidenceSummary: SafeExcerpt, sourceReviewIds: z.array(StableReviewId).max(20) }).strict();
+export const AgentMemoryHitSchema = z.object({ id: z.string().regex(/^(journal|review|pattern)_[a-z0-9]+$/), kind: z.enum(['journal', 'review', 'pattern']), date: IsoDate.nullable(), excerpt: z.string().trim().min(1).max(800) }).strict();
 const AgentSearchResultSchema = z.object({ sourceId: SourceIdSchema, title: z.string().trim().min(1).max(300), snippet: z.string().max(1_000) }).strict();
 const AgentReviewPreviewSourceSchema = z.object({ id: z.string().regex(/^(journal|review)_[a-z0-9]+$/), date: IsoDate, excerpt: SafeExcerpt }).strict();
 export const AgentReviewPreviewSchema = z.object({ token: z.string().uuid(), type: z.enum(['weekly', 'monthly', 'project', 'coach', 'yearly', 'life-design']), start: IsoDate, end: IsoDate, sources: z.array(AgentReviewPreviewSourceSchema).max(100) }).strict();
@@ -89,6 +110,7 @@ export const AgentToolResultSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('reviews.get'), review: AgentReviewSummarySchema }).strict(),
   z.object({ kind: z.literal('projects.list'), projects: z.array(AgentProjectSummarySchema).max(100) }).strict(),
   z.object({ kind: z.literal('patterns.list'), patterns: z.array(AgentPatternSummarySchema).max(100) }).strict(),
+  z.object({ kind: z.literal('memory.search'), hits: z.array(AgentMemoryHitSchema).max(8) }).strict(),
   z.object({ kind: z.literal('web.search'), searchSessionId: SearchSessionIdSchema, results: z.array(AgentSearchResultSchema).max(8) }).strict(),
   z.object({ kind: z.literal('web.read-source'), source: z.object({ title: z.string().trim().min(1).max(300), excerpt: z.string().max(2_000) }).strict() }).strict(),
   z.object({ kind: z.literal('workflow.approval-required'), approval: AgentWorkflowApprovalSchema }).strict(),
