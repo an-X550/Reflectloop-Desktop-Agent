@@ -4,6 +4,11 @@ last_updated: 2026-08-22
 
 # 更新记录
 
+## [2026-08-22] [配置] 将桌面仓库定位明确为 Desktop Agent（v2.6.5 -> v2.6.5）
+
+- README、安装说明、源码克隆命令、Release、Issues、主页和 package metadata 统一到 `Reflectloop-Desktop-Agent` / `reflectloop-desktop-agent`。
+- 首屏突出内置受控 Agent，同时保留 Windows 单机应用、非通用 Computer Use 和版本 2.6.5 边界。
+
 ## [2026-08-22] [配置] 同步 ReflectLoop Desktop 仓库地址与包元数据（v2.6.5 -> v2.6.5）
 
 - 仓库改名后，将 README、克隆命令、Release、Issues、主页和 Git remote 统一到 `an-X550/ReflectLoop-Desktop`，主项目链接更新为 `an-X550/Reflectloop`。

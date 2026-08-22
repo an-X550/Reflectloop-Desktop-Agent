@@ -1,8 +1,8 @@
 {
-  "name": "reflectloop-desktop",
+  "name": "reflectloop-desktop-agent",
   "productName": "知己",
   "version": "2.6.5",
-  "description": "本地优先的 AI 日志复盘客户端",
+  "description": "本地优先、内置受控 Agent 的 AI 日志复盘客户端",
   "main": ".vite/build/main.js",
   "private": true,
   "scripts": {
@@ -17,17 +17,25 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
+  "keywords": [
+    "ai-agent",
+    "desktop-app",
+    "electron",
+    "journaling",
+    "local-first",
+    "reflection",
+    "windows"
+  ],
   "author": "知己项目",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/an-X550/ReflectLoop-Desktop.git"
+    "url": "git+https://github.com/an-X550/Reflectloop-Desktop-Agent.git"
   },
   "bugs": {
-    "url": "https://github.com/an-X550/ReflectLoop-Desktop/issues"
+    "url": "https://github.com/an-X550/Reflectloop-Desktop-Agent/issues"
   },
-  "homepage": "https://github.com/an-X550/ReflectLoop-Desktop",
+  "homepage": "https://github.com/an-X550/Reflectloop-Desktop-Agent",
   "devDependencies": {
     "@electron-forge/cli": "^7.11.2",
     "@electron-forge/maker-deb": "^7.11.2",

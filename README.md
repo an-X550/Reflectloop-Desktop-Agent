@@ -1,11 +1,11 @@
-# ReflectLoop Desktop（知己 Windows 客户端）
+# ReflectLoop Desktop Agent（知己 Windows 客户端）
 
-> A local-first Windows app for evidence-grounded journaling, reflection, and action verification.
+> A local-first Windows app with a controlled evidence-grounded Agent for journaling, reflection, and action verification.
 
-ReflectLoop Desktop 面向希望在 Windows 本地写日志、管理项目和进行复盘，但不想配置 CLI 或 Skill 的用户。数据默认保存在自己的电脑上；AI 只在你配置模型并主动发起请求时参与。
+ReflectLoop Desktop Agent 面向希望在 Windows 本地写日志、管理项目和进行复盘，但不想配置 CLI 或 Skill 的用户。它的主要特色是内置受控 Agent：Agent 可以检索有限的本地证据、读取受控公开来源并在确认边界内调用工具，但不是通用电脑控制代理。数据默认保存在自己的电脑上；AI 只在你配置模型并主动发起请求时参与。
 
-- [下载 v2.6.5](https://github.com/an-X550/ReflectLoop-Desktop/releases/tag/v2.6.5)
-- [提交问题](https://github.com/an-X550/ReflectLoop-Desktop/issues)
+- [下载 v2.6.5](https://github.com/an-X550/Reflectloop-Desktop-Agent/releases/tag/v2.6.5)
+- [提交问题](https://github.com/an-X550/Reflectloop-Desktop-Agent/issues)
 - [查看主项目](https://github.com/an-X550/Reflectloop)
 - 许可证：[MIT](LICENSE)
 
@@ -37,7 +37,7 @@ ReflectLoop Desktop 面向希望在 Windows 本地写日志、管理项目和进
 
 ### 1. 安装应用
 
-从 [v2.6.5 Release](https://github.com/an-X550/ReflectLoop-Desktop/releases/tag/v2.6.5) 下载 `Zhiji-Setup-v2.6.5.exe`，双击运行并按 Windows 提示完成安装。
+从 [v2.6.5 Release](https://github.com/an-X550/Reflectloop-Desktop-Agent/releases/tag/v2.6.5) 下载 `Zhiji-Setup-v2.6.5.exe`，双击运行并按 Windows 提示完成安装。
 
 ### 2. 配置 AI 服务
 
@@ -131,8 +131,8 @@ Agent 是完成复盘闭环的一种受控能力，不是能够操作整台电�
 需要 Windows、Git、Node.js 22 或更新版本以及 npm：
 
 ```powershell
-git clone https://github.com/an-X550/ReflectLoop-Desktop.git
-cd ReflectLoop-Desktop
+git clone https://github.com/an-X550/Reflectloop-Desktop-Agent.git
+cd Reflectloop-Desktop-Agent
 npm ci
 npm start
 ```
